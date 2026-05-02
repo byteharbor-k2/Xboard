@@ -90,3 +90,29 @@ Route::get('/' . admin_setting('secure_path', admin_setting('frontend_admin_path
 Route::get('/' . (admin_setting('subscribe_path', 's')) . '/{token}', [\App\Http\Controllers\V1\Client\ClientController::class, 'subscribe'])
     ->middleware('client')
     ->name('client.subscribe');
+
+// /app — 强制渲染原 Xboard 主题，保留原 SPA（登录/注册/用户中心/订阅管理）
+// 自定义首页主题（Freedom）挂在 /，原 SPA 通过 /app/#/login 等 hash 路由访问
+Route::get('/app', function () {
+    $theme = 'Xboard';
+    $themeService = new ThemeService();
+
+    if (!$themeService->exists($theme) || !$themeService->getThemeViewPath($theme)) {
+        abort(500, 'Xboard 主题不可用');
+    }
+
+    $publicThemePath = public_path('theme/' . $theme);
+    if (!File::exists($publicThemePath)) {
+        $themePath = $themeService->getThemePath($theme);
+        File::copyDirectory($themePath, $publicThemePath);
+    }
+
+    return view('theme::' . $theme . '.dashboard', [
+        'title' => admin_setting('app_name', 'Xboard'),
+        'theme' => $theme,
+        'version' => app(UpdateService::class)->getCurrentVersion(),
+        'description' => admin_setting('app_description', 'Xboard is best'),
+        'logo' => admin_setting('logo'),
+        'theme_config' => $themeService->getConfig($theme)
+    ]);
+});
