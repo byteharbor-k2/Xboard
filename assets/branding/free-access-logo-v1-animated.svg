@@ -1,0 +1,89 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Free Access Logo V1 Animated</title>
+  <desc id="desc">An open globe with a flowing route, pulsing network nodes, and a moving signal tracer.</desc>
+  <defs>
+    <linearGradient id="ringGradient" x1="120" y1="408" x2="404" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"/>
+      <stop offset="0.52" stop-color="#1E3A8A"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="routeGradient" x1="128" y1="344" x2="408" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.55" stop-color="#38BDF8"/>
+      <stop offset="1" stop-color="#0F172A"/>
+    </linearGradient>
+    <radialGradient id="nodeGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 0) rotate(90) scale(12)">
+      <stop stop-color="#67E8F9"/>
+      <stop offset="1" stop-color="#67E8F9" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="globeClip">
+      <circle cx="256" cy="256" r="145"/>
+    </clipPath>
+    <path id="signalPath" d="M126 344C171 337 211 311 249 268C285 227 328 184 392 142"/>
+  </defs>
+
+  <circle cx="256" cy="256" r="196" fill="#F8FAFC"/>
+
+  <circle
+    cx="256"
+    cy="256"
+    r="166"
+    stroke="url(#ringGradient)"
+    stroke-width="24"
+    stroke-linecap="round"
+    stroke-dasharray="870 210"
+    transform="rotate(-34 256 256)"
+  />
+
+  <g clip-path="url(#globeClip)" opacity="0.82">
+    <ellipse cx="256" cy="256" rx="138" ry="56" stroke="#0F172A" stroke-opacity="0.22" stroke-width="12"/>
+    <ellipse cx="256" cy="204" rx="112" ry="34" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10"/>
+    <ellipse cx="256" cy="308" rx="112" ry="34" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10"/>
+    <path d="M214 122C169 166 144 208 144 256C144 304 169 346 214 390" stroke="#0F172A" stroke-opacity="0.2" stroke-width="10" stroke-linecap="round"/>
+    <path d="M256 114C235 158 224 206 224 256C224 306 235 354 256 398" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10" stroke-linecap="round"/>
+    <path d="M298 122C343 166 368 208 368 256C368 304 343 346 298 390" stroke="#0F172A" stroke-opacity="0.2" stroke-width="10" stroke-linecap="round"/>
+  </g>
+
+  <use href="#signalPath" stroke="#082F49" stroke-opacity="0.12" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#signalPath" stroke="url(#routeGradient)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <use href="#signalPath" stroke="#D8F8FF" stroke-width="7" stroke-linecap="round" stroke-dasharray="34 260">
+    <animate attributeName="stroke-dashoffset" from="0" to="-294" dur="3.4s" repeatCount="indefinite"/>
+  </use>
+
+  <path
+    d="M372 136L396 138L388 160"
+    stroke="#0F172A"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <g>
+    <circle cx="162" cy="334" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      <animate attributeName="opacity" values="0.35;0.82;0.35" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="162" cy="334" r="8" fill="#22D3EE">
+      <animate attributeName="r" values="6.5;8.5;6.5" dur="2.6s" repeatCount="indefinite"/>
+    </circle>
+
+    <circle cx="250" cy="268" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      <animate attributeName="opacity" values="0.4;0.88;0.4" dur="2.6s" begin="0.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="250" cy="268" r="8" fill="#38BDF8">
+      <animate attributeName="r" values="6.5;8.5;6.5" dur="2.6s" begin="0.5s" repeatCount="indefinite"/>
+    </circle>
+
+    <circle cx="334" cy="180" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      <animate attributeName="opacity" values="0.35;0.8;0.35" dur="2.6s" begin="1s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="334" cy="180" r="8" fill="#0F172A">
+      <animate attributeName="r" values="6.5;8.5;6.5" dur="2.6s" begin="1s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+
+  <circle r="6" fill="#E0FBFF">
+    <animateMotion dur="3.4s" repeatCount="indefinite" rotate="auto">
+      <mpath href="#signalPath"/>
+    </animateMotion>
+  </circle>
+</svg>

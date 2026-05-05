@@ -1,0 +1,1697 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<template id="__bundler_thumbnail" data-bg-color="#06140E">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="t-globe" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#1B5E3F" stop-opacity="0.9"/>
+        <stop offset="60%" stop-color="#0E3A28" stop-opacity="0.4"/>
+        <stop offset="100%" stop-color="#06140E" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="t-arc" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0%" stop-color="#22D3EE" stop-opacity="0"/>
+        <stop offset="50%" stop-color="#22D3EE" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <circle cx="600" cy="400" r="260" fill="url(#t-globe)"/>
+    <g stroke="#2F8F5E" stroke-width="1.2" fill="none" opacity="0.7">
+      <ellipse cx="600" cy="400" rx="260" ry="260"/>
+      <ellipse cx="600" cy="400" rx="260" ry="80"/>
+      <ellipse cx="600" cy="400" rx="180" ry="260"/>
+      <line x1="340" y1="400" x2="860" y2="400"/>
+      <line x1="600" y1="140" x2="600" y2="660"/>
+    </g>
+    <g fill="#22D3EE">
+      <circle cx="460" cy="320" r="6"/>
+      <circle cx="720" cy="280" r="6"/>
+      <circle cx="760" cy="480" r="6"/>
+      <circle cx="500" cy="520" r="6"/>
+    </g>
+    <g stroke="url(#t-arc)" stroke-width="2.5" fill="none" stroke-linecap="round">
+      <path d="M460 320 Q600 220 720 280"/>
+      <path d="M720 280 Q820 380 760 480"/>
+      <path d="M760 480 Q620 580 500 520"/>
+    </g>
+    <text x="600" y="730" text-anchor="middle" fill="#A8BED9" font-family="JetBrains Mono, monospace" font-size="22" letter-spacing="3">FREEDOM SAFETY</text>
+  </svg>
+</template>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=1440" />
+<title>SinX Cloud — Global Access. Protected IP.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0: #060B18;
+    --bg-1: #0A1628;
+    --bg-2: #0F1F38;
+    --ink-0: #E6F1FF;
+    --ink-1: #A8BED9;
+    --ink-2: #6B82A1;
+    --line: rgba(168, 190, 217, 0.14);
+    --line-strong: rgba(168, 190, 217, 0.28);
+    --cyan: #22D3EE;
+    --sky: #38BDF8;
+    --glow: #7DD3FC;
+    --ok: #4ADE80;
+    --warn: #FCD34D;
+    --bad: #F87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg-0);
+    color: var(--ink-0);
+    font-family: 'Inter', system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(1200px 800px at 70% -10%, rgba(34, 211, 238, 0.12), transparent 60%),
+      radial-gradient(900px 700px at -10% 30%, rgba(56, 189, 248, 0.08), transparent 60%),
+      linear-gradient(180deg, #060B18 0%, #0A1628 50%, #060B18 100%);
+    z-index: -2;
+    pointer-events: none;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    background-image:
+      linear-gradient(rgba(168,190,217,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(168,190,217,0.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
+    z-index: -1;
+    pointer-events: none;
+  }
+  h1, h2, h3, h4 { font-family: 'Space Grotesk', sans-serif; font-weight: 600; letter-spacing: -0.02em; }
+  .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.02em; }
+
+  /* ---------- NAV ---------- */
+  .nav {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 56px;
+    backdrop-filter: blur(12px);
+    background: rgba(6, 11, 24, 0.65);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-mark {
+    width: 38px; height: 38px; position: relative;
+    display: grid; place-items: center;
+  }
+  .brand-mark svg { width: 100%; height: 100%; overflow: visible; }
+  .brand-mark .sine-path {
+    stroke-dasharray: 60;
+    stroke-dashoffset: 60;
+    animation: sineDraw 3.4s cubic-bezier(.7,.1,.2,1) infinite;
+  }
+  .brand-mark .sine-glow {
+    filter: drop-shadow(0 0 4px var(--cyan));
+    animation: sineGlow 3.4s ease-in-out infinite;
+  }
+  .brand-mark .x-stroke {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+    animation: xDraw 3.4s cubic-bezier(.7,.1,.2,1) infinite;
+  }
+  .brand-mark .x-stroke.b { animation-delay: .15s; }
+  .brand-mark .tracer {
+    animation: tracerMove 3.4s cubic-bezier(.45,.05,.55,.95) infinite;
+  }
+  @keyframes sineDraw {
+    0%   { stroke-dashoffset: 60; }
+    40%  { stroke-dashoffset: 0; }
+    80%  { stroke-dashoffset: 0; opacity: 1; }
+    100% { stroke-dashoffset: -60; opacity: 0.2; }
+  }
+  @keyframes sineGlow {
+    0%,100% { filter: drop-shadow(0 0 2px var(--cyan)); }
+    50%     { filter: drop-shadow(0 0 8px var(--cyan)); }
+  }
+  @keyframes xDraw {
+    0%   { stroke-dashoffset: 24; }
+    50%  { stroke-dashoffset: 0; }
+    100% { stroke-dashoffset: 0; }
+  }
+  @keyframes tracerMove {
+    0%   { offset-distance: 0%; opacity: 0; }
+    15%  { opacity: 1; }
+    85%  { opacity: 1; }
+    100% { offset-distance: 100%; opacity: 0; }
+  }
+  .brand-text {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700; letter-spacing: 0.01em; font-size: 17px;
+    display: flex; align-items: baseline; gap: 6px;
+  }
+  .brand-text .sin { color: var(--ink-0); }
+  .brand-text .x {
+    color: var(--cyan);
+    font-style: italic; font-weight: 600;
+    position: relative;
+    display: inline-block;
+  }
+  .brand-text .x::after {
+    content: ""; position: absolute; left: -2px; right: -2px; bottom: -2px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    animation: underlineSweep 3.4s ease-in-out infinite;
+  }
+  @keyframes underlineSweep {
+    0%, 100% { transform: scaleX(0); opacity: 0; }
+    40%, 70% { transform: scaleX(1); opacity: 1; }
+  }
+  .brand-text .cloud {
+    color: var(--ink-1); font-weight: 500; font-size: 16px;
+  }
+  .brand-text .cn {
+    font-family: 'Space Grotesk', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    font-weight: 600;
+  }
+  .nav-links { display: flex; gap: 32px; }
+  .nav-links a {
+    color: var(--ink-1); text-decoration: none; font-size: 14px; font-weight: 500;
+    transition: color .2s;
+  }
+  .nav-links a:hover { color: var(--ink-0); }
+  .nav-cta { display: flex; gap: 10px; align-items: center; }
+  .btn {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 500; font-size: 14px;
+    padding: 9px 18px; border-radius: 8px;
+    border: 1px solid var(--line-strong);
+    background: transparent; color: var(--ink-0);
+    cursor: pointer; text-decoration: none;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: all .2s;
+  }
+  .btn:hover { border-color: var(--cyan); color: var(--cyan); }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--cyan), var(--sky));
+    color: #041222; border-color: transparent;
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.25);
+  }
+  .btn-primary:hover { color: #041222; box-shadow: 0 0 32px rgba(34, 211, 238, 0.45); transform: translateY(-1px); }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    position: relative;
+    min-height: 0;
+    padding: 24px 56px 48px;
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 60px;
+    align-items: start;
+    overflow: hidden;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 12px; border-radius: 999px;
+    border: 1px solid var(--line-strong);
+    background: rgba(34, 211, 238, 0.06);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--cyan); text-transform: uppercase; letter-spacing: 0.14em;
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--ok); box-shadow: 0 0 8px var(--ok);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+  .hero h1 {
+    font-size: 72px; line-height: 1.02; margin: 24px 0 20px;
+    font-weight: 600;
+  }
+  .hero h1 .grad {
+    background: linear-gradient(120deg, #FFFFFF 0%, var(--glow) 40%, var(--cyan) 70%, var(--sky) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    background-size: 200% 100%;
+    animation: sheen 6s ease-in-out infinite;
+  }
+  @keyframes sheen { 0%, 100% { background-position: 0% 0; } 50% { background-position: 100% 0; } }
+  .hero .lede {
+    font-size: 19px; color: var(--ink-1); max-width: 520px; line-height: 1.6;
+    margin-bottom: 36px;
+  }
+  .hero-cta { display: flex; gap: 14px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .hero-cta .btn-primary { padding: 14px 24px; font-size: 15px; }
+  .hero-cta .btn { padding: 13px 22px; font-size: 15px; }
+  .hero-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 24px; padding-top: 32px;
+    border-top: 1px solid var(--line);
+    max-width: 560px;
+  }
+  .hero-stats .stat .num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 28px; font-weight: 600; color: var(--ink-0);
+    letter-spacing: -0.02em;
+  }
+  .hero-stats .stat .lbl { color: var(--ink-2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px; }
+
+  /* ---------- GLOBE ---------- */
+  .globe-col {
+    display: flex; flex-direction: column;
+    gap: 32px;
+    margin-top: 0;
+  }
+  .globe-wrap {
+    position: relative; aspect-ratio: 1; max-width: 600px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .globe-wrap::before {
+    content: ""; position: absolute; inset: -8%;
+    background: radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.22), transparent 60%);
+    z-index: 0; filter: blur(20px);
+  }
+  .globe {
+    position: relative; z-index: 1;
+    width: 100%; height: 100%;
+  }
+  .globe-badge {
+    position: absolute;
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 10px;
+    background: rgba(10, 22, 40, 0.85);
+    border: 1px solid var(--line-strong);
+    backdrop-filter: blur(8px);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-0);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    z-index: 4;
+    animation: float 6s ease-in-out infinite;
+  }
+  .globe-badge .ping { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .globe-badge .ping.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .globe-badge .country { color: var(--ink-1); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .globe-badge .latency { color: var(--cyan); font-weight: 500; }
+  .gb-1 { top: 8%; right: -6%; animation-delay: 0s; }
+  .gb-2 { top: 38%; left: -12%; animation-delay: -2s; }
+  .gb-3 { bottom: 14%; right: 2%; animation-delay: -4s; }
+  .gb-4 { bottom: 4%; left: 14%; animation-delay: -1s; }
+  @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+
+  /* ---------- SECTIONS ---------- */
+  section { padding: 80px 56px; position: relative; }
+  .section-head { text-align: center; margin-bottom: 48px; }
+  .section-head .kicker {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.2em;
+    color: var(--cyan); margin-bottom: 14px;
+  }
+  .section-head h2 { font-size: 52px; line-height: 1.08; max-width: 820px; margin: 0 auto 18px; }
+  .section-head p { font-size: 17px; color: var(--ink-1); max-width: 640px; margin: 0 auto; }
+
+  /* ---------- USE CASES ---------- */
+  .usecases {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+    max-width: 1400px; margin: 0 auto;
+  }
+  .uc {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(15, 31, 56, 0.6), rgba(10, 22, 40, 0.4));
+    padding: 28px;
+    overflow: hidden;
+    transition: all .35s cubic-bezier(.2,.7,.2,1);
+    min-height: 340px;
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .uc:hover { border-color: var(--cyan); transform: translateY(-4px); box-shadow: 0 20px 60px rgba(34,211,238,0.12); }
+  .uc .uc-tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: var(--ink-2); text-transform: uppercase;
+  }
+  .uc h3 { font-size: 22px; margin: 12px 0 8px; letter-spacing: -0.01em; }
+  .uc p { color: var(--ink-1); font-size: 13.5px; line-height: 1.55; }
+  .uc-wide { grid-column: span 3; min-height: 360px; }
+  .uc-med { grid-column: span 3; }
+  .uc-sm { grid-column: span 2; }
+
+  .uc-viz { position: relative; flex: 1; margin: 14px -8px 0; min-height: 150px; }
+
+  /* AI scene */
+  .ai-tokens { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .ai-row {
+    display: flex; gap: 12px; flex-wrap: wrap;
+    max-width: 360px; justify-content: center;
+  }
+  .ai-tok {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 9px 16px 9px 10px; border-radius: 999px;
+    background: rgba(10, 22, 40, 0.8);
+    border: 1px solid rgba(56, 189, 248, 0.28);
+    backdrop-filter: blur(6px);
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500;
+    color: var(--ink-0);
+    opacity: 0;
+    animation: tokIn 5s infinite;
+    white-space: nowrap;
+  }
+  .ai-tok img {
+    width: 26px; height: 26px; border-radius: 6px;
+    object-fit: contain;
+    flex-shrink: 0; display: block;
+    background: #fff;
+    padding: 4px;
+  }
+  .ai-tok img.on-dark {
+    background: #0b1322;
+    padding: 2px;
+  }
+
+  /* Cross-border e-commerce brand chips */
+  .ecom-tokens { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 18px; }
+  .ecom-row {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    max-width: 400px; justify-content: center;
+  }
+  .ecom-tok {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 12px; border-radius: 8px;
+    border: 1px solid rgba(168, 190, 217, 0.15);
+    font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+    opacity: 0;
+    animation: tokIn 5s infinite;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .ecom-tok svg { height: 18px; width: auto; display: block; }
+
+  /* Finance card: grouped brand chips */
+  .fin3-stack {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px 18px;
+  }
+  .fin3-row {
+    display: flex; gap: 7px; flex-wrap: wrap;
+    justify-content: center;
+    max-width: 100%;
+  }
+  .fin3-tok {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6px; border-radius: 8px;
+    border: 1px solid rgba(168, 190, 217, 0.12);
+    opacity: 0;
+    animation: tokIn 6s infinite;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    min-width: 32px; min-height: 32px;
+  }
+  .fin3-tok svg { width: 20px; height: 20px; display: block; border-radius: 3px; }
+  .fin3-mark {
+    height: 20px; min-width: 20px; padding: 0 5px; border-radius: 3px; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 10px;
+    letter-spacing: 0.02em;
+  }
+  @keyframes tokIn {
+    0%, 15% { opacity: 0; transform: translateY(6px) scale(0.95); }
+    20%, 80% { opacity: 1; transform: translateY(0) scale(1); }
+    85%, 100% { opacity: 0; transform: translateY(-6px) scale(0.95); }
+  }
+
+  /* Streaming scene */
+  .stream-grid {
+    position: absolute; inset: 0;
+    display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8px;
+  }
+  .stream-tile {
+    border-radius: 8px; position: relative; overflow: hidden;
+    background: #0a0a0a;
+    border: 1px solid var(--line);
+    display: grid; place-items: center;
+  }
+  .stream-tile.t-netflix { background: #000; }
+  .stream-tile.t-prime   { background: #00050f; }
+  .stream-tile.t-disney  { background: #01153e; }
+  .stream-tile.t-hbo     { background: #0b0b16; }
+  .stream-tile::before {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+    animation: shimmer 3s infinite;
+    z-index: 2;
+  }
+  .stream-tile:nth-child(2)::before { animation-delay: .6s; }
+  .stream-tile:nth-child(3)::before { animation-delay: 1.2s; }
+  .stream-tile:nth-child(4)::before { animation-delay: 1.8s; }
+  @keyframes shimmer { 0% { transform: translateX(-100%);} 100% { transform: translateX(100%); } }
+  .stream-tile .logo {
+    position: relative; z-index: 1;
+    display: block;
+    max-width: 72%; max-height: 52%;
+  }
+  .stream-tile .quality {
+    position: absolute; top: 6px; right: 6px; z-index: 3;
+    font-family: 'JetBrains Mono', monospace; font-size: 8px;
+    color: var(--glow); letter-spacing: 0.08em;
+    padding: 2px 5px; border-radius: 3px;
+    background: rgba(34,211,238,0.12);
+    border: 1px solid rgba(34,211,238,0.3);
+  }
+
+  /* Gaming scene - latency graph */
+  .ping-graph { position: absolute; inset: 0; padding: 10px 0; }
+  .ping-graph svg { width: 100%; height: 100%; }
+  .ping-readout {
+    position: absolute; top: 8px; right: 8px;
+    display: flex; gap: 8px; align-items: baseline;
+  }
+  .ping-readout .num { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 24px; color: var(--cyan); }
+  .ping-readout .unit { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--ink-2); }
+
+  /* Finance scene */
+  .fin-row {
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 14px 0;
+  }
+  .fin-ip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 8px;
+    background: rgba(10, 22, 40, 0.5);
+    border: 1px solid var(--line);
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+  }
+  .fin-ip .flag { width: 16px; height: 12px; border-radius: 2px; display: inline-block; }
+  .fin-ip .ip-text { color: var(--ink-1); flex: 1; }
+  .fin-ip .pill {
+    font-size: 9px; padding: 2px 6px; border-radius: 4px;
+    letter-spacing: 0.08em;
+  }
+  .pill-res { background: rgba(74, 222, 128, 0.12); color: var(--ok); border: 1px solid rgba(74,222,128,0.25); }
+  .pill-dc { background: rgba(56, 189, 248, 0.1); color: var(--sky); border: 1px solid rgba(56,189,248,0.2); }
+
+  /* News scene - feed */
+  .news-feed {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 10px 0;
+  }
+  .news-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px; border-radius: 6px;
+    border: 1px solid var(--line);
+    font-size: 11px;
+    opacity: 0;
+    animation: newsIn 10s infinite;
+  }
+  .news-item:nth-child(1) { animation-delay: 0s; }
+  .news-item:nth-child(2) { animation-delay: 2s; }
+  .news-item:nth-child(3) { animation-delay: 4s; }
+  @keyframes newsIn {
+    0%, 15% { opacity: 0; transform: translateX(8px); }
+    20%, 50% { opacity: 1; transform: translateX(0); }
+    60%, 100% { opacity: 0.3; }
+  }
+  .news-item .src {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px;
+    color: var(--cyan); text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 2px 5px; background: rgba(34,211,238,0.08); border-radius: 3px;
+  }
+  .news-item .ttl { color: var(--ink-1); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Finance 2 (trading) scene */
+  .fin2-grid {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; gap: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .fin2-row {
+    display: grid; grid-template-columns: 1.2fr 0.9fr 0.7fr;
+    align-items: center; gap: 8px;
+    padding: 7px 10px;
+    border-radius: 6px;
+    background: rgba(10,22,40,0.5);
+    border: 1px solid var(--line);
+    font-size: 11px;
+  }
+  .fin2-row.fin2-head {
+    background: transparent; border: none;
+    padding: 2px 10px 0;
+    font-size: 9px; letter-spacing: 0.12em;
+    color: var(--ink-2); text-transform: uppercase;
+  }
+  .fin2-row .r { text-align: right; }
+  .fin2-row .svc {
+    display: inline-flex; align-items: center; gap: 8px;
+    color: var(--ink-0); font-family: 'Space Grotesk', sans-serif; font-weight: 500;
+    font-size: 12px;
+  }
+  .fin2-row .svc-dot {
+    width: 8px; height: 8px; border-radius: 2px; display: inline-block;
+    box-shadow: 0 0 8px currentColor;
+  }
+  .fin2-row .st.ok {
+    color: #4ADE80; font-size: 10px; letter-spacing: 0.06em;
+  }
+  .fin2-row .st.ok::first-letter {
+    color: #4ADE80;
+  }
+  .fin2-row .lat {
+    color: var(--cyan); font-weight: 600; font-size: 14px;
+  }
+  .fin2-row .lat em {
+    font-style: normal; color: var(--ink-2); font-size: 9px; margin-left: 2px; font-weight: 400;
+  }
+  .fin2-row:not(.fin2-head) {
+    animation: fin2Pulse 4s ease-in-out infinite;
+  }
+  .fin2-row:nth-child(3) { animation-delay: .3s; }
+  .fin2-row:nth-child(4) { animation-delay: .6s; }
+  .fin2-row:nth-child(5) { animation-delay: .9s; }
+  @keyframes fin2Pulse {
+    0%, 100% { border-color: var(--line); }
+    50% { border-color: rgba(34,211,238,0.35); }
+  }
+
+  /* Anime scene */
+  .anime-scene {
+    position: absolute; inset: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    padding: 4px 0;
+  }
+  .anime-tile {
+    aspect-ratio: 3 / 4;
+    border-radius: 6px;
+    background: linear-gradient(135deg, rgba(125, 211, 252, 0.15), rgba(34, 211, 238, 0.04));
+    border: 1px solid var(--line);
+    position: relative; overflow: hidden;
+  }
+  .anime-tile::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 8px);
+  }
+  .anime-tile span {
+    position: absolute; bottom: 6px; left: 6px;
+    font-family: 'JetBrains Mono', monospace; font-size: 8px;
+    color: var(--ink-2); letter-spacing: 0.06em;
+  }
+
+  /* ---------- FAQ ---------- */
+  .faq {
+    max-width: 820px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .faq-item {
+    border: 1px solid var(--line); border-radius: 12px;
+    background: rgba(10,22,40,0.4);
+    overflow: hidden;
+  }
+  .faq-item summary {
+    cursor: pointer; list-style: none;
+    padding: 20px 24px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 16px; font-weight: 500;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .faq-item summary::after {
+    content: "+"; font-size: 20px; color: var(--cyan);
+    transition: transform .2s;
+  }
+  .faq-item[open] summary::after { content: "−"; }
+  .faq-item .body {
+    padding: 0 24px 22px; color: var(--ink-1); font-size: 14px; line-height: 1.7;
+  }
+  .faq-item .body code {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: rgba(34,211,238,0.08); padding: 2px 6px; border-radius: 4px;
+    color: var(--glow);
+  }
+
+  /* ---------- CTA ---------- */
+  .cta-band {
+    padding: 100px 56px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .cta-band::before {
+    content: ""; position: absolute; inset: 0;
+    background:
+      radial-gradient(ellipse at center, rgba(34,211,238,0.15), transparent 60%);
+  }
+  .cta-band .inner { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
+  .cta-band h2 { font-size: 56px; margin-bottom: 18px; line-height: 1.05; }
+  .cta-band p { color: var(--ink-1); font-size: 18px; margin-bottom: 32px; }
+
+  /* ---------- FOOTER ---------- */
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 60px 56px 40px;
+    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 40px;
+  }
+  footer h4 {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--ink-2); margin-bottom: 14px;
+  }
+  footer a { color: var(--ink-1); text-decoration: none; font-size: 14px; display: block; padding: 4px 0; }
+  footer a:hover { color: var(--cyan); }
+  footer .colophon { color: var(--ink-2); font-size: 13px; max-width: 320px; margin-top: 12px; }
+  .footer-bottom {
+    padding: 20px 56px;
+    border-top: 1px solid var(--line);
+    display: flex; justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    color: var(--ink-2);
+  }
+
+  /* ---------- TICKER ---------- */
+  .ticker {
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    background: rgba(6,11,24,0.6);
+    overflow: hidden;
+    padding: 14px 0;
+  }
+  .ticker-track {
+    display: flex; gap: 48px;
+    animation: tickerMove 40s linear infinite;
+    white-space: nowrap;
+  }
+  .ticker-item {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    color: var(--ink-1);
+  }
+  .ticker-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .ticker-item .loc { color: var(--ink-0); }
+  .ticker-item .lat { color: var(--cyan); }
+  @keyframes tickerMove {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* ---------- POWER USER DISCLOSURE ---------- */
+  .power {
+    max-width: 1100px; margin: 0 auto;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(15,31,56,0.4), rgba(10,22,40,0.2));
+    overflow: hidden;
+  }
+  .power summary {
+    cursor: pointer; list-style: none;
+    padding: 24px 32px; display: flex; justify-content: space-between; align-items: center;
+  }
+  .power summary::-webkit-details-marker { display: none; }
+  .power summary .lab {
+    display: flex; align-items: center; gap: 12px;
+    font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 16px;
+  }
+  .power summary .lab .tag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    padding: 3px 8px; border-radius: 4px;
+    background: rgba(125, 211, 252, 0.12); color: var(--glow);
+    text-transform: uppercase; letter-spacing: 0.1em;
+  }
+  .power summary::after { content: "↓"; color: var(--cyan); font-family: 'JetBrains Mono', monospace; transition: transform .3s; }
+  .power[open] summary::after { transform: rotate(180deg); }
+  .power-body {
+    padding: 0 32px 32px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .power-cell {
+    padding: 16px; border: 1px solid var(--line); border-radius: 10px;
+    background: rgba(6,11,24,0.4);
+  }
+  .power-cell .name {
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+    color: var(--cyan); margin-bottom: 6px; font-weight: 500;
+  }
+  .power-cell .desc { color: var(--ink-1); font-size: 12px; line-height: 1.5; }
+
+  /* ---------- MAP BACKDROP on hero ---------- */
+  .hero-backdrop {
+    position: absolute; inset: 0; z-index: 0;
+    pointer-events: none;
+    opacity: 0.4;
+  }
+
+  /* ---------- SCROLL REVEAL ---------- */
+  .reveal {
+    opacity: 0; transform: translateY(24px);
+    transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1);
+  }
+  .reveal.in { opacity: 1; transform: none; }
+
+  /* ---------- TWEAKS ---------- */
+  .tweaks {
+    position: fixed; bottom: 20px; right: 20px;
+    width: 280px; z-index: 80;
+    background: rgba(10, 22, 40, 0.92);
+    border: 1px solid var(--line-strong);
+    border-radius: 12px;
+    backdrop-filter: blur(12px);
+    padding: 16px;
+    display: none;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .tweaks.show { display: block; }
+  .tweaks h5 {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.15em;
+    color: var(--cyan); margin-bottom: 12px;
+  }
+  .tweaks label { display: block; font-size: 12px; color: var(--ink-1); margin: 10px 0 4px; }
+  .tweaks input[type="range"] { width: 100%; accent-color: var(--cyan); }
+  .tweak-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tweak-pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 11px;
+    padding: 5px 10px; border-radius: 6px;
+    background: transparent; color: var(--ink-1);
+    border: 1px solid var(--line-strong);
+    cursor: pointer;
+  }
+  .tweak-pill.active { background: var(--cyan); color: #041222; border-color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<nav class="nav">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 40 40" fill="none">
+        <defs>
+          <linearGradient id="sinxGrad" x1="0" y1="0" x2="40" y2="40">
+            <stop offset="0%" stop-color="#38BDF8"/>
+            <stop offset="100%" stop-color="#22D3EE"/>
+          </linearGradient>
+        </defs>
+        <!-- subtle circle base -->
+        <circle cx="20" cy="20" r="17" stroke="url(#sinxGrad)" stroke-width="1" opacity="0.25"/>
+        <!-- baseline -->
+        <line x1="4" y1="20" x2="36" y2="20" stroke="rgba(168,190,217,0.2)" stroke-width="0.8" stroke-dasharray="2 3"/>
+        <!-- sine wave (animated) -->
+        <path class="sine-path sine-glow" d="M4 20 C 8 8, 12 8, 16 20 S 24 32, 28 20 S 36 8, 36 20"
+              stroke="url(#sinxGrad)" stroke-width="2" fill="none" stroke-linecap="round"
+              id="sineWavePath"/>
+        <!-- X marker at center -->
+        <g stroke="#7DD3FC" stroke-width="1.6" stroke-linecap="round">
+          <line class="x-stroke" x1="17" y1="17" x2="23" y2="23"/>
+          <line class="x-stroke b" x1="23" y1="17" x2="17" y2="23"/>
+        </g>
+        <!-- moving tracer dot along the sine path -->
+        <circle class="tracer" r="1.8" fill="#7DD3FC"
+                style="offset-path: path('M4 20 C 8 8, 12 8, 16 20 S 24 32, 28 20 S 36 8, 36 20'); filter: drop-shadow(0 0 4px #22D3EE);"/>
+      </svg>
+    </div>
+    <div class="brand-text" id="brandText">
+      <span class="sin">Sin</span><span class="x">X</span>&nbsp;<span class="cloud">Cloud</span>
+    </div>
+  </div>
+  <div class="nav-links" id="navLinks">
+    <a href="#scenarios" data-i18n="nav.scenarios">Scenarios</a>
+    <a href="#network" data-i18n="nav.network">Network</a>
+    <a href="#docs" data-i18n="nav.docs">Docs</a>
+  </div>
+  <div class="nav-cta">
+    <a href="#" id="signinLink" class="btn" data-i18n="nav.signin">Sign in</a>
+    <a href="#" class="btn btn-primary" data-i18n="nav.signup">Sign up</a>
+  </div>
+</nav>
+
+<!-- ================= HERO ================= -->
+<section class="hero">
+  <div class="hero-text">
+    <div class="eyebrow" data-i18n-html="hero.eyebrow"><span class="dot"></span>Network live · 7 regions · 99.97% uptime</div>
+    <h1 data-i18n-html="hero.h1">
+      <span class="grad">The internet,</span><br/>
+      unlocked.
+    </h1>
+    <p class="lede" data-i18n="hero.lede">Direct routes to the open internet, delivered through an open-source stack with a signed zero-log attestation. One account for research, work, and play — everywhere you travel.</p>
+  </div>
+
+  <!-- Animated globe -->
+  <div class="globe-col">
+  <div class="globe-wrap">
+    <svg class="globe" viewBox="0 0 600 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="globeCore" cx="45%" cy="40%" r="60%">
+          <stop offset="0%" stop-color="#1E3A8A" stop-opacity="0.35"/>
+          <stop offset="60%" stop-color="#0F172A" stop-opacity="0.3"/>
+          <stop offset="100%" stop-color="#060B18" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="wire" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.7"/>
+          <stop offset="100%" stop-color="#22D3EE" stop-opacity="0.3"/>
+        </linearGradient>
+        <linearGradient id="route" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#22D3EE" stop-opacity="0"/>
+          <stop offset="50%" stop-color="#22D3EE" stop-opacity="1"/>
+          <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+        </linearGradient>
+        <filter id="glow1">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- soft core -->
+      <circle cx="300" cy="300" r="220" fill="url(#globeCore)"/>
+
+      <!-- latitude rings (wireframe) -->
+      <g stroke="url(#wire)" stroke-width="1" fill="none" opacity="0.65">
+        <ellipse cx="300" cy="300" rx="220" ry="220"/>
+        <ellipse cx="300" cy="300" rx="220" ry="70"/>
+        <ellipse cx="300" cy="300" rx="220" ry="140"/>
+        <ellipse cx="300" cy="300" rx="220" ry="200"/>
+        <ellipse cx="300" cy="300" rx="70" ry="220"/>
+        <ellipse cx="300" cy="300" rx="140" ry="220"/>
+        <ellipse cx="300" cy="300" rx="200" ry="220"/>
+      </g>
+
+      <!-- rotating meridian group -->
+      <g style="transform-origin: 300px 300px; animation: spin 40s linear infinite;">
+        <g stroke="#7DD3FC" stroke-width="1.2" fill="none" opacity="0.5">
+          <ellipse cx="300" cy="300" rx="40" ry="220"/>
+          <ellipse cx="300" cy="300" rx="110" ry="220"/>
+          <ellipse cx="300" cy="300" rx="180" ry="220"/>
+        </g>
+      </g>
+
+      <!-- node markers -->
+      <g>
+        <circle cx="180" cy="160" r="3" fill="#22D3EE" filter="url(#glow1)"/>
+        <circle cx="430" cy="200" r="3" fill="#22D3EE" filter="url(#glow1)"/>
+        <circle cx="460" cy="370" r="3" fill="#22D3EE" filter="url(#glow1)"/>
+        <circle cx="220" cy="420" r="3" fill="#22D3EE" filter="url(#glow1)"/>
+        <circle cx="120" cy="300" r="3" fill="#7DD3FC" filter="url(#glow1)"/>
+        <circle cx="350" cy="120" r="3" fill="#7DD3FC" filter="url(#glow1)"/>
+      </g>
+
+      <!-- Animated routes -->
+      <g fill="none" stroke-width="2" filter="url(#glow1)">
+        <path id="r1" d="M180 160 Q300 80 430 200" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="3s" repeatCount="indefinite"/>
+        </path>
+        <path id="r2" d="M430 200 Q500 290 460 370" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="2.6s" begin="0.4s" repeatCount="indefinite"/>
+        </path>
+        <path id="r3" d="M460 370 Q330 440 220 420" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="2.2s" begin="0.9s" repeatCount="indefinite"/>
+        </path>
+        <path id="r4" d="M220 420 Q100 370 120 300" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="2.4s" begin="1.3s" repeatCount="indefinite"/>
+        </path>
+        <path id="r5" d="M120 300 Q180 180 350 120" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="2.8s" begin="1.7s" repeatCount="indefinite"/>
+        </path>
+        <path id="r6" d="M350 120 Q260 190 180 160" stroke="url(#route)" stroke-dasharray="6 500" stroke-linecap="round">
+          <animate attributeName="stroke-dashoffset" from="0" to="-506" dur="2.2s" begin="2.1s" repeatCount="indefinite"/>
+        </path>
+      </g>
+
+      <!-- Central pulse -->
+      <g>
+        <circle cx="300" cy="300" r="6" fill="#22D3EE"/>
+        <circle cx="300" cy="300" r="14" fill="none" stroke="#22D3EE" stroke-width="1">
+          <animate attributeName="r" from="6" to="40" dur="2.5s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" from="0.8" to="0" dur="2.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="300" cy="300" r="14" fill="none" stroke="#7DD3FC" stroke-width="1">
+          <animate attributeName="r" from="6" to="60" dur="2.5s" begin="1.2s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" from="0.6" to="0" dur="2.5s" begin="1.2s" repeatCount="indefinite"/>
+        </circle>
+      </g>
+    </svg>
+
+    <!-- floating latency badges -->
+    <div class="globe-badge gb-1">
+      <span class="ping"></span>
+      <span class="country" data-i18n="city.tokyo">Tokyo</span>
+      <span class="latency">ONLINE</span>
+    </div>
+    <div class="globe-badge gb-2">
+      <span class="ping"></span>
+      <span class="country" data-i18n="city.frankfurt">Frankfurt</span>
+      <span class="latency">ONLINE</span>
+    </div>
+    <div class="globe-badge gb-3">
+      <span class="ping"></span>
+      <span class="country" data-i18n="city.sg">Singapore</span>
+      <span class="latency">ONLINE</span>
+    </div>
+    <div class="globe-badge gb-4">
+      <span class="ping"></span>
+      <span class="country" data-i18n="city.la">Los Angeles</span>
+      <span class="latency">ONLINE</span>
+    </div>
+  </div>
+  <div class="hero-cta">
+    <a href="#" id="heroGetStarted" class="btn btn-primary" data-i18n-html="hero.cta1">Get started<span>→</span></a>
+    <a href="#scenarios" class="btn" data-i18n="hero.cta2">See use cases</a>
+  </div>
+  </div>
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</section>
+
+<!-- ================= TICKER ================= -->
+<div class="ticker">
+  <div class="ticker-track" id="tickerTrack">
+    <!-- filled by JS -->
+  </div>
+</div>
+
+<!-- ================= USE CASES ================= -->
+<section id="scenarios">
+  <div class="section-head reveal">
+    <div class="kicker" data-i18n="sc.kicker">/ WHAT YOU CAN DO</div>
+    <h2 data-i18n="sc.h2">Built for the things the open internet keeps behind a door.</h2>
+    <p data-i18n="sc.p">Seven scenarios customers ask for most. One subscription covers them all</p>
+  </div>
+
+  <div class="usecases">
+    <!-- AI unlock -->
+    <div class="uc uc-wide reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc1.tag">/ 01 · AI RESEARCH</div>
+        <h3 data-i18n="uc1.h">Every frontier model, from anywhere.</h3>
+        <p data-i18n="uc1.p">Unblock Claude, ChatGPT, Gemini, Grok, Meta AI and the long tail of research APIs. Region-stable exit IPs keep account sessions from tripping risk controls.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="ai-tokens">
+          <div class="ai-row">
+            <span class="ai-tok" style="animation-delay:0s">
+              <img src="assets/logo-claude.png" alt="Claude" />Claude
+            </span>
+            <span class="ai-tok" style="animation-delay:.5s">
+              <img src="assets/logo-chatgpt.png" alt="ChatGPT" />ChatGPT
+            </span>
+            <span class="ai-tok" style="animation-delay:1s">
+              <img src="assets/logo-gemini.png" alt="Gemini" />Gemini
+            </span>
+            <span class="ai-tok" style="animation-delay:1.5s">
+              <img class="on-dark" src="assets/logo-grok.png" alt="Grok" />Grok
+            </span>
+            <span class="ai-tok" style="animation-delay:2s">
+              <img src="assets/logo-metaai.png" alt="Meta AI" />Meta AI
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cross-border -->
+    <div class="uc uc-med reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc2.tag">/ 02 · CROSS-BORDER E-COMMERCE</div>
+        <h3 data-i18n="uc2.h">Cross-border commerce without IP flags.</h3>
+        <p data-i18n="uc2.p">Residential and datacenter egress for TikTok Shop, Amazon seller ops.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="ecom-tokens">
+          <div class="ecom-row">
+            <span class="ecom-tok" style="animation-delay:0s; background:#fff; color:#131A22;">
+              <svg viewBox="0 0 80 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="16" font-family="Inter, sans-serif" font-weight="700" font-size="14" fill="#131A22">amazon</text><path d="M2 20 Q 40 26 62 18" stroke="#FF9900" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:.3s; background:#fff;">
+              <svg viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="700" font-size="15" letter-spacing="-0.5"><tspan fill="#E53238">e</tspan><tspan fill="#0064D2">b</tspan><tspan fill="#F5AF02">a</tspan><tspan fill="#86B817">y</tspan></text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:.6s; background:#E62E04; color:#fff;">
+              <svg viewBox="0 0 88 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="700" font-size="13" fill="#fff">AliExpress</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:.9s; background:#0071DC; color:#fff;">
+              <svg viewBox="0 0 92 24" xmlns="http://www.w3.org/2000/svg"><g transform="translate(2,4)"><g fill="#FFC220"><circle cx="8" cy="8" r="1.6"/><circle cx="8" cy="8" r="1.6" transform="rotate(60 8 8)"/><circle cx="8" cy="8" r="1.6" transform="rotate(120 8 8)"/><circle cx="8" cy="8" r="1.6" transform="rotate(30 8 8) translate(0 -5)"/><circle cx="8" cy="8" r="1.6" transform="rotate(90 8 8) translate(0 -5)"/><circle cx="8" cy="8" r="1.6" transform="rotate(150 8 8) translate(0 -5)"/></g></g><text x="20" y="15" font-family="Inter, sans-serif" font-weight="700" font-size="12" fill="#fff">Walmart</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:1.2s; background:#000; color:#fff;">
+              <svg viewBox="0 0 68 24" xmlns="http://www.w3.org/2000/svg"><path d="M10 4 L10 15 a4 4 0 1 1 -4 -4" stroke="#25F4EE" stroke-width="2" fill="none" transform="translate(1 0)"/><path d="M10 4 L10 15 a4 4 0 1 1 -4 -4" stroke="#FE2C55" stroke-width="2" fill="none" transform="translate(-1 2)"/><path d="M10 4 L10 15 a4 4 0 1 1 -4 -4" stroke="#fff" stroke-width="2" fill="none"/><text x="20" y="16" font-family="Inter, sans-serif" font-weight="700" font-size="12" fill="#fff">TikTok</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:1.5s; background:#000; color:#fff;">
+              <svg viewBox="0 0 54 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="700" font-size="15" fill="#fff" letter-spacing="0.5">SHEIN</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:1.8s; background:#F14A00; color:#fff;">
+              <svg viewBox="0 0 60 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="800" font-size="15" fill="#fff" letter-spacing="0.5">Temu</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:2.1s; background:#fff; color:#004F2D;">
+              <svg viewBox="0 0 78 24" xmlns="http://www.w3.org/2000/svg"><g transform="translate(0 3)"><circle cx="9" cy="9" r="8" fill="#96BF47"/><path d="M4 9 Q 9 4 14 9" stroke="#fff" stroke-width="1.5" fill="none"/><path d="M9 4 L9 14" stroke="#fff" stroke-width="1.5"/></g><text x="22" y="16" font-family="Inter, sans-serif" font-weight="700" font-size="13" fill="#004F2D">Shopify</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:2.4s; background:#0F146D; color:#fff;">
+              <svg viewBox="0 0 68 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="700" font-size="14" fill="#fff">Lazada</text></svg>
+            </span>
+            <span class="ecom-tok" style="animation-delay:2.7s; background:#EE4D2D; color:#fff;">
+              <svg viewBox="0 0 70 24" xmlns="http://www.w3.org/2000/svg"><text x="0" y="17" font-family="Inter, sans-serif" font-weight="700" font-size="14" fill="#fff">Shopee</text></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- News feed -->
+    <div class="uc uc-med reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc6.tag">/ 03 · NEWS</div>
+        <h3 data-i18n="uc6.h">First-hand global news, without any cognitive biases.</h3>
+        <p data-i18n="uc6.p">Reuters, Bloomberg, FT, NYT, WaPo, Nikkei, Le Monde — no firewall timeouts, no truncated feeds.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="news-feed">
+          <div class="news-item"><span class="src">REUTERS</span><span class="ttl">Fed holds rates, signals two cuts possible in H2</span></div>
+          <div class="news-item"><span class="src">NIKKEI</span><span class="ttl">BOJ governor signals patience on policy pivot</span></div>
+          <div class="news-item"><span class="src">FT</span><span class="ttl">Sovereign wealth funds rotate into AI infrastructure</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Finance / Trading -->
+    <div class="uc uc-med reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc7.tag">/ 04 · FINANCE &amp; TRADING</div>
+        <h3 data-i18n="uc7.h">投资之路，畅通无阻。</h3>
+        <p data-i18n="uc7.p">This is the road to financial freedom.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="fin3-stack">
+          <div class="fin3-row">
+            <span class="fin3-tok" style="animation-delay:0s; background:#DB0011;" title="HSBC">
+              <svg viewBox="0 0 18 14" xmlns="http://www.w3.org/2000/svg"><rect width="18" height="14" fill="#fff"/><path d="M0 0 L18 14 M18 0 L0 14" stroke="#DB0011" stroke-width="4"/><rect x="7" y="0" width="4" height="14" fill="#DB0011"/><rect x="0" y="5" width="18" height="4" fill="#DB0011"/></svg>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.08s; background:#0473EA;" title="Standard Chartered">
+              <span class="fin3-mark" style="background:#fff; color:#0473EA;">SC</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.16s; background:#C8102E;" title="Hang Seng">
+              <span class="fin3-mark" style="background:#fff; color:#C8102E;">恒</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.24s; background:#CC0000;" title="BOC HK">
+              <span class="fin3-mark" style="background:#fff; color:#CC0000;">中</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.32s; background:#ED1C24;" title="DBS">
+              <span class="fin3-mark" style="background:#fff; color:#ED1C24;">DBS</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.4s; background:#003DA5;" title="UOB">
+              <span class="fin3-mark" style="background:#FFC72C; color:#003DA5;">UOB</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.48s; background:#E60028;" title="OCBC">
+              <span class="fin3-mark" style="background:#fff; color:#E60028;">OCBC</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.56s; background:#FF6600;" title="Interactive Brokers">
+              <span class="fin3-mark" style="background:#000; color:#FF6600;">IBKR</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.64s; background:#1E1E1E;" title="Tiger Brokers">
+              <span class="fin3-mark" style="background:#FF9500; color:#000;">Tiger</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.72s; background:#fff;" title="moomoo">
+              <span class="fin3-mark" style="background:#fff; color:#000;">moomoo</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.8s; background:#000;" title="OKX">
+              <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><rect width="18" height="18" fill="#000"/><rect x="2" y="2" width="4" height="4" fill="#fff"/><rect x="7" y="2" width="4" height="4" fill="#fff"/><rect x="12" y="2" width="4" height="4" fill="#fff"/><rect x="2" y="7" width="4" height="4" fill="#fff"/><rect x="12" y="7" width="4" height="4" fill="#fff"/><rect x="2" y="12" width="4" height="4" fill="#fff"/><rect x="7" y="12" width="4" height="4" fill="#fff"/><rect x="12" y="12" width="4" height="4" fill="#fff"/></svg>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.88s; background:#00F0B5;" title="Bitget">
+              <span class="fin3-mark" style="background:#000; color:#00F0B5;">Bitget</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:.96s; background:#F0B90B;" title="Binance">
+              <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><rect width="18" height="18" fill="#F0B90B"/><g fill="#000"><rect x="4" y="8" width="2" height="2" transform="rotate(45 5 9)"/><rect x="8" y="4" width="2" height="2" transform="rotate(45 9 5)"/><rect x="12" y="8" width="2" height="2" transform="rotate(45 13 9)"/><rect x="8" y="12" width="2" height="2" transform="rotate(45 9 13)"/><rect x="8" y="8" width="2" height="2" transform="rotate(45 9 9)"/></g></svg>
+            </span>
+            <span class="fin3-tok" style="animation-delay:1.04s; background:#0052FF;" title="Coinbase">
+              <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><circle cx="9" cy="9" r="8" fill="#0052FF"/><rect x="6" y="6" width="6" height="6" fill="#fff"/></svg>
+            </span>
+            <span class="fin3-tok" style="animation-delay:1.12s; background:#7132F5;" title="Kraken">
+              <span class="fin3-mark" style="background:#fff; color:#7132F5;">Kraken</span>
+            </span>
+            <span class="fin3-tok" style="animation-delay:1.2s; background:#F7A600;" title="Bybit">
+              <span class="fin3-mark" style="background:#000; color:#F7A600;">Bybit</span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Streaming -->
+    <div class="uc uc-sm reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc3.tag">/ 05 · STREAMING</div>
+        <h3 data-i18n="uc3.h">Region-locked catalogs, 4K uncapped.</h3>
+        <p data-i18n="uc3.p">Netflix, Prime, Disney+, Crunchyroll, BBC iPlayer.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="stream-grid">
+          <div class="stream-tile t-netflix">
+            <span class="quality">4K</span>
+            <svg class="logo" viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-label="Netflix">
+              <text x="60" y="24" text-anchor="middle" font-family="'Space Grotesk', sans-serif" font-weight="800" font-size="22" letter-spacing="0.5" fill="#E50914">NETFLIX</text>
+            </svg>
+          </div>
+          <div class="stream-tile t-prime">
+            <span class="quality">UHD</span>
+            <svg class="logo" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg" aria-label="Prime Video">
+              <text x="60" y="20" text-anchor="middle" font-family="'Space Grotesk', sans-serif" font-weight="700" font-size="16" fill="#ffffff">prime</text>
+              <path d="M18 26 Q60 36 102 26" stroke="#00A8E1" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+              <path d="M96 23 L102 26 L96 29" stroke="#00A8E1" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="stream-tile t-disney">
+            <span class="quality">4K</span>
+            <svg class="logo" viewBox="0 0 140 32" xmlns="http://www.w3.org/2000/svg" aria-label="Disney Plus">
+              <text x="50" y="23" text-anchor="middle" font-family="'Space Grotesk', sans-serif" font-style="italic" font-weight="700" font-size="20" fill="#ffffff">Disney</text>
+              <text x="108" y="23" text-anchor="middle" font-family="'Space Grotesk', sans-serif" font-weight="400" font-size="22" fill="#ffffff">+</text>
+            </svg>
+          </div>
+          <div class="stream-tile t-hbo">
+            <span class="quality">HDR</span>
+            <svg class="logo" viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-label="HBO Max">
+              <text x="60" y="23" text-anchor="middle" font-family="'Space Grotesk', sans-serif" font-weight="800" font-size="20" letter-spacing="1" fill="#ffffff">HBO<tspan fill="#991EEB">max</tspan></text>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gaming -->
+    <div class="uc uc-sm reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc4.tag">/ 06 · GAMING</div>
+        <h3 data-i18n="uc4.h">Route to the lobby, not the censor.</h3>
+        <p data-i18n="uc4.p">Steam regional stores, low-jitter lanes to matchmakers.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="ping-readout">
+          <span class="num" id="pingNum">14</span>
+          <span class="unit">ms · Tokyo</span>
+        </div>
+        <div class="ping-graph">
+          <svg viewBox="0 0 240 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="pgArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.35"/>
+                <stop offset="100%" stop-color="#22D3EE" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <line x1="0" y1="25" x2="240" y2="25" stroke="rgba(168,190,217,0.1)" stroke-dasharray="2 4"/>
+            <line x1="0" y1="50" x2="240" y2="50" stroke="rgba(168,190,217,0.1)" stroke-dasharray="2 4"/>
+            <line x1="0" y1="75" x2="240" y2="75" stroke="rgba(168,190,217,0.1)" stroke-dasharray="2 4"/>
+            <path id="pingArea" fill="url(#pgArea)"/>
+            <path id="pingLine" fill="none" stroke="#22D3EE" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Anime / Streaming deep -->
+    <div class="uc uc-sm reveal">
+      <div>
+        <div class="uc-tag" data-i18n="uc5.tag">/ 07 · ANIME</div>
+        <h3 data-i18n="uc5.h">JP catalogs, current-season simulcasts.</h3>
+        <p data-i18n="uc5.p">Tokyo exit nodes, residential IPs when needed.</p>
+      </div>
+      <div class="uc-viz">
+        <div class="anime-scene">
+          <div class="anime-tile"><span>SEASON 1</span></div>
+          <div class="anime-tile"><span>EP 12</span></div>
+          <div class="anime-tile"><span>LIVE</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= NETWORK / MAP ================= -->
+<section id="network">
+  <div class="section-head reveal">
+    <div class="kicker" data-i18n="nw.kicker">/ THE NETWORK</div>
+    <h2 data-i18n="nw.h2">7 regions. Pick by city, by latency, or by exit type.</h2>
+    <p data-i18n="nw.p">
+</p>
+  </div>
+
+  <div class="reveal" style="max-width: 1200px; margin: 0 auto; border: 1px solid var(--line); border-radius: 16px; background: rgba(6, 11, 24, 0.4); padding: 40px; position: relative; min-height: 480px;">
+    <!-- World map with blinking nodes -->
+    <svg id="worldMap" viewBox="0 0 1000 500" style="width: 100%; height: auto; display: block;">
+      <defs>
+        <radialGradient id="resGlow">
+          <stop offset="0%" stop-color="#38BDF8" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#38BDF8" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="okGlow">
+          <stop offset="0%" stop-color="#4ADE80" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#4ADE80" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="warnGlow">
+          <stop offset="0%" stop-color="#FCD34D" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#FCD34D" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+
+      <!-- Dot map of continents (generated in JS, appended here) -->
+      <g id="dotLand"></g>
+
+      <!-- Connection arcs between nodes -->
+      <g id="arcs" stroke="rgba(34,211,238,0.22)" stroke-width="0.8" fill="none"></g>
+
+      <!-- Nodes -->
+      <g id="mapNodes"></g>
+    </svg>
+
+    <!-- Legend -->
+    <div style="display:flex; gap:24px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-2); flex-wrap: wrap;">
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:8px; height:8px; border-radius:50%; background: var(--ok); box-shadow: 0 0 6px var(--ok);"></span> ORDINARY NODE</div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:8px; height:8px; border-radius:50%; background: var(--warn);"></span> HIGH LOAD</div>
+      <div style="display:flex; align-items:center; gap: 8px;"><span style="width:8px; height:8px; border-radius:50%; background: var(--sky); box-shadow: 0 0 6px var(--sky);"></span> RESIDENTIAL EXIT</div>
+      <div style="margin-left:auto;">7 POPS </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= POWER USER ================= -->
+<section id="docs">
+  <div class="section-head reveal">
+    <div class="kicker" data-i18n="pu.kicker">/ FOR POWER USERS</div>
+    <h2 data-i18n="pu.h2">The protocol details, if you want them.</h2>
+    <p data-i18n="pu.p">Most people don't care what's under the hood. If you do, here's the full list.</p>
+  </div>
+
+  <details class="power reveal">
+    <summary>
+      <span class="lab">
+        <span class="tag" data-i18n="pu.tag">Advanced</span>
+        <span data-i18n="pu.sum">Supported protocols, transports, and routing</span>
+      </span>
+    </summary>
+    <div class="power-body">
+      <div class="power-cell">
+        <div class="name">VLESS + TLS Reality</div>
+        <div class="desc" data-i18n="pu.d1">Handshake-indistinguishable transport. Default for restricted networks.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">Hysteria2</div>
+        <div class="desc" data-i18n="pu.d2">QUIC-based, brutal-congestion, high-jitter links. Ideal for mobile.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">TUIC v5</div>
+        <div class="desc" data-i18n="pu.d3">Low-latency QUIC tunnel with native UDP over 0-RTT resumption.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">WireGuard</div>
+        <div class="desc" data-i18n="pu.d4">Standard tunnel. Best throughput on unrestricted links.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">SOCKS5 / HTTP</div>
+        <div class="desc" data-i18n="pu.d5">For single-app routing and traditional proxy chains.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">sing-box config</div>
+        <div class="desc" data-i18n="pu.d7">Exportable profiles for sing-box, Xray-core, v2rayN.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">Mihomo (Clash Meta) config</div>
+        <div class="desc" data-i18n="pu.d6">Drop-in YAML for Mihomo / Clash Meta cores with rule-set sync.</div>
+      </div>
+      <div class="power-cell">
+        <div class="name">Xray config</div>
+        <div class="desc" data-i18n="pu.d8">Native Xray JSON for Xray-core, v2rayN, v2rayNG, NekoBox.</div>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ================= FAQ ================= -->
+<section>
+  <div class="section-head reveal">
+    <div class="kicker" data-i18n="fq.kicker">/ QUESTIONS</div>
+    <h2 data-i18n="fq.h2">The ones people actually ask.</h2>
+  </div>
+
+  <div class="faq">
+    <details class="faq-item reveal">
+      <summary data-i18n="q1.s">How is this different from the service I already pay for?</summary>
+      <div class="body" data-i18n="q1.b">Most VPN providers are staunchly pro-China, actively cooperating with the CCP's censorship, regularly reporting user access data to internet monitoring departments, setting up firewalls for certain news and pornographic websites, and proactively reporting users who publish political opinions or visit Falun Gong websites. We guarantee we will not set up any firewalls or censor user online activities, as mentioned in our handling logs. Furthermore, most of our competitors are transit providers; their exit IPs may not be the node's IPs, potentially leading to incompatibility with mainstream AI models. Also, with tens of thousands of users simultaneously using the same IP, the IP quality is poor. We provide high-purity data center IPs and residential proxies.</div>
+    </details>
+    <details class="faq-item reveal">
+      <summary data-i18n="q2.s">Will it work on a restricted network?</summary>
+      <div class="body" data-i18n-html="q2.b">Yes. The client auto-selects a handshake-indistinguishable transport when it detects DPI interference, and falls back through a few more until something connects. If you're on the ground and nothing works, email <code>help@sinxcloud.io</code> — we've debugged most of them.</div>
+    </details>
+    <details class="faq-item reveal">
+      <summary data-i18n="q4.s">Do you keep any logs at all?</summary>
+      <div class="body" data-i18n="q4.b">We keep aggregate bandwidth counters per account (so we can bill you) and a 10-minute rolling connection count per region (for autoscaling). No source IP, no destination, no timestamps per request. </div>
+    </details>
+    <details class="faq-item reveal">
+      <summary data-i18n="q5.s">What about the client — is it safe to install?</summary>
+      <div class="body" data-i18n-html="q5.b">The clients for macOS, Windows, iOS, Android, and Linux are all open source, reproducibly built, and hash-verified against GitHub releases. If you'd rather bring your own client, we support <code>sing-box</code>, <code>Mihomo (Clash Meta)</code>, <code>Xray-core</code>, <code>v2rayN</code> and WireGuard profiles out of the box.</div>
+    </details>
+  </div>
+</section>
+
+<!-- ================= CTA ================= -->
+<section class="cta-band">
+  <div class="inner reveal">
+    <h2 data-i18n-html="cta.h">The open internet still exists. <br/><span style="background: linear-gradient(120deg, var(--glow), var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent;">Keep a direct route to it.</span></h2>
+    <p data-i18n="cta.p">Support Crypto(stable coin) pay(recommand), Stripe , PayPal, Visa/MasterCard , Alipay</p>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  <div>
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 40 40" fill="none">
+          <defs>
+            <linearGradient id="sinxGrad2" x1="0" y1="0" x2="40" y2="40">
+              <stop offset="0%" stop-color="#38BDF8"/>
+              <stop offset="100%" stop-color="#22D3EE"/>
+            </linearGradient>
+          </defs>
+          <circle cx="20" cy="20" r="17" stroke="url(#sinxGrad2)" stroke-width="1" opacity="0.25"/>
+          <line x1="4" y1="20" x2="36" y2="20" stroke="rgba(168,190,217,0.2)" stroke-width="0.8" stroke-dasharray="2 3"/>
+          <path class="sine-path sine-glow" d="M4 20 C 8 8, 12 8, 16 20 S 24 32, 28 20 S 36 8, 36 20"
+                stroke="url(#sinxGrad2)" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <g stroke="#7DD3FC" stroke-width="1.6" stroke-linecap="round">
+            <line class="x-stroke" x1="17" y1="17" x2="23" y2="23"/>
+            <line class="x-stroke b" x1="23" y1="17" x2="17" y2="23"/>
+          </g>
+        </svg>
+      </div>
+      <div class="brand-text" id="brandTextFoot">
+        <span class="sin">Sin</span><span class="x">X</span>&nbsp;<span class="cloud">Cloud</span>
+      </div>
+    </div>
+    <p class="colophon" data-i18n="footer.colophon">Direct routes to the open internet. Open-source stack, signed zero-log attestation, hardware we own in every region.</p>
+  </div>
+  <div>
+    <h4 data-i18n="ft.prod">Product</h4>
+    <a data-i18n="ft.scen">Scenarios</a><a data-i18n="ft.netw">Network</a><a data-i18n="ft.pric">Pricing</a><a data-i18n="ft.down">Download</a><a data-i18n="ft.stat">Status</a>
+  </div>
+  <div>
+    <h4 data-i18n="ft.comp">Company</h4>
+    <a data-i18n="ft.about">About</a><a data-i18n="ft.atte">Attestations</a><a data-i18n="ft.sec">Security</a><a data-i18n="ft.press">Press kit</a>
+  </div>
+  <div>
+    <h4 data-i18n="ft.dev">Developers</h4>
+    <a data-i18n="ft.docs">Docs</a><a>GitHub</a><a data-i18n="ft.cfg">Config generator</a><a data-i18n="ft.chg">Changelog</a>
+  </div>
+</footer>
+<div class="footer-bottom">
+  <div data-i18n="ft.copy">© 2026 SinX Cloud Labs · Reykjavík, IS</div>
+  <div id="footerClock">—</div>
+</div>
+
+<!-- ================= TWEAKS PANEL REMOVED ================= -->
+
+<script>
+// ============== I18N ==============
+const I18N = {
+  en: {
+    'nav.scenarios': 'Scenarios', 'nav.trust': 'Privacy', 'nav.network': 'Network',
+    'nav.pricing': 'Plans', 'nav.docs': 'Docs', 'nav.signin': 'Sign in', 'nav.signup': 'Sign up', 'nav.cta': 'Get started →',
+    'hero.eyebrow': '<span class="dot"></span>Network live · 7 regions · 99.97% uptime',
+    'hero.h1': '<span class="grad">The internet,</span><br/>unlocked.',
+    'hero.lede': 'Direct routes to the open internet, delivered through an open-source stack with a signed zero-log attestation. One account for research, work, and play — everywhere you travel.',
+    'hero.cta1': 'Get started<span>→</span>', 'hero.cta2': 'See use cases',
+    'hero.s1': 'Regions', 'hero.s2': 'Median RTT', 'hero.s3': 'Logs kept', 'hero.s4': 'Per node',
+    'city.tokyo': 'Tokyo', 'city.frankfurt': 'Frankfurt', 'city.sg': 'Singapore', 'city.la': 'Los Angeles', 'city.ny': 'New York',
+    'sc.kicker': '/ WHAT YOU CAN DO',
+    'sc.h2': 'Built for the things the open internet keeps behind a door.',
+    'sc.p': 'Seven scenarios customers ask for most. One subscription covers them all',
+    'uc1.tag': '/ 01 · AI RESEARCH', 'uc1.h': 'Every frontier model, from anywhere.',
+    'uc1.p': 'Unblock Claude, ChatGPT, Gemini, Grok, Meta AI and the long tail of research APIs. Region-stable exit IPs keep account sessions from tripping risk controls.',
+    'uc2.tag': '/ 02 · CROSS-BORDER E-COMMERCE', 'uc2.h': 'Cross-border commerce without IP flags.',
+    'uc2.p': 'Residential and datacenter egress for TikTok Shop, Amazon seller ops, brokerage logins, and exchange dashboards. Friendly to the platforms that care who you are.',
+    'uc3.tag': '/ 05 · STREAMING', 'uc3.h': 'Region-locked catalogs, 4K uncapped.',
+    'uc3.p': 'Netflix, Prime, Disney+, Crunchyroll, BBC iPlayer.',
+    'uc4.tag': '/ 06 · GAMING', 'uc4.h': 'Route to the lobby, not the censor.',
+    'uc4.p': 'Steam regional stores, low-jitter lanes to matchmakers.',
+    'uc5.tag': '/ 07 · ANIME', 'uc5.h': 'JP catalogs, current-season simulcasts.',
+    'uc5.p': 'Tokyo exit nodes, residential IPs when needed.',
+    'uc6.tag': '/ 03 · NEWS', 'uc6.h': 'Read the room, wherever the room is.',
+    'uc6.p': 'Reuters, Bloomberg, FT, NYT, WaPo, Nikkei, Le Monde — no firewall timeouts, no truncated feeds.',
+    'uc7.tag': '/ 04 · FINANCE & TRADING', 'uc7.h': 'Banks, brokers, exchanges — unlocked and fast.',
+    'uc7.p': 'This is the road to financial freedom.',
+    'nw.kicker': '/ THE NETWORK', 'nw.h2': '7 regions. Pick by city, by latency, or by exit type.',
+    'nw.p': '',
+    'pu.kicker': '/ FOR POWER USERS', 'pu.h2': 'The protocol details, if you want them.',
+    'pu.p': "Most people don't care what's under the hood. If you do, here's the full list.",
+    'pu.tag': 'Advanced', 'pu.sum': 'Supported protocols, transports, and routing',
+    'pu.d1': 'Handshake-indistinguishable transport. Default for restricted networks.',
+    'pu.d2': 'QUIC-based, brutal-congestion, high-jitter links. Ideal for mobile.',
+    'pu.d3': 'Low-latency QUIC tunnel with native UDP over 0-RTT resumption.',
+    'pu.d4': 'Standard tunnel. Best throughput on unrestricted links.',
+    'pu.d5': 'For single-app routing and traditional proxy chains.',
+    'pu.d6': 'Drop-in YAML for Mihomo / Clash Meta cores with rule-set sync.',
+    'pu.d7': 'Exportable profiles for sing-box, Xray-core, v2rayN.',
+    'pu.d8': 'Native Xray JSON for Xray-core, v2rayN, v2rayNG, NekoBox.',
+    'fq.kicker': '/ QUESTIONS', 'fq.h2': 'The ones people actually ask.',
+    'q1.s': 'How is this different from the service I already pay for?',
+    'q1.b': "Most VPN providers are staunchly pro-China, actively cooperating with the CCP's censorship, regularly reporting user access data to internet monitoring departments, setting up firewalls for certain news and pornographic websites, and proactively reporting users who publish political opinions or visit Falun Gong websites. We guarantee we will not set up any firewalls or censor user online activities, as mentioned in our handling logs. Furthermore, most of our competitors are transit providers; their exit IPs may not be the node's IPs, potentially leading to incompatibility with mainstream AI models. Also, with tens of thousands of users simultaneously using the same IP, the IP quality is poor. We provide high-purity data center IPs and residential proxies.",
+    'q2.s': 'Will it work on a restricted network?',
+    'q2.b': "Yes. The client auto-selects a handshake-indistinguishable transport when it detects DPI interference, and falls back through a few more until something connects. If you're on the ground and nothing works, email <code>help@sinxcloud.io</code> — we've debugged most of them.",
+    'q4.s': 'Do you keep any logs at all?',
+    'q4.b': 'We keep aggregate bandwidth counters per account (so we can bill you) and a 10-minute rolling connection count per region (for autoscaling). No source IP, no destination, no timestamps per request. The attestation we sign each month declares exactly this.',
+    'q5.s': 'What about the client — is it safe to install?',
+    'q5.b': "The clients for macOS, Windows, iOS, Android, and Linux are all open source, reproducibly built, and hash-verified against GitHub releases. If you'd rather bring your own client, we support <code>sing-box</code>, <code>Mihomo (Clash Meta)</code>, <code>Xray-core</code>, <code>v2rayN</code> and WireGuard profiles out of the box.",
+    'cta.h': 'The open internet still exists. <br/><span style="background: linear-gradient(120deg, var(--glow), var(--cyan)); -webkit-background-clip: text; background-clip: text; color: transparent;">Keep a direct route to it.</span>',
+    'cta.p': 'Support Crypto(stable coin) pay(recommand), Stripe , PayPal, Visa/MasterCard , Alipay',
+    'cta.b2': 'See plans',
+    'footer.colophon': 'Direct routes to the open internet. Open-source stack, signed zero-log attestation, hardware we own in every region.',
+    'ft.prod': 'Product', 'ft.scen': 'Scenarios', 'ft.netw': 'Network', 'ft.pric': 'Pricing',
+    'ft.down': 'Download', 'ft.stat': 'Status',
+    'ft.comp': 'Company', 'ft.about': 'About', 'ft.atte': 'Attestations', 'ft.sec': 'Security', 'ft.press': 'Press kit',
+    'ft.dev': 'Developers', 'ft.docs': 'Docs', 'ft.cfg': 'Config generator', 'ft.chg': 'Changelog',
+    'ft.copy': '© 2026 SinX Cloud Labs · Reykjavík, IS',
+  },
+};
+
+function applyLang(lang) {
+  const dict = I18N[lang] || I18N.en;
+  document.documentElement.setAttribute('data-lang', lang);
+  document.documentElement.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (dict[k] != null) el.textContent = dict[k];
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el => {
+    const k = el.getAttribute('data-i18n-html');
+    if (dict[k] != null) el.innerHTML = dict[k];
+  });
+  try { localStorage.setItem('sinx-lang', lang); } catch(e){}
+}
+
+applyLang('en');
+
+// ============== HERO CTA → SIGN IN ==============
+(() => {
+  const cta = document.getElementById('heroGetStarted');
+  const signin = document.getElementById('signinLink');
+  if (cta && signin) {
+    cta.addEventListener('click', (e) => {
+      e.preventDefault();
+      signin.click();
+    });
+  }
+})();
+
+// ============== SCROLL REVEAL ==============
+const io = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+}, { threshold: 0.12 });
+document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+// ============== TICKER ==============
+const cities = [
+  ['Tokyo','JP'],['Osaka','JP'],['Singapore','SG'],
+  ['Taipei','TW'],['Los Angeles','US'],['New York','US'],['Frankfurt','DE'],
+];
+const ticker = document.getElementById('tickerTrack');
+const tickerHTML = cities.map(([c,cc]) => `<div class="ticker-item"><span class="dot"></span><span class="loc">${c} · ${cc}</span><span class="lat">ONLINE</span></div>`).join('');
+ticker.innerHTML = tickerHTML + tickerHTML;
+
+// ============== LIVE PING GRAPH ==============
+const pingLine = document.getElementById('pingLine');
+const pingArea = document.getElementById('pingArea');
+const pingNum = document.getElementById('pingNum');
+let pingData = Array.from({length: 40}, () => 15 + Math.random() * 8);
+function renderPing() {
+  const pts = pingData.map((v, i) => [i * (240 / 39), 100 - (v * 1.5)]);
+  const d = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = d + ` L240 100 L0 100 Z`;
+  pingLine.setAttribute('d', d);
+  pingArea.setAttribute('d', area);
+  pingNum.textContent = Math.round(pingData[pingData.length - 1]);
+}
+renderPing();
+setInterval(() => {
+  pingData.shift();
+  pingData.push(13 + Math.random() * 9 + (Math.random() < 0.08 ? Math.random() * 6 : 0));
+  renderPing();
+}, 500);
+
+// ============== WORLD MAP ==============
+// Equirectangular projection: lng [-180..180] -> x [0..1000], lat [85..-60] -> y [0..500]
+const MAP_W = 1000, MAP_H = 500;
+const LAT_TOP = 72, LAT_BOT = -56; // visible lat band
+function proj(lng, lat) {
+  const x = ((lng + 180) / 360) * MAP_W;
+  const y = ((LAT_TOP - lat) / (LAT_TOP - LAT_BOT)) * MAP_H;
+  return [x, y];
+}
+
+// Simplified continent polygons (lng, lat) — hand-simplified outlines
+const LAND = [
+  // North America (mainland)
+  [[-168,66],[-158,70],[-140,70],[-125,60],[-130,54],[-124,48],[-124,40],[-117,32],[-110,24],[-97,18],[-87,21],[-82,23],[-80,26],[-81,30],[-76,35],[-74,40],[-65,44],[-60,48],[-55,52],[-65,58],[-78,63],[-90,68],[-105,69],[-125,70],[-155,72]],
+  // Greenland
+  [[-55,60],[-40,60],[-20,70],[-20,80],[-55,83],[-70,78],[-60,70]],
+  // Central America
+  [[-95,16],[-90,14],[-85,11],[-79,9],[-77,8]],
+  // South America
+  [[-81,12],[-74,11],[-62,10],[-52,5],[-48,0],[-44,-5],[-40,-10],[-38,-16],[-40,-22],[-48,-28],[-58,-34],[-65,-40],[-70,-50],[-72,-54],[-70,-52],[-68,-45],[-72,-40],[-73,-30],[-72,-20],[-78,-10],[-81,-4],[-80,2],[-78,8]],
+  // Europe (Iberia → Scandinavia → West Russia)
+  [[-10,36],[-6,36],[0,38],[8,42],[12,45],[14,40],[18,40],[24,40],[28,41],[27,45],[30,45],[33,47],[40,48],[50,50],[55,58],[60,65],[50,68],[40,68],[28,70],[22,70],[15,68],[10,63],[8,58],[2,50],[-5,50],[-8,44],[-10,40]],
+  // UK/Ireland
+  [[-10,51],[-8,55],[-5,58],[-3,58],[-1,54],[0,52],[-5,50]],
+  // Africa
+  [[-17,14],[-10,20],[0,28],[10,32],[20,32],[30,31],[35,32],[40,15],[44,12],[51,12],[51,5],[42,-1],[40,-10],[39,-17],[35,-24],[28,-33],[20,-35],[15,-33],[12,-20],[10,-5],[8,4],[0,5],[-8,4],[-15,10]],
+  // Arabia / Middle East
+  [[35,33],[40,37],[48,38],[55,27],[58,22],[52,17],[45,15],[38,20]],
+  // Asia mainland (huge)
+  [[30,45],[40,45],[50,40],[60,40],[70,40],[75,37],[78,32],[88,28],[95,28],[100,22],[107,18],[110,21],[113,22],[117,23],[121,25],[122,30],[121,38],[125,40],[128,42],[133,45],[138,46],[142,50],[145,55],[150,60],[155,65],[160,68],[170,68],[178,65],[180,66],[180,70],[140,75],[100,78],[70,76],[55,72],[40,68]],
+  // India
+  [[68,24],[72,21],[73,16],[77,8],[80,8],[82,11],[87,18],[89,22],[85,26],[78,28],[72,25]],
+  // SE Asia peninsula (Indochina, Malay)
+  [[95,20],[98,16],[100,12],[102,9],[104,5],[104,1],[102,1],[100,4],[98,8],[94,17]],
+  // Japan (3 islands approximated)
+  [[130,31],[132,34],[135,34],[138,36],[141,38],[142,42],[144,44],[140,45],[136,37],[132,33]],
+  // Korean peninsula
+  [[125,34],[127,34],[129,36],[129,40],[126,40],[125,38]],
+  // Philippines (simplified blob)
+  [[118,18],[122,18],[126,12],[126,6],[122,6],[118,10]],
+  // Indonesia - Sumatra
+  [[95,5],[100,5],[106,-2],[104,-6],[100,-5],[95,0]],
+  // Java
+  [[106,-6],[114,-7],[114,-9],[106,-8]],
+  // Borneo
+  [[109,4],[118,4],[119,-2],[112,-4],[108,-1]],
+  // Sulawesi / PNG approximated
+  [[120,1],[124,1],[125,-5],[121,-5],[119,-2]],
+  [[132,-3],[145,-3],[150,-8],[140,-10],[132,-8]],
+  // Australia
+  [[113,-22],[115,-34],[122,-34],[130,-32],[137,-35],[141,-38],[146,-39],[150,-37],[153,-28],[146,-19],[139,-17],[135,-15],[130,-12],[125,-14],[120,-18]],
+  // New Zealand (two islands merged)
+  [[170,-35],[176,-39],[178,-42],[172,-46],[167,-45],[166,-42]],
+];
+
+// Rasterise continents as a grid of dots inside the polygons.
+function pointInPoly(px, py, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i], [xj, yj] = poly[j];
+    if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+(function renderDotLand() {
+  const g = document.getElementById('dotLand');
+  const STEP = 6;                    // dot grid step in viewBox px
+  const dotR = 0.9;
+  const projectedPolys = LAND.map(p => p.map(([lng, lat]) => proj(lng, lat)));
+  const frag = [];
+  for (let y = 0; y < MAP_H; y += STEP) {
+    for (let x = 0; x < MAP_W; x += STEP) {
+      // jitter slightly for organic feel
+      const jx = x + (Math.sin(x*0.7+y) * 0.6);
+      const jy = y + (Math.cos(y*0.9+x) * 0.6);
+      for (const poly of projectedPolys) {
+        if (pointInPoly(jx, jy, poly)) {
+          frag.push(`<circle cx="${jx.toFixed(1)}" cy="${jy.toFixed(1)}" r="${dotR}" fill="rgba(168,190,217,0.22)"/>`);
+          break;
+        }
+      }
+    }
+  }
+  g.innerHTML = frag.join('');
+})();
+
+// ============== MAP NODES ==============
+// state: 'res' = residential exit, 'warn' = high load, 'ok' = ordinary node
+const POPS = [
+  { id:'US', city:'San Francisco', lng:-122.4, lat: 37.8, state:'res',  labelAnchor:'end',   dx:-14, dy:4 },
+  { id:'US', city:'New York',      lng: -74.0, lat: 40.7, state:'ok',  labelAnchor:'start', dx: 12, dy:4 },
+  { id:'UK', city:'London',        lng: -0.1, lat: 51.5, state:'ok',   labelAnchor:'end',   dx:-14, dy:-6 },
+  { id:'DE', city:'Frankfurt',     lng:  8.7, lat: 50.1, state:'ok',   labelAnchor:'start', dx: 12, dy:4 },
+  { id:'SG', city:'Singapore',     lng:103.8, lat:  1.3, state:'res',  labelAnchor:'start', dx: 12, dy:4 },
+  { id:'TW', city:'Taipei',        lng:121.6, lat: 25.0, state:'ok',   labelAnchor:'start', dx: 12, dy: 14 },
+  { id:'KR', city:'Seoul',         lng:127.0, lat: 37.6, state:'warn', labelAnchor:'end',   dx:-14, dy:-6 },
+  { id:'JP', city:'Tokyo',         lng:139.7, lat: 35.7, state:'warn', labelAnchor:'start', dx: 12, dy:4 },
+];
+
+const colorMap = { ok: '#4ADE80', warn: '#FCD34D', res: '#38BDF8' };
+const glowMap  = { ok: 'url(#okGlow)', warn: 'url(#warnGlow)', res: 'url(#resGlow)' };
+const labelMap = { ok: 'ORDINARY', warn: 'HIGH LOAD', res: 'RESIDENTIAL' };
+
+// Project
+POPS.forEach(p => { [p.x, p.y] = proj(p.lng, p.lat); });
+
+// Draw arcs between every pair
+(function renderArcs() {
+  const g = document.getElementById('arcs');
+  const frag = [];
+  for (let i = 0; i < POPS.length; i++) {
+    for (let j = i + 1; j < POPS.length; j++) {
+      const a = POPS[i], b = POPS[j];
+      const mx = (a.x + b.x) / 2;
+      const my = (a.y + b.y) / 2 - Math.hypot(a.x-b.x, a.y-b.y) * 0.18;
+      const dashLen = Math.hypot(a.x-b.x, a.y-b.y) * 1.2;
+      frag.push(`<path d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" stroke-dasharray="2 4" opacity="0.35"/>`);
+    }
+  }
+  g.innerHTML = frag.join('');
+})();
+
+// Draw nodes with labels
+(function renderNodes() {
+  const g = document.getElementById('mapNodes');
+  const frag = POPS.map((p, i) => {
+    const c = colorMap[p.state];
+    const glow = glowMap[p.state];
+    const tag = labelMap[p.state];
+    const tagColor = p.state === 'res' ? '#38BDF8' : p.state === 'warn' ? '#FCD34D' : '#4ADE80';
+    const anchor = p.labelAnchor;
+    const lx = p.x + p.dx;
+    const ly = p.y + p.dy;
+    const delay = (i * 0.35).toFixed(2);
+    return `
+      <g class="map-pop" data-state="${p.state}">
+        <circle cx="${p.x}" cy="${p.y}" r="26" fill="${glow}">
+          <animate attributeName="r" values="18;34;18" dur="2.6s" begin="${delay}s" repeatCount="indefinite"/>
+          <animate attributeName="opacity" values="0.8;0.1;0.8" dur="2.6s" begin="${delay}s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${c}" stroke="#06101f" stroke-width="1.2"/>
+        <g transform="translate(${lx} ${ly})" font-family="JetBrains Mono, monospace" text-anchor="${anchor}">
+          <text x="0" y="0" fill="#E6F1FF" font-size="12" font-weight="600" letter-spacing="0.5">${p.id} · ${p.city}</text>
+          <text x="0" y="13" fill="${tagColor}" font-size="8.5" letter-spacing="1.2">${tag}</text>
+        </g>
+      </g>
+    `;
+  }).join('');
+  g.innerHTML = frag;
+})();
+
+// ============== FOOTER CLOCK ==============
+function tickClock() {
+  const now = new Date();
+  const iso = now.toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  document.getElementById('footerClock').textContent = `SYSTEM TIME ${iso}`;
+}
+tickClock(); setInterval(tickClock, 1000);
+
+// ============== TWEAKS REMOVED ==============
+</script>
+</body>
+</html>

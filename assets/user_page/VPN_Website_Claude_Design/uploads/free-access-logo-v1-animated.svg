@@ -1,0 +1,72 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Free Access Logo V1 Animated</title>
+  <desc id="desc">An open globe with a flowing route, pulsing network nodes, and a moving signal tracer.</desc>
+  <defs>
+    <linearGradient id="ringGradient" x1="120" y1="408" x2="404" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0F172A"></stop>
+      <stop offset="0.52" stop-color="#1E3A8A"></stop>
+      <stop offset="1" stop-color="#22D3EE"></stop>
+    </linearGradient>
+    <linearGradient id="routeGradient" x1="128" y1="344" x2="408" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#22D3EE"></stop>
+      <stop offset="0.55" stop-color="#38BDF8"></stop>
+      <stop offset="1" stop-color="#0F172A"></stop>
+    </linearGradient>
+    <radialGradient id="nodeGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 0) rotate(90) scale(12)">
+      <stop stop-color="#67E8F9"></stop>
+      <stop offset="1" stop-color="#67E8F9" stop-opacity="0"></stop>
+    </radialGradient>
+    <clipPath id="globeClip">
+      <circle cx="256" cy="256" r="145"></circle>
+    </clipPath>
+    <path id="signalPath" d="M126 344C171 337 211 311 249 268C285 227 328 184 392 142"></path>
+  </defs>
+
+  <circle cx="256" cy="256" r="196" fill="#F8FAFC"></circle>
+
+  <circle cx="256" cy="256" r="166" stroke="url(#ringGradient)" stroke-width="24" stroke-linecap="round" stroke-dasharray="870 210" transform="rotate(-34 256 256)"></circle>
+
+  <g clip-path="url(#globeClip)" opacity="0.82">
+    <ellipse cx="256" cy="256" rx="138" ry="56" stroke="#0F172A" stroke-opacity="0.22" stroke-width="12"></ellipse>
+    <ellipse cx="256" cy="204" rx="112" ry="34" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10"></ellipse>
+    <ellipse cx="256" cy="308" rx="112" ry="34" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10"></ellipse>
+    <path d="M214 122C169 166 144 208 144 256C144 304 169 346 214 390" stroke="#0F172A" stroke-opacity="0.2" stroke-width="10" stroke-linecap="round"></path>
+    <path d="M256 114C235 158 224 206 224 256C224 306 235 354 256 398" stroke="#0F172A" stroke-opacity="0.18" stroke-width="10" stroke-linecap="round"></path>
+    <path d="M298 122C343 166 368 208 368 256C368 304 343 346 298 390" stroke="#0F172A" stroke-opacity="0.2" stroke-width="10" stroke-linecap="round"></path>
+  </g>
+
+  <use href="#signalPath" stroke="#082F49" stroke-opacity="0.12" stroke-width="26" stroke-linecap="round" stroke-linejoin="round"></use>
+  <use href="#signalPath" stroke="url(#routeGradient)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"></use>
+  <use href="#signalPath" stroke="#D8F8FF" stroke-width="7" stroke-linecap="round" stroke-dasharray="34 260">
+    
+  </use>
+
+  <path d="M372 136L396 138L388 160" stroke="#0F172A" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"></path>
+
+  <g>
+    <circle cx="162" cy="334" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      
+    </circle>
+    <circle cx="162" cy="334" r="8" fill="#22D3EE">
+      
+    </circle>
+
+    <circle cx="250" cy="268" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      
+    </circle>
+    <circle cx="250" cy="268" r="8" fill="#38BDF8">
+      
+    </circle>
+
+    <circle cx="334" cy="180" r="18" fill="url(#nodeGlow)" opacity="0.75">
+      
+    </circle>
+    <circle cx="334" cy="180" r="8" fill="#0F172A">
+      
+    </circle>
+  </g>
+
+  <circle r="6" fill="#E0FBFF">
+    
+  </circle>
+</svg>
