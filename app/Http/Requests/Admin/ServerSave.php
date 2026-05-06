@@ -104,7 +104,6 @@ class ServerSave extends FormRequest
         ],
         'anytls' => [
             'tls' => 'nullable|array',
-            'alpn' => 'nullable|string',
             'padding_scheme' => 'nullable|array',
         ],
     ];
