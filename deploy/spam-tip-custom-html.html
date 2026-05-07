@@ -1,0 +1,64 @@
+<script>
+(function(){
+  function showSpamTip(){
+    if(document.getElementById('_spamTip')) return;
+    var el = document.createElement('div');
+    el.id = '_spamTip';
+    el.innerHTML =
+      '<div style="display:flex;align-items:flex-start;gap:12px">' +
+        '<span style="font-size:28px;line-height:1">📬</span>' +
+        '<div>' +
+          '<div style="font-weight:600;font-size:15px;margin-bottom:6px">验证码已发送 / Verification code sent</div>' +
+          '<div style="font-size:13px;line-height:1.6;color:#e2e8f0">' +
+            '如果没有收到，请检查<b>垃圾邮件箱 (Spam / Junk)</b>。<br>' +
+            'If not received, please check your <b>Spam / Junk folder</b>.<br>' +
+            '<span style="color:#93c5fd">找到后请标记为"非垃圾邮件"，后续即可正常接收。</span>' +
+          '</div>' +
+        '</div>' +
+        '<span onclick="this.parentElement.parentElement.remove()" style="cursor:pointer;font-size:18px;opacity:0.6;margin-left:auto">✕</span>' +
+      '</div>';
+    el.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:99999;' +
+      'background:linear-gradient(135deg,#1e293b,#334155);color:#f1f5f9;' +
+      'border:1px solid rgba(96,165,250,0.4);border-radius:12px;padding:16px 20px;' +
+      'max-width:480px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,0.4);' +
+      'animation:_stIn .3s ease';
+    if(!document.getElementById('_stInStyle')){
+      var s = document.createElement('style');
+      s.id = '_stInStyle';
+      s.textContent = '@keyframes _stIn{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(el);
+    setTimeout(function(){ if(el.parentNode) el.remove(); }, 20000);
+  }
+  try {
+    var po = new PerformanceObserver(function(list){
+      var entries = list.getEntries();
+      for(var i = 0; i < entries.length; i++){
+        if(entries[i].name.indexOf('sendEmailVerify') !== -1){
+          setTimeout(showSpamTip, 300);
+        }
+      }
+    });
+    po.observe({entryTypes:['resource']});
+  } catch(e){}
+  var _origOpen = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(){
+    this._url = arguments[1] || '';
+    return _origOpen.apply(this, arguments);
+  };
+  var _origSend = XMLHttpRequest.prototype.send;
+  XMLHttpRequest.prototype.send = function(){
+    var xhr = this;
+    if(xhr._url && xhr._url.indexOf('sendEmailVerify') !== -1){
+      xhr.addEventListener('load', function(){
+        try{
+          var d = JSON.parse(xhr.responseText);
+          if(d.data || d.status === 'success') setTimeout(showSpamTip, 300);
+        }catch(e){}
+      });
+    }
+    return _origSend.apply(this, arguments);
+  };
+})();
+</script>
