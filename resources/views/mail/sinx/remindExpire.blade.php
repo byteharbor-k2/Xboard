@@ -71,7 +71,7 @@
 
                                     <tr>
                                         <td style="text-align: center; padding: 0 0 8px;" valign="top">
-                                            <a href="{{$url}}/#/plan" style="font-size: 15px; color: #0f172a; text-decoration: none; font-weight: 700; display: inline-block; border-radius: 6px; background-color: #fbbf24; padding: 12px 36px;">Renew Now</a>
+                                            <a href="{{url}}/#/plan" style="font-size: 15px; color: #0f172a; text-decoration: none; font-weight: 700; display: inline-block; border-radius: 6px; background-color: #fbbf24; padding: 12px 36px;">Renew Now</a>
                                         </td>
                                     </tr>
                                 </table>
@@ -82,19 +82,19 @@
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                         <tr>
                             <td style="text-align: center; font-size: 12px; color: #475569; padding: 0 0 8px;">
-                                &copy; {{$name}}. All Rights Reserved.
+                                &copy; {{name}}. All Rights Reserved.
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 12px; padding: 0 0 8px;">
-                                <a href="{{$url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
+                                <a href="{{url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
                                 &nbsp;&middot;&nbsp;
-                                <a href="{{$url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
+                                <a href="{{url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 11px; color: #334155; padding: 8px 0 0;">
-                                You received this email because your subscription at {{$name}} is about to expire.<br>
+                                You received this email because your subscription at {{name}} is about to expire.<br>
                                 This is an automated reminder — please do not reply directly.
                             </td>
                         </tr>

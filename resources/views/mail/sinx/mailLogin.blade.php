@@ -53,12 +53,12 @@
                                     </tr>
                                     <tr>
                                         <td style="font-size: 14px; color: #94a3b8; padding: 0 0 24px;" valign="top">
-                                            You are logging into <strong style="color: #e2e8f0;">{{$name}}</strong>. Click the button below within <strong style="color: #e2e8f0;">5 minutes</strong> to complete login. If you did not initiate this request, please ignore this email.
+                                            You are logging into <strong style="color: #e2e8f0;">{{name}}</strong>. Click the button below within <strong style="color: #e2e8f0;">5 minutes</strong> to complete login. If you did not initiate this request, please ignore this email.
                                         </td>
                                     </tr>
                                     <tr>
                                         <td style="text-align: center; padding: 8px 0 24px;" valign="top">
-                                            <a href="{{$link}}" style="font-size: 15px; color: #0f172a; text-decoration: none; font-weight: 700; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 12px 36px;">Log In Now</a>
+                                            <a href="{{link}}" style="font-size: 15px; color: #0f172a; text-decoration: none; font-weight: 700; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 12px 36px;">Log In Now</a>
                                         </td>
                                     </tr>
                                     <tr>
@@ -68,7 +68,7 @@
                                     </tr>
                                     <tr>
                                         <td style="font-size: 12px; color: #22D3EE; padding: 0 0 20px; word-break: break-all;" valign="top">
-                                            <a href="{{$link}}" style="color: #22D3EE; text-decoration: underline;">{{$link}}</a>
+                                            <a href="{{link}}" style="color: #22D3EE; text-decoration: underline;">{{link}}</a>
                                         </td>
                                     </tr>
 
@@ -77,7 +77,7 @@
                                             <table width="100%" cellpadding="0" cellspacing="0" style="border-top: 1px solid #334155;">
                                                 <tr>
                                                     <td style="font-size: 14px; color: #94a3b8; padding: 20px 0 8px;">
-                                                        您正在登录 <strong style="color: #e2e8f0;">{{$name}}</strong>，请在 <strong style="color: #e2e8f0;">5 分钟</strong>内点击上方按钮完成登录。如果您未发起此请求，请忽略此邮件。
+                                                        您正在登录 <strong style="color: #e2e8f0;">{{name}}</strong>，请在 <strong style="color: #e2e8f0;">5 分钟</strong>内点击上方按钮完成登录。如果您未发起此请求，请忽略此邮件。
                                                     </td>
                                                 </tr>
                                             </table>
@@ -91,19 +91,19 @@
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                         <tr>
                             <td style="text-align: center; font-size: 12px; color: #475569; padding: 0 0 8px;">
-                                &copy; {{$name}}. All Rights Reserved.
+                                &copy; {{name}}. All Rights Reserved.
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 12px; padding: 0 0 8px;">
-                                <a href="{{$url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
+                                <a href="{{url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
                                 &nbsp;&middot;&nbsp;
-                                <a href="{{$url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
+                                <a href="{{url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 11px; color: #334155; padding: 8px 0 0;">
-                                You received this email because a login request was made for your account at {{$name}}.<br>
+                                You received this email because a login request was made for your account at {{name}}.<br>
                                 If you did not request this, please ignore this email.
                             </td>
                         </tr>

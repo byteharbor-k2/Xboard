@@ -59,7 +59,7 @@
                                     </tr>
                                     <tr>
                                         <td class="code-text" style="font-size: 36px; font-weight: 700; text-align: center; color: #22D3EE; letter-spacing: 6px; padding: 20px 0; background-color: #0f172a; border-radius: 6px; border: 1px dashed rgba(34,211,238,0.3);" valign="top" bgcolor="#0f172a">
-                                            {{$code}}
+                                            {{code}}
                                         </td>
                                     </tr>
 
@@ -77,7 +77,7 @@
 
                                     <tr>
                                         <td style="text-align: center; padding: 24px 0 8px;" valign="top">
-                                            <a href="{{$url}}" style="font-size: 14px; color: #0f172a; text-decoration: none; font-weight: 600; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 10px 28px;">Visit {{$name}}</a>
+                                            <a href="{{url}}" style="font-size: 14px; color: #0f172a; text-decoration: none; font-weight: 600; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 10px 28px;">Visit {{name}}</a>
                                         </td>
                                     </tr>
                                 </table>
@@ -88,19 +88,19 @@
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                         <tr>
                             <td style="text-align: center; font-size: 12px; color: #475569; padding: 0 0 8px;">
-                                &copy; {{$name}}. All Rights Reserved.
+                                &copy; {{name}}. All Rights Reserved.
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 12px; padding: 0 0 8px;">
-                                <a href="{{$url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
+                                <a href="{{url}}/app/#/dashboard" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
                                 &nbsp;&middot;&nbsp;
-                                <a href="{{$url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
+                                <a href="{{url}}/app/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 11px; color: #334155; padding: 8px 0 0;">
-                                You received this email because a verification code was requested for your account at {{$name}}.<br>
+                                You received this email because a verification code was requested for your account at {{name}}.<br>
                                 If you did not request this, please ignore this email.
                             </td>
                         </tr>

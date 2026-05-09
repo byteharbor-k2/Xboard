@@ -88,7 +88,7 @@
 
                                     <tr>
                                         <td style="text-align: center; padding: 0 0 8px;" valign="top">
-                                            <a href="{{$url}}/#/subscribe" style="font-size: 14px; color: #0f172a; text-decoration: none; font-weight: 600; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 10px 28px;">Check Usage</a>
+                                            <a href="{{url}}/#/subscribe" style="font-size: 14px; color: #0f172a; text-decoration: none; font-weight: 600; display: inline-block; border-radius: 6px; background-color: #22D3EE; padding: 10px 28px;">Check Usage</a>
                                         </td>
                                     </tr>
                                 </table>
@@ -99,19 +99,19 @@
                     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 24px;">
                         <tr>
                             <td style="text-align: center; font-size: 12px; color: #475569; padding: 0 0 8px;">
-                                &copy; {{$name}}. All Rights Reserved.
+                                &copy; {{name}}. All Rights Reserved.
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 12px; padding: 0 0 8px;">
-                                <a href="{{$url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
+                                <a href="{{url}}/#/subscribe" style="color: #22D3EE; text-decoration: none;">My Subscription</a>
                                 &nbsp;&middot;&nbsp;
-                                <a href="{{$url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
+                                <a href="{{url}}/#/knowledge" style="color: #22D3EE; text-decoration: none;">Tutorials</a>
                             </td>
                         </tr>
                         <tr>
                             <td style="text-align: center; font-size: 11px; color: #334155; padding: 8px 0 0;">
-                                You received this email because your traffic usage at {{$name}} has reached 80%.<br>
+                                You received this email because your traffic usage at {{name}} has reached 80%.<br>
                                 This is an automated alert — please do not reply directly.
                             </td>
                         </tr>
