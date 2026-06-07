@@ -141,26 +141,26 @@ dashboard.app.sinx.it.com
 
 ### 1. Normalize Docker Build
 
-- [ ] Review current `Dockerfile`.
-- [ ] Make the Docker image build from the checked-out GitHub Actions workspace, not by cloning a branch again inside the Dockerfile.
-- [ ] Keep `composer.lock` in the Docker build context for reproducible dependency installation.
-- [ ] Exclude `.git`, `.github`, `.env`, local caches, and local runtime data from the Docker build context.
-- [ ] Ensure Git submodules such as `public/assets/admin` are checked out by GitHub Actions.
+- [x] Review current `Dockerfile`.
+- [x] Make the Docker image build from the checked-out GitHub Actions workspace, not by cloning a branch again inside the Dockerfile.
+- [x] Keep `composer.lock` in the Docker build context for reproducible dependency installation.
+- [x] Exclude `.git`, `.github`, `.env`, local caches, and local runtime data from the Docker build context.
+- [x] Ensure Git submodules such as `public/assets/admin` are checked out by GitHub Actions.
 
 Why: the image should correspond to one exact commit. Building by cloning a branch inside Docker makes the build depend on mutable branch state and network behavior.
 
 ### 2. Normalize GitHub Actions
 
-- [ ] Keep the workflow under `.github/workflows/docker-publish.yml`.
-- [ ] Build on push to `master`.
-- [ ] Keep manual `workflow_dispatch` for emergency rebuilds.
-- [ ] Push to:
+- [x] Keep the workflow under `.github/workflows/docker-publish.yml`.
+- [x] Build on push to `master`.
+- [x] Keep manual `workflow_dispatch` for emergency rebuilds.
+- [x] Push to:
 
 ```text
 ghcr.io/byteharbor-k2/xboard
 ```
 
-- [ ] Generate tags:
+- [x] Generate tags:
 
 ```text
 latest       only for master convenience
@@ -169,15 +169,15 @@ sha-xxxxxxx  immutable commit tag
 YYYYMMDD-xxxxxxx readable release tag
 ```
 
-- [ ] Build at least `linux/amd64` because the Evoxt VPS is x86_64.
-- [ ] Add `linux/arm64` only if multi-arch is needed.
+- [x] Build at least `linux/amd64` because the Evoxt VPS is x86_64.
+- [x] Add `linux/arm64` only if multi-arch is needed.
 
 Why: GitHub Actions becomes the controlled build machine. GHCR becomes the image registry. The VPS no longer needs source code builds.
 
 ### 3. Prepare Evoxt Production Directory
 
 - [ ] Create `/opt/xboard-prod`.
-- [ ] Create `compose.yaml`.
+- [x] Create `compose.yaml`.
 - [ ] Create `.env`.
 - [ ] Create `data/`.
 - [ ] Create `storage/logs`.
@@ -225,32 +225,32 @@ Why: Nginx should stay on the host and proxy to `127.0.0.1:7001`. Xboard applica
 
 ### 5. Add Backup Script
 
-- [ ] Add `scripts/backup.sh`.
-- [ ] Use SQLite `.backup` when possible.
-- [ ] Include `.env`, `data/`, `storage/`, `plugins/`, and `theme/`.
-- [ ] Keep at least 7-14 days of backups.
+- [x] Add `scripts/backup.sh`.
+- [x] Use SQLite `.backup` when possible.
+- [x] Include `.env`, `data/`, `storage/`, `plugins/`, and `theme/`.
+- [x] Keep at least 7-14 days of backups.
 
 Why: every production deployment must be reversible.
 
 ### 6. Add Deploy Script
 
-- [ ] Add `scripts/deploy.sh`.
-- [ ] Require an explicit image tag.
-- [ ] Run backup before deploy.
-- [ ] Pull image.
-- [ ] Start container.
-- [ ] Run migrations if needed.
-- [ ] Clear Laravel caches if needed.
-- [ ] Print container status and recent logs.
+- [x] Add `scripts/deploy.sh`.
+- [x] Require an explicit image tag.
+- [x] Run backup before deploy.
+- [x] Pull image.
+- [x] Start container.
+- [x] Run migrations if needed.
+- [x] Clear Laravel caches if needed.
+- [x] Print container status and recent logs.
 
 Why: deployment should be repeatable and boring. Manual one-off commands are hard to audit and easy to forget.
 
 ### 7. Add Rollback Script
 
-- [ ] Add `scripts/rollback.sh`.
-- [ ] Store the previous image tag before each deploy.
-- [ ] Allow returning to the previous tag quickly.
-- [ ] Do not overwrite data automatically during rollback unless explicitly requested.
+- [x] Add `scripts/rollback.sh`.
+- [x] Store the previous image tag before each deploy.
+- [x] Allow returning to the previous tag quickly.
+- [x] Do not overwrite data automatically during rollback unless explicitly requested.
 
 Why: image rollback and data rollback are different operations. Most bad deploys only need image rollback.
 

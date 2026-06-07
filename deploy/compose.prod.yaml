@@ -1,0 +1,26 @@
+services:
+  xboard:
+    image: ${XBOARD_IMAGE:?Set XBOARD_IMAGE in .deploy/image.env}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7001:7001"
+      - "8076:8076"
+    volumes:
+      - ./.env:/www/.env
+      - ./data:/www/.docker/.data
+      - ./storage/logs:/www/storage/logs
+      - ./storage/theme:/www/storage/theme
+      - ./plugins:/www/plugins
+      - ./theme/Freedom:/www/theme/Freedom
+      - ./theme/Freedom:/www/public/theme/Freedom
+      - redis-data:/data
+    environment:
+      - ENABLE_CADDY=false
+      - ENABLE_WEB=true
+      - ENABLE_HORIZON=true
+      - ENABLE_REDIS=true
+      - ENABLE_WS_SERVER=true
+      - docker=true
+
+volumes:
+  redis-data:
