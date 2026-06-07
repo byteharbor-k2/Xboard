@@ -37,6 +37,13 @@ Deploy a specific image:
 XBOARD_ROOT=/opt/xboard-prod /opt/xboard-prod/scripts/deploy.sh ghcr.io/byteharbor-k2/xboard:sha-xxxxxxx
 ```
 
+Build and deploy without GitHub Actions/GHCR:
+
+```sh
+XBOARD_BUILD_ROOT=/opt/xboard-build /opt/xboard-prod/scripts/build-local.sh
+XBOARD_ROOT=/opt/xboard-prod /opt/xboard-prod/scripts/deploy-local.sh xboard-custom:YYYYMMDD-sha
+```
+
 Rollback to the previous image:
 
 ```sh

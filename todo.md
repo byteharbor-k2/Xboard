@@ -139,6 +139,14 @@ dashboard.app.sinx.it.com
 
 ## Implementation TODO
 
+### 0. Temporary Local Build Path
+
+- [x] Add `scripts/build-local.sh` for building the custom image directly on Evoxt.
+- [x] Add `scripts/deploy-local.sh` for deploying a locally built image without GHCR.
+- [ ] Use this path until the GitHub billing lock is resolved.
+
+Why: GitHub Actions is currently blocked by an account-level billing lock, so the VPS will temporarily act as the build machine. The production runtime model stays the same: run a tagged image and keep data outside the image.
+
 ### 1. Normalize Docker Build
 
 - [x] Review current `Dockerfile`.
