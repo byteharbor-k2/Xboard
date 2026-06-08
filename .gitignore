@@ -34,3 +34,6 @@ compose.host.yaml
 compose.split.yaml
 .scribe
 *.env.bak
+
+# local devops notes
+todo.md
