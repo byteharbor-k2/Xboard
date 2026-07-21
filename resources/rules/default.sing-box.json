@@ -2,36 +2,32 @@
     "dns": {
         "rules": [
             {
-                "outbound": ["any"],
-                "server": "local"
-            },
-            {
                 "clash_mode": "global",
+                "action": "route",
                 "server": "remote"
             },
             {
                 "clash_mode": "direct",
+                "action": "route",
                 "server": "local"
             },
             {
                 "rule_set": ["geosite-cn"],
+                "action": "route",
                 "server": "local"
             }
         ],
         "servers": [
             {
-                "address": "https://1.1.1.1/dns-query",
+                "type": "https",
+                "server": "1.1.1.1",
                 "detour": "节点选择",
                 "tag": "remote"
             },
             {
-                "address": "https://223.5.5.5/dns-query",
-                "detour": "direct",
+                "type": "https",
+                "server": "223.5.5.5",
                 "tag": "local"
-            },
-            {
-                "address": "rcode://success",
-                "tag": "block"
             }
         ],
         "strategy": "prefer_ipv4"
@@ -46,35 +42,26 @@
     },
     "inbounds": [
         {
-            "auto_route": true,
-            "domain_strategy": "prefer_ipv4",
-            "endpoint_independent_nat": true,
+            "type": "tun",
+            "tag": "tun-in",
             "address": ["172.19.0.1/30", "2001:0470:f9da:fdfa::1/64"],
-            "mtu": 9000,
-            "sniff": true,
-            "sniff_override_destination": true,
-            "stack": "system",
+            "auto_route": true,
             "strict_route": true,
-            "type": "tun"
+            "stack": "system",
+            "mtu": 9000
         },
         {
-            "domain_strategy": "prefer_ipv4",
+            "type": "socks",
+            "tag": "socks-in",
             "listen": "127.0.0.1",
             "listen_port": 2333,
-            "sniff": true,
-            "sniff_override_destination": true,
-            "tag": "socks-in",
-            "type": "socks",
             "users": []
         },
         {
-            "domain_strategy": "prefer_ipv4",
+            "type": "mixed",
+            "tag": "mixed-in",
             "listen": "127.0.0.1",
             "listen_port": 2334,
-            "sniff": true,
-            "sniff_override_destination": true,
-            "tag": "mixed-in",
-            "type": "mixed",
             "users": []
         }
     ],
@@ -86,8 +73,6 @@
             "outbounds": ["自动选择"]
         },
         { "tag": "direct", "type": "direct" },
-        { "tag": "block", "type": "block" },
-        { "tag": "dns-out", "type": "dns" },
         {
             "tag": "自动选择",
             "type": "urltest",
@@ -96,25 +81,42 @@
     ],
     "route": {
         "auto_detect_interface": true,
+        "default_domain_resolver": {
+            "server": "local",
+            "strategy": "prefer_ipv4"
+        },
         "rules": [
             {
-                "outbound": "dns-out",
-                "protocol": "dns"
+                "inbound": ["tun-in", "socks-in", "mixed-in"],
+                "action": "resolve",
+                "strategy": "prefer_ipv4"
+            },
+            {
+                "inbound": ["tun-in", "socks-in", "mixed-in"],
+                "action": "sniff"
+            },
+            {
+                "protocol": "dns",
+                "action": "hijack-dns"
             },
             {
                 "clash_mode": "direct",
+                "action": "route",
                 "outbound": "direct"
             },
             {
                 "clash_mode": "global",
+                "action": "route",
                 "outbound": "节点选择"
             },
             {
                 "ip_is_private": true,
+                "action": "route",
                 "outbound": "direct"
             },
             {
                 "rule_set": ["geosite-cn", "geoip-cn"],
+                "action": "route",
                 "outbound": "direct"
             }
         ],

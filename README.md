@@ -11,7 +11,7 @@
 
 ## 📖 Introduction
 
-Xboard is a modern panel system built on Laravel 11, focusing on providing a clean and efficient user experience.
+Xboard is a modern panel system built on Laravel 12, focusing on providing a clean and efficient user experience.
 
 ## ✨ Features
 
@@ -58,7 +58,7 @@ docker compose up -d
 
 ## 🛠️ Tech Stack
 
-- Backend: Laravel 11 + Octane
+- Backend: Laravel 12 + Octane
 - Admin Panel: React + Shadcn UI + TailwindCSS
 - User Frontend: Vue3 + TypeScript + NaiveUI
 - Deployment: Docker + Docker Compose
@@ -104,3 +104,167 @@ Issues and Pull Requests are welcome to help improve the project.
 ## 📈 Star History
 
 [![Stargazers over time](https://starchart.cc/cedar2025/Xboard.svg)](https://starchart.cc/cedar2025/Xboard)
+
+
+
+{
+    "dns": {
+        "rules": [
+            {
+                "clash_mode": "global",
+                "action": "route",
+                "server": "remote"
+            },
+            {
+                "clash_mode": "direct",
+                "action": "route",
+                "server": "local"
+            },
+            {
+                "rule_set": [
+                "geosite-cn"
+                ],
+                "action": "route",
+                "server": "local"
+            }
+            ],
+            "servers": [
+            {
+                "type": "https",
+                "server": "1.1.1.1",
+                "detour": "节点选择",
+                "tag": "remote"
+            },
+            {
+                "type": "https",
+                "server": "223.5.5.5",
+                "tag": "local"
+            }
+        ],
+        "strategy": "prefer_ipv4"
+    },
+    "experimental": {
+        "cache_file": {
+            "enabled": true,
+            "path": "cache.db",
+            "cache_id": "cache_db",
+            "store_fakeip": true
+        }
+    },
+    "inbounds": [
+        {
+            "type": "tun",
+            "tag": "tun-in",
+            "address": [
+                "172.19.0.1/30",
+                "2001:0470:f9da:fdfa::1/64"
+            ],
+            "auto_route": true,
+            "strict_route": true,
+            "stack": "system",
+            "mtu": 9000
+        },
+        {
+            "type": "socks",
+            "tag": "socks-in",
+            "listen": "127.0.0.1",
+            "listen_port": 2333,
+            "users": []
+        },
+        {
+            "type": "mixed",
+            "tag": "mixed-in",
+            "listen": "127.0.0.1",
+            "listen_port": 2334,
+            "users": []
+        }
+    ],
+    "outbounds": [
+        {
+            "tag": "节点选择",
+            "type": "selector",
+            "default": "自动选择",
+            "outbounds": [
+                "自动选择"
+            ]
+        },
+        {
+            "tag": "direct",
+            "type": "direct"
+        },
+        {
+            "tag": "自动选择",
+            "type": "urltest",
+            "outbounds": []
+        }
+    ],
+    "route": {
+        "auto_detect_interface": true,
+        "default_domain_resolver": {
+            "server": "local",
+            "strategy": "prefer_ipv4"
+        },
+        "rules": [
+            {
+                "inbound": [
+                    "tun-in",
+                    "socks-in",
+                    "mixed-in"
+                ],
+                "action": "resolve",
+                "strategy": "prefer_ipv4"
+            },
+            {
+                "inbound": [
+                "tun-in",
+                "socks-in",
+                "mixed-in"
+                ],
+                "action": "sniff"
+            },
+            {
+                "protocol": "dns",
+                "action": "hijack-dns"
+            },
+            {
+                "clash_mode": "direct",
+                "action": "route",
+                "outbound": "direct"
+            },
+            {
+                "clash_mode": "global",
+                "action": "route",
+                "outbound": "节点选择"
+            },
+            {
+                "ip_is_private": true,
+                "action": "route",
+                "outbound": "direct"
+            },
+            {
+                "rule_set": [
+                "geosite-cn",
+                "geoip-cn"
+                ],
+                "action": "route",
+                "outbound": "direct"
+            }
+        ],
+        "rule_set": [
+            {
+                "tag": "geosite-cn",
+                "type": "remote",
+                "format": "binary",
+                "url": "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set/geosite-cn.srs",
+                "download_detour": "自动选择"
+            },
+            {
+                "tag": "geoip-cn",
+                "type": "remote",
+                "format": "binary",
+                "url": "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set/geoip-cn.srs",
+                "download_detour": "自动选择"
+            }
+        ]
+    }
+}
