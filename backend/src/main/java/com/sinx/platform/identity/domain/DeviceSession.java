@@ -105,4 +105,16 @@ public class DeviceSession {
     public String getDeviceLabel() {
         return deviceLabel;
     }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getLastUsedAt() {
+        return lastUsedAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
 }

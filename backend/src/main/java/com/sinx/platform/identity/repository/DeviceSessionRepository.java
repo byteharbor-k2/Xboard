@@ -1,6 +1,8 @@
 package com.sinx.platform.identity.repository;
 
 import java.util.Optional;
+import java.util.List;
+import java.time.Instant;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -37,5 +39,30 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, UU
     int revokeActiveFamily(
         @Param("familyId") UUID familyId,
         @Param("revokedAt") java.time.Instant revokedAt
+    );
+
+    @Query("""
+        select session
+        from DeviceSession session
+        where session.user.id = :userId
+          and session.revokedAt is null
+          and session.expiresAt > :now
+        order by session.lastUsedAt desc
+        """)
+    List<DeviceSession> findActiveByUserId(
+        @Param("userId") UUID userId,
+        @Param("now") Instant now
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select session
+        from DeviceSession session
+        where session.id = :sessionId
+          and session.user.id = :userId
+        """)
+    Optional<DeviceSession> findOwnedForUpdate(
+        @Param("sessionId") UUID sessionId,
+        @Param("userId") UUID userId
     );
 }

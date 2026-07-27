@@ -17,6 +17,11 @@ backend/.project
 backend/.settings/
 backend/.factorypath
 
+# React frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Legacy Xboard dependencies and runtime data
 Xboard/node_modules/
 Xboard/vendor/

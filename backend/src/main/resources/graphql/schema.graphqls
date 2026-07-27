@@ -1,6 +1,11 @@
 type Query {
     systemStatus: SystemStatus!
     viewer: Viewer!
+    deviceSessions: [DeviceSession!]!
+}
+
+type Mutation {
+    revokeDeviceSession(id: ID!): Boolean!
 }
 
 type SystemStatus {
@@ -15,4 +20,13 @@ type Viewer {
     emailVerified: Boolean!
     roles: [String!]!
     createdAt: String!
+}
+
+type DeviceSession {
+    id: ID!
+    deviceLabel: String!
+    createdAt: String!
+    lastUsedAt: String!
+    expiresAt: String!
+    current: Boolean!
 }

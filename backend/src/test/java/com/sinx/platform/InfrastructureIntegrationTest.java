@@ -208,13 +208,63 @@ class InfrastructureIntegrationTest {
                     """))
             .andExpect(status().isOk())
             .andReturn();
-        Cookie loginRefreshCookie = login.getResponse().getCookie("rt_session");
-        assertThat(loginRefreshCookie).isNotNull();
+        String loginBody = login.getResponse().getContentAsString();
+        String secondSessionId = JsonPath.read(loginBody, "$.sessionId");
+        Cookie secondRefreshCookie = login.getResponse().getCookie("rt_session");
+        assertThat(secondRefreshCookie).isNotNull();
 
-        mockMvc.perform(delete("/session/current").cookie(loginRefreshCookie))
+        MvcResult currentLogin = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "identity.test@example.com",
+                      "password": "correct-horse-battery-staple",
+                      "deviceLabel": "Current Browser"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String currentLoginBody = currentLogin.getResponse().getContentAsString();
+        String currentAccessToken = JsonPath.read(
+            currentLoginBody,
+            "$.accessToken"
+        );
+        Cookie currentRefreshCookie = currentLogin
+            .getResponse()
+            .getCookie("rt_session");
+        assertThat(currentRefreshCookie).isNotNull();
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + currentAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"{ deviceSessions { id deviceLabel current } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.deviceSessions.length()").value(2))
+            .andExpect(jsonPath(
+                "$.data.deviceSessions[?(@.deviceLabel == 'Current Browser')].current"
+            ).value(true));
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + currentAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"mutation { revokeDeviceSession(id: \\"%s\\") }"}
+                    """.formatted(secondSessionId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.data.revokeDeviceSession"
+            ).value(true));
+
+        mockMvc.perform(post("/session/refresh").cookie(secondRefreshCookie))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+
+        mockMvc.perform(delete("/session/current").cookie(currentRefreshCookie))
             .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/session/refresh").cookie(loginRefreshCookie))
+        mockMvc.perform(post("/session/refresh").cookie(currentRefreshCookie))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
     }

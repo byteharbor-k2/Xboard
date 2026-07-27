@@ -39,7 +39,10 @@ public class IdentityTokenService {
         this.clock = clock;
     }
 
-    public AccessTokenGrant issueAccessToken(UserAccount user) {
+    public AccessTokenGrant issueAccessToken(
+        UserAccount user,
+        UUID sessionId
+    ) {
         Instant issuedAt = Instant.now(clock);
         Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
         List<String> roles = user.getRoles().stream()
@@ -55,6 +58,7 @@ public class IdentityTokenService {
             .expiresAt(expiresAt)
             .id(UUID.randomUUID().toString())
             .claim("roles", roles)
+            .claim("sid", sessionId.toString())
             .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
             .type("JWT")

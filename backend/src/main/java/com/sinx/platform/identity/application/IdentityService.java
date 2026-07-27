@@ -3,6 +3,7 @@ package com.sinx.platform.identity.application;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -232,6 +233,37 @@ public class IdentityService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<DeviceSessionView> deviceSessions(
+        UUID userId,
+        UUID currentSessionId
+    ) {
+        return sessionRepository
+            .findActiveByUserId(userId, Instant.now(clock))
+            .stream()
+            .map(session -> DeviceSessionView.from(
+                session,
+                currentSessionId
+            ))
+            .toList();
+    }
+
+    @Transactional
+    public void revokeDeviceSession(UUID userId, UUID sessionId) {
+        DeviceSession session = sessionRepository.findOwnedForUpdate(
+            sessionId,
+            userId
+        ).orElseThrow(() -> new ApiProblemException(
+            HttpStatus.NOT_FOUND,
+            "DEVICE_SESSION_NOT_FOUND",
+            "The device session does not exist"
+        ));
+        Instant now = Instant.now(clock);
+        if (session.isActiveAt(now)) {
+            session.revoke(now, null);
+        }
+    }
+
     private SessionGrant issueSession(
         UserAccount user,
         String deviceLabel,
@@ -254,7 +286,10 @@ public class IdentityService {
             refreshExpiresAt
         );
         sessionRepository.save(session);
-        AccessTokenGrant accessToken = tokenService.issueAccessToken(user);
+        AccessTokenGrant accessToken = tokenService.issueAccessToken(
+            user,
+            sessionId
+        );
         return new SessionGrant(
             accessToken.token(),
             accessToken.expiresAt(),
