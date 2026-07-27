@@ -1,0 +1,42 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ["dev", "master"]
+    paths:
+      - "backend/**"
+      - "compose.dev.yml"
+      - ".github/workflows/backend-ci.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "compose.dev.yml"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Validate Compose configuration
+        run: docker compose -f compose.dev.yml config --quiet
+
+      - name: Test backend
+        working-directory: backend
+        run: ./mvnw --batch-mode verify
