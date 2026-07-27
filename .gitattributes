@@ -1,5 +1,15 @@
-* text=auto
-*.css linguist-vendored
-*.scss linguist-vendored
-*.js linguist-vendored
-CHANGELOG.md export-ignore
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff2 binary
+
+Xboard/**/*.css linguist-vendored
+Xboard/**/*.scss linguist-vendored
+Xboard/**/*.js linguist-vendored
+
+Xboard/CHANGELOG.md export-ignore
