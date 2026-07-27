@@ -1,8 +1,17 @@
 type Query {
     systemStatus: SystemStatus!
+    viewer: Viewer!
 }
 
 type SystemStatus {
     status: String!
     timestamp: String!
+}
+
+type Viewer {
+    id: ID!
+    email: String!
+    displayName: String!
+    roles: [String!]!
+    createdAt: String!
 }

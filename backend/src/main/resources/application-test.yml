@@ -4,3 +4,8 @@ server:
 management:
   server:
     port: 0
+
+sinx:
+  security:
+    jwt-secret: test-only-jwt-secret-with-at-least-32-characters
+    secure-cookies: false

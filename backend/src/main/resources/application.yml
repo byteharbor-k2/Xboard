@@ -1,6 +1,9 @@
 spring:
   application:
     name: sinx-platform
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   profiles:
     default: dev
   flyway:
@@ -49,3 +52,10 @@ management:
 logging:
   pattern:
     level: "%5p [requestId:%X{requestId:-}]"
+
+sinx:
+  security:
+    issuer: ${SECURITY_ISSUER:sinx-platform}
+    access-token-ttl: ${ACCESS_TOKEN_TTL:10m}
+    refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
+    refresh-cookie-name: ${REFRESH_COOKIE_NAME:rt_session}

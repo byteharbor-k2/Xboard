@@ -12,3 +12,8 @@ spring:
 management:
   server:
     port: ${MANAGEMENT_PORT:9091}
+
+sinx:
+  security:
+    jwt-secret: ${SECURITY_JWT_SECRET}
+    secure-cookies: true
