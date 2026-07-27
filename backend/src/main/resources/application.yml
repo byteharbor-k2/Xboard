@@ -1,0 +1,57 @@
+spring:
+  application:
+    name: sinx-platform
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sinx}
+    username: ${DATABASE_USERNAME:sinx}
+    password: ${DATABASE_PASSWORD:sinx}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  graphql:
+    http:
+      path: /gateway
+    graphiql:
+      enabled: false
+    schema:
+      printer:
+        enabled: false
+  jackson:
+    time-zone: UTC
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+  error:
+    include-binding-errors: never
+    include-exception: false
+    include-message: never
+    include-stacktrace: never
+    whitelabel:
+      enabled: false
+
+management:
+  server:
+    address: 127.0.0.1
+    port: ${MANAGEMENT_PORT:9091}
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId:-}]"

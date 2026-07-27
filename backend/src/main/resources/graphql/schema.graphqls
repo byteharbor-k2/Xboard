@@ -1,0 +1,8 @@
+type Query {
+    systemStatus: SystemStatus!
+}
+
+type SystemStatus {
+    status: String!
+    timestamp: String!
+}
