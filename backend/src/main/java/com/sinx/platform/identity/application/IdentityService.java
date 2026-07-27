@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,8 +17,10 @@ import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
+import com.sinx.platform.identity.repository.EmailVerificationTokenRepository;
 import com.sinx.platform.identity.repository.RoleRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
+import com.sinx.platform.identity.domain.EmailVerificationToken;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.identity.security.IdentityTokenService.AccessTokenGrant;
@@ -31,10 +34,13 @@ public class IdentityService {
     private final UserAccountRepository userRepository;
     private final RoleRepository roleRepository;
     private final DeviceSessionRepository sessionRepository;
+    private final EmailVerificationTokenRepository emailVerificationRepository;
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokenService;
     private final IdentitySecurityProperties securityProperties;
     private final LoginAttemptService loginAttempts;
+    private final EmailVerificationAttemptService emailVerificationAttempts;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
 
@@ -42,19 +48,25 @@ public class IdentityService {
         UserAccountRepository userRepository,
         RoleRepository roleRepository,
         DeviceSessionRepository sessionRepository,
+        EmailVerificationTokenRepository emailVerificationRepository,
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokenService,
         IdentitySecurityProperties securityProperties,
         LoginAttemptService loginAttempts,
+        EmailVerificationAttemptService emailVerificationAttempts,
+        ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.sessionRepository = sessionRepository;
+        this.emailVerificationRepository = emailVerificationRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.securityProperties = securityProperties;
         this.loginAttempts = loginAttempts;
+        this.emailVerificationAttempts = emailVerificationAttempts;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
             "not-a-real-user-password"
@@ -89,6 +101,7 @@ public class IdentityService {
         } catch (DataIntegrityViolationException exception) {
             throw emailAlreadyRegistered();
         }
+        issueEmailVerification(user, now);
         return issueSession(user, normalizeDeviceLabel(deviceLabel), now, null);
     }
 
@@ -188,6 +201,37 @@ public class IdentityService {
         return ViewerView.from(user);
     }
 
+    @Transactional
+    public void requestEmailVerification(UUID userId) {
+        UserAccount user = userRepository.findWithRolesById(userId)
+            .orElseThrow(this::sessionUserNotFound);
+        if (user.isEmailVerified()) {
+            return;
+        }
+        emailVerificationAttempts.consumeRequest(userId);
+        Instant now = Instant.now(clock);
+        emailVerificationRepository.consumeActiveForUser(userId, now);
+        issueEmailVerification(user, now);
+    }
+
+    @Transactional
+    public void confirmEmailVerification(String rawToken) {
+        String tokenHash = tokenService.hashOpaqueToken(rawToken);
+        EmailVerificationToken token = emailVerificationRepository
+            .findForUpdateByTokenHash(tokenHash)
+            .orElseThrow(this::invalidEmailVerificationToken);
+        Instant now = Instant.now(clock);
+        if (!token.isUsableAt(now)) {
+            throw invalidEmailVerificationToken();
+        }
+        token.consume(now);
+        token.getUser().markEmailVerified(now);
+        emailVerificationRepository.consumeActiveForUser(
+            token.getUser().getId(),
+            now
+        );
+    }
+
     private SessionGrant issueSession(
         UserAccount user,
         String deviceLabel,
@@ -219,6 +263,23 @@ public class IdentityService {
             session.getId(),
             ViewerView.from(user)
         );
+    }
+
+    private void issueEmailVerification(UserAccount user, Instant now) {
+        String rawToken = tokenService.newOpaqueToken();
+        EmailVerificationToken token = EmailVerificationToken.create(
+            UUID.randomUUID(),
+            user,
+            tokenService.hashOpaqueToken(rawToken),
+            now,
+            now.plus(securityProperties.emailVerificationTtl())
+        );
+        emailVerificationRepository.save(token);
+        eventPublisher.publishEvent(new EmailVerificationRequested(
+            user.getEmail(),
+            user.getDisplayName(),
+            rawToken
+        ));
     }
 
     private String normalizeEmail(String email) {
@@ -253,6 +314,22 @@ public class IdentityService {
             HttpStatus.UNAUTHORIZED,
             "INVALID_REFRESH_TOKEN",
             "The refresh session is invalid or expired"
+        );
+    }
+
+    private ApiProblemException invalidEmailVerificationToken() {
+        return new ApiProblemException(
+            HttpStatus.UNAUTHORIZED,
+            "INVALID_EMAIL_VERIFICATION_TOKEN",
+            "The email verification link is invalid or expired"
+        );
+    }
+
+    private ApiProblemException sessionUserNotFound() {
+        return new ApiProblemException(
+            HttpStatus.UNAUTHORIZED,
+            "SESSION_USER_NOT_FOUND",
+            "The authenticated user no longer exists"
         );
     }
 

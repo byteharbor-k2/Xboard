@@ -6,6 +6,8 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -94,6 +96,24 @@ public class SessionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/email-verification/request")
+    ResponseEntity<Void> requestEmailVerification(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        identityService.requestEmailVerification(
+            UUID.fromString(jwt.getSubject())
+        );
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/email-verification/confirm")
+    ResponseEntity<Void> confirmEmailVerification(
+        @Valid @RequestBody ConfirmEmailRequest request
+    ) {
+        identityService.confirmEmailVerification(request.token());
+        return ResponseEntity.noContent().build();
+    }
+
     private void writeRefreshCookie(
         HttpServletResponse response,
         SessionGrant grant
@@ -126,6 +146,11 @@ public class SessionController {
         @NotBlank @Email @Size(max = 320) String email,
         @NotBlank @Size(max = 128) String password,
         @Size(max = 120) String deviceLabel
+    ) {
+    }
+
+    public record ConfirmEmailRequest(
+        @NotBlank @Size(min = 32, max = 256) String token
     ) {
     }
 

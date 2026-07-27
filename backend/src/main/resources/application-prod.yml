@@ -8,6 +8,18 @@ spring:
       host: ${REDIS_HOST}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD}
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
 
 management:
   server:
@@ -17,3 +29,5 @@ sinx:
   security:
     jwt-secret: ${SECURITY_JWT_SECRET}
     secure-cookies: true
+  mail:
+    delivery: smtp

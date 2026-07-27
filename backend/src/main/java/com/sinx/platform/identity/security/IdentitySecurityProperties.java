@@ -15,6 +15,7 @@ public record IdentitySecurityProperties(
     @NotBlank String issuer,
     @NotNull Duration accessTokenTtl,
     @NotNull Duration refreshTokenTtl,
+    @NotNull Duration emailVerificationTtl,
     @NotBlank @Size(min = 32) String jwtSecret,
     @NotBlank String refreshCookieName,
     boolean secureCookies

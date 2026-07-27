@@ -90,6 +90,17 @@ public class UserAccount {
         updatedAt = now;
     }
 
+    public void markEmailVerified(Instant now) {
+        if (emailVerifiedAt == null) {
+            emailVerifiedAt = now;
+            updatedAt = now;
+        }
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerifiedAt != null;
+    }
+
     public UUID getId() {
         return id;
     }

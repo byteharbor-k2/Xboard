@@ -11,6 +11,7 @@ public record ViewerView(
     UUID id,
     String email,
     String displayName,
+    boolean emailVerified,
     List<String> roles,
     Instant createdAt
 ) {
@@ -19,6 +20,7 @@ public record ViewerView(
             user.getId(),
             user.getEmail(),
             user.getDisplayName(),
+            user.isEmailVerified(),
             user.getRoles().stream()
                 .map(Role::getCode)
                 .sorted()

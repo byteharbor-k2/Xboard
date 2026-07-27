@@ -15,10 +15,14 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.security.web.SecurityFilterChain;
 
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
+import com.sinx.platform.notification.email.VerificationMailProperties;
 
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(IdentitySecurityProperties.class)
+@EnableConfigurationProperties({
+    IdentitySecurityProperties.class,
+    VerificationMailProperties.class
+})
 public class SecurityConfiguration {
 
     @Bean
@@ -58,8 +62,12 @@ public class SecurityConfiguration {
                     "/session/register",
                     "/session/login",
                     "/session/refresh",
-                    "/session/current"
+                    "/session/current",
+                    "/session/email-verification/confirm"
                 ).permitAll()
+                .requestMatchers(
+                    "/session/email-verification/request"
+                ).authenticated()
                 .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

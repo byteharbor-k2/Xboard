@@ -7,13 +7,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Duration;
+import java.net.URI;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
+import com.sinx.platform.notification.email.VerificationMailSender;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -31,6 +40,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(InfrastructureIntegrationTest.TestMailConfiguration.class)
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Testcontainers
@@ -65,6 +75,9 @@ class InfrastructureIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private RecordingVerificationMailSender verificationMailSender;
 
     @Test
     void startsWithMigratedPostgresAndReachableRedis() {
@@ -102,6 +115,36 @@ class InfrastructureIntegrationTest {
         Cookie originalRefreshCookie = registration.getResponse().getCookie("rt_session");
         assertThat(originalRefreshCookie).isNotNull();
         assertThat(originalRefreshCookie.isHttpOnly()).isTrue();
+        assertThat(JsonPath.<Boolean>read(
+            registrationBody,
+            "$.viewer.emailVerified"
+        )).isFalse();
+        String firstVerificationToken = verificationMailSender.latestToken();
+
+        mockMvc.perform(post("/session/email-verification/request")
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isAccepted());
+        String replacementVerificationToken =
+            verificationMailSender.latestToken();
+        assertThat(replacementVerificationToken)
+            .isNotEqualTo(firstVerificationToken);
+
+        mockMvc.perform(post("/session/email-verification/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"token":"%s"}
+                    """.formatted(firstVerificationToken)))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value(
+                "INVALID_EMAIL_VERIFICATION_TOKEN"
+            ));
+
+        mockMvc.perform(post("/session/email-verification/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"token":"%s"}
+                    """.formatted(replacementVerificationToken)))
+            .andExpect(status().isNoContent());
 
         mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -130,11 +173,12 @@ class InfrastructureIntegrationTest {
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"query":"{ viewer { email displayName roles } }"}
+                    {"query":"{ viewer { email displayName emailVerified roles } }"}
                     """))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.viewer.email").value("identity.test@example.com"))
-            .andExpect(jsonPath("$.data.viewer.displayName").value("Identity Test"));
+            .andExpect(jsonPath("$.data.viewer.displayName").value("Identity Test"))
+            .andExpect(jsonPath("$.data.viewer.emailVerified").value(true));
 
         MvcResult refresh = mockMvc.perform(post("/session/refresh")
                 .cookie(originalRefreshCookie))
@@ -173,5 +217,46 @@ class InfrastructureIntegrationTest {
         mockMvc.perform(post("/session/refresh").cookie(loginRefreshCookie))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
+    }
+
+    @TestConfiguration
+    static class TestMailConfiguration {
+
+        @Bean
+        @Primary
+        RecordingVerificationMailSender recordingVerificationMailSender() {
+            return new RecordingVerificationMailSender();
+        }
+    }
+
+    static class RecordingVerificationMailSender
+        implements VerificationMailSender {
+
+        private final AtomicReference<String> latestUrl = new AtomicReference<>();
+
+        @Override
+        public void sendVerification(
+            String recipient,
+            String displayName,
+            String verificationUrl
+        ) {
+            latestUrl.set(verificationUrl);
+        }
+
+        String latestToken() {
+            String url = latestUrl.get();
+            assertThat(url).isNotBlank();
+            String query = URI.create(url).getRawQuery();
+            for (String parameter : query.split("&")) {
+                String[] pair = parameter.split("=", 2);
+                if ("token".equals(pair[0]) && pair.length == 2) {
+                    return URLDecoder.decode(
+                        pair[1],
+                        StandardCharsets.UTF_8
+                    );
+                }
+            }
+            throw new AssertionError("Verification URL has no token");
+        }
     }
 }

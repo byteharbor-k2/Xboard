@@ -66,12 +66,20 @@ public class IdentityTokenService {
     }
 
     public String newRefreshToken() {
+        return newOpaqueToken();
+    }
+
+    public String newOpaqueToken() {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     public String hashRefreshToken(String token) {
+        return hashOpaqueToken(token);
+    }
+
+    public String hashOpaqueToken(String token) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of().formatHex(

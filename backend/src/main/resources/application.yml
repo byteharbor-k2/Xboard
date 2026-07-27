@@ -58,4 +58,9 @@ sinx:
     issuer: ${SECURITY_ISSUER:sinx-platform}
     access-token-ttl: ${ACCESS_TOKEN_TTL:10m}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
+    email-verification-ttl: ${EMAIL_VERIFICATION_TTL:30m}
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:rt_session}
+  mail:
+    delivery: ${MAIL_DELIVERY:log}
+    public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}
+    from: ${MAIL_FROM:no-reply@dev.sinx.it.com}

@@ -12,6 +12,7 @@ type Viewer {
     id: ID!
     email: String!
     displayName: String!
+    emailVerified: Boolean!
     roles: [String!]!
     createdAt: String!
 }
