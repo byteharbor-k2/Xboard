@@ -22,7 +22,7 @@ public class SecurityConfiguration {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/health", "/gateway").permitAll()
+                .requestMatchers("/health", "/gateway", "/actuator/health").permitAll()
                 .anyRequest().denyAll()
             )
             .headers(Customizer.withDefaults())

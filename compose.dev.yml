@@ -1,0 +1,40 @@
+name: sinx-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sinx
+      POSTGRES_USER: sinx
+      POSTGRES_PASSWORD: sinx_dev_only
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sinx -d sinx"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:

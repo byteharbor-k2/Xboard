@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/sinx}
+    username: ${DATABASE_USERNAME:sinx}
+    password: ${DATABASE_PASSWORD:sinx_dev_only}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+management:
+  server:
+    port: ${MANAGEMENT_PORT:9091}
