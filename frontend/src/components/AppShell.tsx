@@ -24,9 +24,28 @@ export function AppShell({ children }: PropsWithChildren) {
           <span>SinX Cloud</span>
         </div>
         <nav>
-          <a className="active" href="/security/sessions">
+          <a
+            className={
+              window.location.pathname === "/security/sessions"
+                ? "active"
+                : undefined
+            }
+            href="/security/sessions"
+          >
             登录设备
           </a>
+          {viewer?.roles.includes("ADMIN") && (
+            <a
+              className={
+                window.location.pathname === "/admin/audit"
+                  ? "active"
+                  : undefined
+              }
+              href="/admin/audit"
+            >
+              管理审计
+            </a>
+          )}
         </nav>
         <div className="account">
           <strong>{viewer?.displayName}</strong>

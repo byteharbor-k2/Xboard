@@ -23,6 +23,22 @@ export type DeviceSession = {
   current: boolean;
 };
 
+export type AdminAuditLog = {
+  id: string;
+  actorId: string;
+  actorEmail: string;
+  action: string;
+  httpMethod: string;
+  requestPath: string;
+  responseStatus: number;
+  outcome: "SUCCESS" | "FAILURE";
+  durationMs: string;
+  requestId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  occurredAt: string;
+};
+
 export type ProblemDetails = {
   code?: string;
   detail?: string;

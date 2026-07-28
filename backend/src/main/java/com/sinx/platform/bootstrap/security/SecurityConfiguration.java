@@ -13,7 +13,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 
+import com.sinx.platform.audit.application.AdminAuditService;
+import com.sinx.platform.audit.web.AdminAuditFilter;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.notification.email.VerificationMailProperties;
 
@@ -44,7 +47,8 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain applicationSecurity(
         HttpSecurity http,
-        JwtAuthenticationConverter jwtAuthenticationConverter
+        JwtAuthenticationConverter jwtAuthenticationConverter,
+        AdminAuditService auditService
     ) throws Exception {
         return http
             .csrf(AbstractHttpConfigurer::disable)
@@ -72,6 +76,10 @@ public class SecurityConfiguration {
             )
             .oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter))
+            )
+            .addFilterAfter(
+                new AdminAuditFilter(auditService),
+                BearerTokenAuthenticationFilter.class
             )
             .headers(Customizer.withDefaults())
             .build();

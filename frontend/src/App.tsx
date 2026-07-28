@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { AdminRoute } from "./components/AdminRoute";
 import { refreshSession } from "./lib/http";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
+import { AdminAuditPage } from "./pages/AdminAuditPage";
 import { LoginPage } from "./pages/LoginPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { useAuthStore } from "./store/auth";
@@ -33,6 +35,15 @@ export function App() {
     return (
       <ProtectedRoute>
         <DeviceSessionsPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/admin/audit") {
+    return (
+      <ProtectedRoute>
+        <AdminRoute>
+          <AdminAuditPage />
+        </AdminRoute>
       </ProtectedRoute>
     );
   }

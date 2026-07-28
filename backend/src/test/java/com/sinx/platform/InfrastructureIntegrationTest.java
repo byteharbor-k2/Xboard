@@ -269,6 +269,107 @@ class InfrastructureIntegrationTest {
             .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
     }
 
+    @Test
+    void recordsAdminRequestsWithoutExposingLogsToRegularUsers()
+        throws Exception {
+        MvcResult regularRegistration = mockMvc.perform(
+                post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email": "audit-user@example.com",
+                          "password": "audit-user-password",
+                          "displayName": "Audit User"
+                        }
+                        """)
+            )
+            .andExpect(status().isCreated())
+            .andReturn();
+        String regularToken = JsonPath.read(
+            regularRegistration.getResponse().getContentAsString(),
+            "$.accessToken"
+        );
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + regularToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"query ForbiddenAudit { adminAuditLogs { id } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.errors").isArray());
+
+        MvcResult adminRegistration = mockMvc.perform(
+                post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email": "audit-admin@example.com",
+                          "password": "audit-admin-password",
+                          "displayName": "Audit Admin"
+                        }
+                        """)
+            )
+            .andExpect(status().isCreated())
+            .andReturn();
+        String adminBody = adminRegistration
+            .getResponse()
+            .getContentAsString();
+        String adminId = JsonPath.read(adminBody, "$.viewer.id");
+        jdbcTemplate.update(
+            """
+            INSERT INTO user_roles (user_id, role_code)
+            VALUES (?::uuid, 'ADMIN')
+            """,
+            adminId
+        );
+
+        MvcResult adminLogin = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "audit-admin@example.com",
+                      "password": "audit-admin-password",
+                      "deviceLabel": "Audit Test"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String adminToken = JsonPath.read(
+            adminLogin.getResponse().getContentAsString(),
+            "$.accessToken"
+        );
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + adminToken)
+                .header("User-Agent", "SinX-Audit-Test")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"query AdminProbe { systemStatus { status } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.systemStatus.status").value("ok"));
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + adminToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "query":"query AdminAuditLogs { adminAuditLogs(limit: 10) { actorEmail action outcome responseStatus userAgent } }"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.data.adminAuditLogs[?(@.action == 'graphql.AdminProbe')].actorEmail"
+            ).value("audit-admin@example.com"))
+            .andExpect(jsonPath(
+                "$.data.adminAuditLogs[?(@.action == 'graphql.AdminProbe')].outcome"
+            ).value("SUCCESS"))
+            .andExpect(jsonPath(
+                "$.data.adminAuditLogs[?(@.action == 'graphql.AdminProbe')].userAgent"
+            ).value("SinX-Audit-Test"));
+    }
+
     @TestConfiguration
     static class TestMailConfiguration {
 
