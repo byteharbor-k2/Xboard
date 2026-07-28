@@ -1,4 +1,11 @@
-import type { ProblemDetails, SessionGrant } from "../types";
+import type {
+  LoginResult,
+  MfaEnrollment,
+  MfaEnrollmentComplete,
+  MfaStatus,
+  ProblemDetails,
+  SessionGrant
+} from "../types";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -32,12 +39,25 @@ export async function login(
   email: string,
   password: string,
   deviceLabel: string
-): Promise<SessionGrant> {
+): Promise<LoginResult> {
   const response = await fetch("/session/login", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password, deviceLabel })
+  });
+  return parseResponse<LoginResult>(response);
+}
+
+export async function completeMfaLogin(
+  challengeToken: string,
+  code: string
+): Promise<SessionGrant> {
+  const response = await fetch("/session/login/mfa", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challengeToken, code })
   });
   return parseResponse<SessionGrant>(response);
 }
@@ -64,6 +84,61 @@ export async function confirmEmail(token: string): Promise<void> {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token })
+  });
+  return parseResponse<void>(response);
+}
+
+function bearer(accessToken: string) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${accessToken}`
+  };
+}
+
+export async function getMfaStatus(
+  accessToken: string
+): Promise<MfaStatus> {
+  const response = await fetch("/session/mfa", {
+    credentials: "include",
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  return parseResponse<MfaStatus>(response);
+}
+
+export async function startMfaEnrollment(
+  accessToken: string
+): Promise<MfaEnrollment> {
+  const response = await fetch("/session/mfa/enrollment", {
+    method: "POST",
+    credentials: "include",
+    headers: bearer(accessToken)
+  });
+  return parseResponse<MfaEnrollment>(response);
+}
+
+export async function confirmMfaEnrollment(
+  accessToken: string,
+  code: string
+): Promise<MfaEnrollmentComplete> {
+  const response = await fetch("/session/mfa/enrollment/confirm", {
+    method: "POST",
+    credentials: "include",
+    headers: bearer(accessToken),
+    body: JSON.stringify({ code })
+  });
+  return parseResponse<MfaEnrollmentComplete>(response);
+}
+
+export async function disableMfa(
+  accessToken: string,
+  password: string,
+  code: string
+): Promise<void> {
+  const response = await fetch("/session/mfa", {
+    method: "DELETE",
+    credentials: "include",
+    headers: bearer(accessToken),
+    body: JSON.stringify({ password, code })
   });
   return parseResponse<void>(response);
 }

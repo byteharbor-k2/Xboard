@@ -5,6 +5,7 @@ import { AdminRoute } from "./components/AdminRoute";
 import { refreshSession } from "./lib/http";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
 import { AdminAuditPage } from "./pages/AdminAuditPage";
+import { AdminMfaPage } from "./pages/AdminMfaPage";
 import { LoginPage } from "./pages/LoginPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { useAuthStore } from "./store/auth";
@@ -43,6 +44,15 @@ export function App() {
       <ProtectedRoute>
         <AdminRoute>
           <AdminAuditPage />
+        </AdminRoute>
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/admin/mfa") {
+    return (
+      <ProtectedRoute>
+        <AdminRoute>
+          <AdminMfaPage />
         </AdminRoute>
       </ProtectedRoute>
     );

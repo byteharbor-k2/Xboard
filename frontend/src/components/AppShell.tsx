@@ -35,16 +35,28 @@ export function AppShell({ children }: PropsWithChildren) {
             登录设备
           </a>
           {viewer?.roles.includes("ADMIN") && (
-            <a
-              className={
-                window.location.pathname === "/admin/audit"
-                  ? "active"
-                  : undefined
-              }
-              href="/admin/audit"
-            >
-              管理审计
-            </a>
+            <>
+              <a
+                className={
+                  window.location.pathname === "/admin/audit"
+                    ? "active"
+                    : undefined
+                }
+                href="/admin/audit"
+              >
+                管理审计
+              </a>
+              <a
+                className={
+                  window.location.pathname === "/admin/mfa"
+                    ? "active"
+                    : undefined
+                }
+                href="/admin/mfa"
+              >
+                管理员 MFA
+              </a>
+            </>
           )}
         </nav>
         <div className="account">

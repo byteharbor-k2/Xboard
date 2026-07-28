@@ -299,6 +299,92 @@ button:disabled {
   font-weight: 800;
 }
 
+.text-button {
+  border: 0;
+  color: #59657c;
+  background: transparent;
+  cursor: pointer;
+}
+
+.security-notice {
+  padding: 16px;
+  border: 1px solid #d8e1f0;
+  border-radius: 12px;
+  color: #34425c;
+  background: #f5f8fd;
+}
+
+.security-notice p {
+  margin: 8px 0;
+}
+
+.mfa-panel {
+  display: grid;
+  max-width: 760px;
+  gap: 24px;
+}
+
+.mfa-status {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.status-neutral {
+  color: #59657c;
+  background: #edf0f5;
+}
+
+.compact-button {
+  width: max-content;
+}
+
+.mfa-enrollment,
+.danger-zone {
+  display: grid;
+  gap: 16px;
+}
+
+.secret-code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  color: #17213a;
+  background: #fff;
+  letter-spacing: 0.08em;
+}
+
+.recovery-box {
+  padding: 18px;
+  border: 1px solid #f0d99c;
+  border-radius: 12px;
+  background: #fffaf0;
+}
+
+.recovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.recovery-grid code {
+  padding: 9px 12px;
+  border-radius: 8px;
+  text-align: center;
+  background: #fff;
+  letter-spacing: 0.06em;
+}
+
+.danger-zone {
+  margin-top: 8px;
+  padding-top: 24px;
+  border-top: 1px solid #edf0f5;
+}
+
 .status-failure {
   color: #a21d3a;
   background: #fff0f3;
@@ -398,5 +484,13 @@ button:disabled {
 
   .audit-meta {
     flex-wrap: wrap;
+  }
+
+  .mfa-status {
+    flex-direction: column;
+  }
+
+  .recovery-grid {
+    grid-template-columns: 1fr;
   }
 }
