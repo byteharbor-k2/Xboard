@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 
 import { logout } from "../lib/http";
 import { useAuthStore } from "../store/auth";
+import { AppLink } from "./AppLink";
 
 export function AppShell({ children }: PropsWithChildren) {
   const viewer = useAuthStore((state) => state.viewer);
@@ -24,7 +25,7 @@ export function AppShell({ children }: PropsWithChildren) {
           <span>SinX Cloud</span>
         </div>
         <nav>
-          <a
+          <AppLink
             className={
               window.location.pathname === "/security/sessions"
                 ? "active"
@@ -33,10 +34,10 @@ export function AppShell({ children }: PropsWithChildren) {
             href="/security/sessions"
           >
             登录设备
-          </a>
+          </AppLink>
           {viewer?.roles.includes("ADMIN") && (
             <>
-              <a
+              <AppLink
                 className={
                   window.location.pathname === "/admin/audit"
                     ? "active"
@@ -45,8 +46,8 @@ export function AppShell({ children }: PropsWithChildren) {
                 href="/admin/audit"
               >
                 管理审计
-              </a>
-              <a
+              </AppLink>
+              <AppLink
                 className={
                   window.location.pathname === "/admin/mfa"
                     ? "active"
@@ -55,7 +56,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 href="/admin/mfa"
               >
                 管理员 MFA
-              </a>
+              </AppLink>
             </>
           )}
         </nav>
