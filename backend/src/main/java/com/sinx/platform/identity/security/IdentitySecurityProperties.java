@@ -16,6 +16,9 @@ public record IdentitySecurityProperties(
     @NotNull Duration accessTokenTtl,
     @NotNull Duration refreshTokenTtl,
     @NotNull Duration emailVerificationTtl,
+    @NotNull Duration mfaChallengeTtl,
+    @NotBlank String mfaIssuer,
+    @NotBlank String mfaEncryptionKey,
     @NotBlank @Size(min = 32) String jwtSecret,
     @NotBlank String refreshCookieName,
     boolean secureCookies

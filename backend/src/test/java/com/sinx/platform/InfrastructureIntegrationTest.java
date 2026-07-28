@@ -2,6 +2,7 @@ package com.sinx.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,10 +11,12 @@ import java.time.Duration;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sinx.platform.notification.email.VerificationMailSender;
+import com.sinx.platform.identity.security.TotpService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +81,9 @@ class InfrastructureIntegrationTest {
 
     @Autowired
     private RecordingVerificationMailSender verificationMailSender;
+
+    @Autowired
+    private TotpService totpService;
 
     @Test
     void startsWithMigratedPostgresAndReachableRedis() {
@@ -368,6 +374,170 @@ class InfrastructureIntegrationTest {
             .andExpect(jsonPath(
                 "$.data.adminAuditLogs[?(@.action == 'graphql.AdminProbe')].userAgent"
             ).value("SinX-Audit-Test"));
+    }
+
+    @Test
+    void protectsAdministratorLoginWithTotpAndOneTimeRecoveryCodes()
+        throws Exception {
+        MvcResult registration = mockMvc.perform(post("/session/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "mfa-admin@example.com",
+                      "password": "mfa-admin-password",
+                      "displayName": "MFA Admin",
+                      "deviceLabel": "Enrollment Browser"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String userId = JsonPath.read(
+            registration.getResponse().getContentAsString(),
+            "$.viewer.id"
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO user_roles (user_id, role_code)
+            VALUES (?::uuid, 'ADMIN')
+            """,
+            userId
+        );
+
+        MvcResult adminLogin = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "mfa-admin@example.com",
+                      "password": "mfa-admin-password",
+                      "deviceLabel": "Enrollment Browser"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        String accessToken = JsonPath.read(
+            adminLogin.getResponse().getContentAsString(),
+            "$.accessToken"
+        );
+
+        mockMvc.perform(get("/session/mfa")
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.enabled").value(false));
+
+        MvcResult enrollment = mockMvc.perform(post("/session/mfa/enrollment")
+                .header("Authorization", "Bearer " + accessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.otpauthUri").value(
+                org.hamcrest.Matchers.startsWith("otpauth://totp/")
+            ))
+            .andReturn();
+        String secret = JsonPath.read(
+            enrollment.getResponse().getContentAsString(),
+            "$.secret"
+        );
+        String confirmationCode = totpService.currentCode(secret);
+
+        MvcResult confirmation = mockMvc.perform(
+                post("/session/mfa/enrollment/confirm")
+                    .header("Authorization", "Bearer " + accessToken)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"code":"%s"}
+                        """.formatted(confirmationCode))
+            )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.recoveryCodes.length()").value(8))
+            .andReturn();
+        List<String> recoveryCodes = JsonPath.read(
+            confirmation.getResponse().getContentAsString(),
+            "$.recoveryCodes"
+        );
+
+        MvcResult challengedLogin = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "mfa-admin@example.com",
+                      "password": "mfa-admin-password",
+                      "deviceLabel": "MFA Browser"
+                    }
+                    """))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.mfaRequired").value(true))
+            .andExpect(jsonPath("$.accessToken").doesNotExist())
+            .andReturn();
+        assertThat(challengedLogin.getResponse().getCookie("rt_session"))
+            .isNull();
+        String challengeToken = JsonPath.read(
+            challengedLogin.getResponse().getContentAsString(),
+            "$.challengeToken"
+        );
+
+        MvcResult completedLogin = mockMvc.perform(post("/session/login/mfa")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "challengeToken":"%s",
+                      "code":"%s"
+                    }
+                    """.formatted(challengeToken, recoveryCodes.getFirst())))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewer.roles").isArray())
+            .andReturn();
+        String mfaAccessToken = JsonPath.read(
+            completedLogin.getResponse().getContentAsString(),
+            "$.accessToken"
+        );
+
+        MvcResult secondChallenge = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "mfa-admin@example.com",
+                      "password": "mfa-admin-password"
+                    }
+                    """))
+            .andExpect(status().isAccepted())
+            .andReturn();
+        String secondChallengeToken = JsonPath.read(
+            secondChallenge.getResponse().getContentAsString(),
+            "$.challengeToken"
+        );
+        mockMvc.perform(post("/session/login/mfa")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "challengeToken":"%s",
+                      "code":"%s"
+                    }
+                    """.formatted(
+                        secondChallengeToken,
+                        recoveryCodes.getFirst()
+                    )))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.code").value("INVALID_MFA_CODE"));
+
+        mockMvc.perform(delete("/session/mfa")
+                .header("Authorization", "Bearer " + mfaAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "password":"mfa-admin-password",
+                      "code":"%s"
+                    }
+                    """.formatted(recoveryCodes.get(1))))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "mfa-admin@example.com",
+                      "password": "mfa-admin-password"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isString());
     }
 
     @TestConfiguration

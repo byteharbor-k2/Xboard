@@ -41,6 +41,22 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, UU
         @Param("revokedAt") java.time.Instant revokedAt
     );
 
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update DeviceSession session
+        set session.revokedAt = :revokedAt,
+            session.lastUsedAt = :revokedAt,
+            session.version = session.version + 1
+        where session.user.id = :userId
+          and session.id <> :currentSessionId
+          and session.revokedAt is null
+        """)
+    int revokeOtherActiveForUser(
+        @Param("userId") UUID userId,
+        @Param("currentSessionId") UUID currentSessionId,
+        @Param("revokedAt") Instant revokedAt
+    );
+
     @Query("""
         select session
         from DeviceSession session

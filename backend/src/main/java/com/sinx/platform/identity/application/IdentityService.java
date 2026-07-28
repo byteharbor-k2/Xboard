@@ -41,6 +41,8 @@ public class IdentityService {
     private final IdentitySecurityProperties securityProperties;
     private final LoginAttemptService loginAttempts;
     private final EmailVerificationAttemptService emailVerificationAttempts;
+    private final AdminMfaService adminMfaService;
+    private final MfaChallengeService mfaChallenges;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
@@ -55,6 +57,8 @@ public class IdentityService {
         IdentitySecurityProperties securityProperties,
         LoginAttemptService loginAttempts,
         EmailVerificationAttemptService emailVerificationAttempts,
+        AdminMfaService adminMfaService,
+        MfaChallengeService mfaChallenges,
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
@@ -67,6 +71,8 @@ public class IdentityService {
         this.securityProperties = securityProperties;
         this.loginAttempts = loginAttempts;
         this.emailVerificationAttempts = emailVerificationAttempts;
+        this.adminMfaService = adminMfaService;
+        this.mfaChallenges = mfaChallenges;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
@@ -107,7 +113,7 @@ public class IdentityService {
     }
 
     @Transactional
-    public SessionGrant login(
+    public LoginResult login(
         String email,
         String password,
         String deviceLabel
@@ -140,9 +146,48 @@ public class IdentityService {
         }
 
         loginAttempts.reset(normalizedEmail);
+        String normalizedDeviceLabel = normalizeDeviceLabel(deviceLabel);
+        if (adminMfaService.isEnabled(user.getId())) {
+            return LoginResult.challenge(
+                mfaChallenges.issue(user.getId(), normalizedDeviceLabel)
+            );
+        }
         Instant now = Instant.now(clock);
         user.recordSuccessfulLogin(now);
-        return issueSession(user, normalizeDeviceLabel(deviceLabel), now, null);
+        return LoginResult.session(
+            issueSession(user, normalizedDeviceLabel, now, null)
+        );
+    }
+
+    @Transactional
+    public SessionGrant completeMfaLogin(String challengeToken, String code) {
+        MfaChallengeService.ChallengeContext challenge =
+            mfaChallenges.read(challengeToken);
+        UserAccount user = userRepository.findWithRolesById(challenge.userId())
+            .orElseThrow(this::sessionUserNotFound);
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new ApiProblemException(
+                HttpStatus.FORBIDDEN,
+                "ACCOUNT_SUSPENDED",
+                "This account is not available"
+            );
+        }
+        try {
+            adminMfaService.verifyLoginCode(user.getId(), code);
+        } catch (ApiProblemException exception) {
+            mfaChallenges.recordFailure(challengeToken);
+            throw exception;
+        }
+        Instant now = Instant.now(clock);
+        user.recordSuccessfulLogin(now);
+        SessionGrant grant = issueSession(
+            user,
+            challenge.deviceLabel(),
+            now,
+            null
+        );
+        mfaChallenges.consume(challengeToken);
+        return grant;
     }
 
     @Transactional(noRollbackFor = ApiProblemException.class)
@@ -376,5 +421,24 @@ public class IdentityService {
         UUID sessionId,
         ViewerView viewer
     ) {
+    }
+
+    public record LoginResult(
+        SessionGrant session,
+        MfaChallengeService.IssuedChallenge challenge
+    ) {
+        public static LoginResult session(SessionGrant session) {
+            return new LoginResult(session, null);
+        }
+
+        public static LoginResult challenge(
+            MfaChallengeService.IssuedChallenge challenge
+        ) {
+            return new LoginResult(null, challenge);
+        }
+
+        public boolean requiresMfa() {
+            return challenge != null;
+        }
     }
 }

@@ -59,6 +59,8 @@ sinx:
     access-token-ttl: ${ACCESS_TOKEN_TTL:10m}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
     email-verification-ttl: ${EMAIL_VERIFICATION_TTL:30m}
+    mfa-challenge-ttl: ${MFA_CHALLENGE_TTL:5m}
+    mfa-issuer: ${MFA_ISSUER:SinX Cloud}
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:rt_session}
   mail:
     delivery: ${MAIL_DELIVERY:log}

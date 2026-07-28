@@ -41,8 +41,15 @@ public class AdminAuditFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !"/gateway".equals(request.getRequestURI())
-            || !"POST".equalsIgnoreCase(request.getMethod());
+        boolean graphQl = "/gateway".equals(request.getRequestURI())
+            && "POST".equalsIgnoreCase(request.getMethod());
+        boolean mfaAdministration = request.getRequestURI()
+            .startsWith("/session/mfa")
+            && (
+                "POST".equalsIgnoreCase(request.getMethod())
+                || "DELETE".equalsIgnoreCase(request.getMethod())
+            );
+        return !graphQl && !mfaAdministration;
     }
 
     @Override
@@ -97,6 +104,13 @@ public class AdminAuditFilter extends OncePerRequestFilter {
     }
 
     private String resolveAction(ContentCachingRequestWrapper request) {
+        if (!"/gateway".equals(request.getRequestURI())) {
+            return "rest." + request.getMethod().toUpperCase(
+                java.util.Locale.ROOT
+            ) + "." + request.getRequestURI()
+                .replaceAll("[^A-Za-z0-9]+", ".")
+                .replaceAll("^\\.|\\.$", "");
+        }
         byte[] body = request.getContentAsByteArray();
         if (body.length == 0) {
             return "graphql.anonymous";

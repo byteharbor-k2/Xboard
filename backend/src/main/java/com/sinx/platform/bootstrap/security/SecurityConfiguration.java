@@ -65,12 +65,15 @@ public class SecurityConfiguration {
                     "/actuator/health",
                     "/session/register",
                     "/session/login",
+                    "/session/login/mfa",
                     "/session/refresh",
                     "/session/current",
                     "/session/email-verification/confirm"
                 ).permitAll()
                 .requestMatchers(
-                    "/session/email-verification/request"
+                    "/session/email-verification/request",
+                    "/session/mfa/**",
+                    "/session/mfa"
                 ).authenticated()
                 .anyRequest().denyAll()
             )

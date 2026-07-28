@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sinx.platform.identity.application.IdentityService;
+import com.sinx.platform.identity.application.IdentityService.LoginResult;
 import com.sinx.platform.identity.application.IdentityService.SessionGrant;
 import com.sinx.platform.identity.application.ViewerView;
 import com.sinx.platform.shared.web.ApiProblemException;
@@ -61,14 +62,35 @@ public class SessionController {
     }
 
     @PostMapping("/login")
-    SessionResponse login(
+    ResponseEntity<?> login(
         @Valid @RequestBody LoginRequest request,
         HttpServletResponse response
     ) {
-        SessionGrant grant = identityService.login(
+        LoginResult result = identityService.login(
             request.email(),
             request.password(),
             request.deviceLabel()
+        );
+        if (result.requiresMfa()) {
+            return ResponseEntity.accepted().body(new MfaRequiredResponse(
+                true,
+                result.challenge().token(),
+                result.challenge().expiresAt()
+            ));
+        }
+        SessionGrant grant = result.session();
+        writeRefreshCookie(response, grant);
+        return ResponseEntity.ok(SessionResponse.from(grant));
+    }
+
+    @PostMapping("/login/mfa")
+    SessionResponse completeMfaLogin(
+        @Valid @RequestBody CompleteMfaLoginRequest request,
+        HttpServletResponse response
+    ) {
+        SessionGrant grant = identityService.completeMfaLogin(
+            request.challengeToken(),
+            request.code()
         );
         writeRefreshCookie(response, grant);
         return SessionResponse.from(grant);
@@ -151,6 +173,19 @@ public class SessionController {
 
     public record ConfirmEmailRequest(
         @NotBlank @Size(min = 32, max = 256) String token
+    ) {
+    }
+
+    public record CompleteMfaLoginRequest(
+        @NotBlank @Size(min = 32, max = 256) String challengeToken,
+        @NotBlank @Size(min = 6, max = 32) String code
+    ) {
+    }
+
+    public record MfaRequiredResponse(
+        boolean mfaRequired,
+        String challengeToken,
+        Instant challengeExpiresAt
     ) {
     }
 

@@ -28,6 +28,7 @@ management:
 sinx:
   security:
     jwt-secret: ${SECURITY_JWT_SECRET}
+    mfa-encryption-key: ${MFA_ENCRYPTION_KEY}
     secure-cookies: true
   mail:
     delivery: smtp
