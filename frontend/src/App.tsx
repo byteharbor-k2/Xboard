@@ -5,7 +5,6 @@ import { AdminRoute } from "./components/AdminRoute";
 import { refreshSession } from "./lib/http";
 import { navigate, usePathname } from "./lib/navigation";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
-import { AdminAuditPage } from "./pages/AdminAuditPage";
 import { AdminMfaPage } from "./pages/AdminMfaPage";
 import { LoginPage } from "./pages/LoginPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
@@ -47,15 +46,6 @@ export function App() {
     return (
       <ProtectedRoute>
         <DeviceSessionsPage />
-      </ProtectedRoute>
-    );
-  }
-  if (path === "/admin/audit") {
-    return (
-      <ProtectedRoute>
-        <AdminRoute>
-          <AdminAuditPage />
-        </AdminRoute>
       </ProtectedRoute>
     );
   }

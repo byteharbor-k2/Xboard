@@ -385,11 +385,6 @@ button:disabled {
   border-top: 1px solid #edf0f5;
 }
 
-.status-failure {
-  color: #a21d3a;
-  background: #fff0f3;
-}
-
 .danger-button {
   padding: 9px 12px;
   border-radius: 9px;
@@ -400,44 +395,6 @@ button:disabled {
 
 .verification-card {
   text-align: center;
-}
-
-.audit-panel {
-  max-width: 1100px;
-}
-
-.audit-row {
-  display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) minmax(180px, auto);
-  gap: 20px;
-  align-items: center;
-  padding: 20px 0;
-  border-bottom: 1px solid #edf0f5;
-}
-
-.audit-row:last-child {
-  border-bottom: 0;
-}
-
-.audit-actor {
-  margin-top: 6px;
-  color: #778299;
-  font-size: 13px;
-}
-
-.audit-meta {
-  display: flex;
-  gap: 14px;
-  color: #6f7a91;
-  font-size: 12px;
-}
-
-.audit-row code {
-  overflow: hidden;
-  color: #5d6981;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
@@ -475,15 +432,6 @@ button:disabled {
   .danger-button {
     grid-column: 2;
     width: max-content;
-  }
-
-  .audit-row {
-    grid-template-columns: 1fr;
-    gap: 10px;
-  }
-
-  .audit-meta {
-    flex-wrap: wrap;
   }
 
   .mfa-status {

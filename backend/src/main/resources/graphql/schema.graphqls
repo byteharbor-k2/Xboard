@@ -2,7 +2,6 @@ type Query {
     systemStatus: SystemStatus!
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
-    adminAuditLogs(limit: Int = 50): [AdminAuditLog!]!
 }
 
 type Mutation {
@@ -30,20 +29,4 @@ type DeviceSession {
     lastUsedAt: String!
     expiresAt: String!
     current: Boolean!
-}
-
-type AdminAuditLog {
-    id: ID!
-    actorId: ID!
-    actorEmail: String!
-    action: String!
-    httpMethod: String!
-    requestPath: String!
-    responseStatus: Int!
-    outcome: String!
-    durationMs: String!
-    requestId: String
-    ipAddress: String
-    userAgent: String
-    occurredAt: String!
 }
