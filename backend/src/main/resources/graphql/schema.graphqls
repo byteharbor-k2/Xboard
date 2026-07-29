@@ -6,6 +6,7 @@ type Query {
 
 type Mutation {
     revokeDeviceSession(id: ID!): Boolean!
+    updateViewerProfile(displayName: String!): Viewer!
 }
 
 type SystemStatus {

@@ -10,6 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -136,6 +137,39 @@ public class SessionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/password-reset/request")
+    ResponseEntity<Void> requestPasswordReset(
+        @Valid @RequestBody PasswordResetRequest request
+    ) {
+        identityService.requestPasswordReset(request.email());
+        return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/password-reset/confirm")
+    ResponseEntity<Void> confirmPasswordReset(
+        @Valid @RequestBody ConfirmPasswordResetRequest request
+    ) {
+        identityService.confirmPasswordReset(
+            request.token(),
+            request.newPassword()
+        );
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/password")
+    ResponseEntity<Void> changePassword(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody ChangePasswordRequest request
+    ) {
+        identityService.changePassword(
+            UUID.fromString(jwt.getSubject()),
+            UUID.fromString(jwt.getClaimAsString("sid")),
+            request.currentPassword(),
+            request.newPassword()
+        );
+        return ResponseEntity.noContent().build();
+    }
+
     private void writeRefreshCookie(
         HttpServletResponse response,
         SessionGrant grant
@@ -179,6 +213,23 @@ public class SessionController {
     public record CompleteMfaLoginRequest(
         @NotBlank @Size(min = 32, max = 256) String challengeToken,
         @NotBlank @Size(min = 6, max = 32) String code
+    ) {
+    }
+
+    public record PasswordResetRequest(
+        @NotBlank @Email @Size(max = 320) String email
+    ) {
+    }
+
+    public record ConfirmPasswordResetRequest(
+        @NotBlank @Size(min = 32, max = 256) String token,
+        @NotBlank @Size(min = 12, max = 128) String newPassword
+    ) {
+    }
+
+    public record ChangePasswordRequest(
+        @NotBlank @Size(max = 128) String currentPassword,
+        @NotBlank @Size(min = 12, max = 128) String newPassword
     ) {
     }
 

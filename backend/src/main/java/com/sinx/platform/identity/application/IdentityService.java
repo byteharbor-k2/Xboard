@@ -14,14 +14,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.identity.domain.DeviceSession;
+import com.sinx.platform.identity.domain.EmailVerificationToken;
+import com.sinx.platform.identity.domain.PasswordResetToken;
 import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
 import com.sinx.platform.identity.repository.EmailVerificationTokenRepository;
+import com.sinx.platform.identity.repository.PasswordResetTokenRepository;
 import com.sinx.platform.identity.repository.RoleRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
-import com.sinx.platform.identity.domain.EmailVerificationToken;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.identity.security.IdentityTokenService.AccessTokenGrant;
@@ -36,11 +38,13 @@ public class IdentityService {
     private final RoleRepository roleRepository;
     private final DeviceSessionRepository sessionRepository;
     private final EmailVerificationTokenRepository emailVerificationRepository;
+    private final PasswordResetTokenRepository passwordResetRepository;
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokenService;
     private final IdentitySecurityProperties securityProperties;
     private final LoginAttemptService loginAttempts;
     private final EmailVerificationAttemptService emailVerificationAttempts;
+    private final PasswordResetAttemptService passwordResetAttempts;
     private final AdminMfaService adminMfaService;
     private final MfaChallengeService mfaChallenges;
     private final ApplicationEventPublisher eventPublisher;
@@ -52,11 +56,13 @@ public class IdentityService {
         RoleRepository roleRepository,
         DeviceSessionRepository sessionRepository,
         EmailVerificationTokenRepository emailVerificationRepository,
+        PasswordResetTokenRepository passwordResetRepository,
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokenService,
         IdentitySecurityProperties securityProperties,
         LoginAttemptService loginAttempts,
         EmailVerificationAttemptService emailVerificationAttempts,
+        PasswordResetAttemptService passwordResetAttempts,
         AdminMfaService adminMfaService,
         MfaChallengeService mfaChallenges,
         ApplicationEventPublisher eventPublisher,
@@ -66,11 +72,13 @@ public class IdentityService {
         this.roleRepository = roleRepository;
         this.sessionRepository = sessionRepository;
         this.emailVerificationRepository = emailVerificationRepository;
+        this.passwordResetRepository = passwordResetRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.securityProperties = securityProperties;
         this.loginAttempts = loginAttempts;
         this.emailVerificationAttempts = emailVerificationAttempts;
+        this.passwordResetAttempts = passwordResetAttempts;
         this.adminMfaService = adminMfaService;
         this.mfaChallenges = mfaChallenges;
         this.eventPublisher = eventPublisher;
@@ -278,6 +286,96 @@ public class IdentityService {
         );
     }
 
+    @Transactional
+    public ViewerView updateProfile(UUID userId, String displayName) {
+        UserAccount user = userRepository.findWithRolesById(userId)
+            .orElseThrow(this::sessionUserNotFound);
+        user.updateDisplayName(displayName.trim(), Instant.now(clock));
+        return ViewerView.from(user);
+    }
+
+    @Transactional
+    public void changePassword(
+        UUID userId,
+        UUID currentSessionId,
+        String currentPassword,
+        String newPassword
+    ) {
+        UserAccount user = userRepository.findWithRolesById(userId)
+            .orElseThrow(this::sessionUserNotFound);
+        if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+            throw new ApiProblemException(
+                HttpStatus.UNAUTHORIZED,
+                "CURRENT_PASSWORD_INVALID",
+                "The current password is incorrect"
+            );
+        }
+        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {
+            throw new ApiProblemException(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "PASSWORD_UNCHANGED",
+                "The new password must be different"
+            );
+        }
+        Instant now = Instant.now(clock);
+        user.changePassword(passwordEncoder.encode(newPassword), now);
+        sessionRepository.revokeOtherActiveForUser(
+            userId,
+            currentSessionId,
+            now
+        );
+    }
+
+    @Transactional
+    public void requestPasswordReset(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        String identityHash = tokenService.hashOpaqueToken(normalizedEmail);
+        if (!passwordResetAttempts.consumeRequest(identityHash)) {
+            return;
+        }
+        userRepository.findWithRolesByEmail(normalizedEmail).ifPresent(user -> {
+            if (user.getStatus() != UserStatus.ACTIVE) {
+                return;
+            }
+            Instant now = Instant.now(clock);
+            passwordResetRepository.consumeActiveForUser(user.getId(), now);
+            String rawToken = tokenService.newOpaqueToken();
+            passwordResetRepository.save(PasswordResetToken.create(
+                UUID.randomUUID(),
+                user,
+                tokenService.hashOpaqueToken(rawToken),
+                now,
+                now.plus(securityProperties.passwordResetTtl())
+            ));
+            eventPublisher.publishEvent(new PasswordResetRequested(
+                user.getEmail(),
+                user.getDisplayName(),
+                rawToken
+            ));
+        });
+    }
+
+    @Transactional
+    public void confirmPasswordReset(String rawToken, String newPassword) {
+        String tokenHash = tokenService.hashOpaqueToken(rawToken);
+        PasswordResetToken token = passwordResetRepository
+            .findForUpdateByTokenHash(tokenHash)
+            .orElseThrow(this::invalidPasswordResetToken);
+        Instant now = Instant.now(clock);
+        if (!token.isUsableAt(now)) {
+            throw invalidPasswordResetToken();
+        }
+        token.consume(now);
+        token.getUser().changePassword(
+            passwordEncoder.encode(newPassword),
+            now
+        );
+        sessionRepository.revokeAllActiveForUser(
+            token.getUser().getId(),
+            now
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<DeviceSessionView> deviceSessions(
         UUID userId,
@@ -402,6 +500,14 @@ public class IdentityService {
             HttpStatus.UNAUTHORIZED,
             "INVALID_EMAIL_VERIFICATION_TOKEN",
             "The email verification link is invalid or expired"
+        );
+    }
+
+    private ApiProblemException invalidPasswordResetToken() {
+        return new ApiProblemException(
+            HttpStatus.UNAUTHORIZED,
+            "INVALID_PASSWORD_RESET_TOKEN",
+            "The password reset link is invalid or expired"
         );
     }
 

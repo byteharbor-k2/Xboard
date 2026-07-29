@@ -97,6 +97,16 @@ public class UserAccount {
         }
     }
 
+    public void updateDisplayName(String displayName, Instant now) {
+        this.displayName = displayName;
+        updatedAt = now;
+    }
+
+    public void changePassword(String passwordHash, Instant now) {
+        this.passwordHash = passwordHash;
+        updatedAt = now;
+    }
+
     public boolean isEmailVerified() {
         return emailVerifiedAt != null;
     }

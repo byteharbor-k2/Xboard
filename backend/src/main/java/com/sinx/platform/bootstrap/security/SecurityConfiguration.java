@@ -64,10 +64,13 @@ public class SecurityConfiguration {
                     "/session/login/mfa",
                     "/session/refresh",
                     "/session/current",
-                    "/session/email-verification/confirm"
+                    "/session/email-verification/confirm",
+                    "/session/password-reset/request",
+                    "/session/password-reset/confirm"
                 ).permitAll()
                 .requestMatchers(
                     "/session/email-verification/request",
+                    "/session/password",
                     "/session/mfa/**",
                     "/session/mfa"
                 ).authenticated()

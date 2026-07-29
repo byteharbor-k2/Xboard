@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
+import com.sinx.platform.notification.email.PasswordResetMailSender;
 import com.sinx.platform.notification.email.VerificationMailSender;
 import com.sinx.platform.identity.security.TotpService;
 import jakarta.servlet.http.Cookie;
@@ -81,6 +83,9 @@ class InfrastructureIntegrationTest {
 
     @Autowired
     private RecordingVerificationMailSender verificationMailSender;
+
+    @Autowired
+    private RecordingPasswordResetMailSender passwordResetMailSender;
 
     @Autowired
     private TotpService totpService;
@@ -276,6 +281,117 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void updatesProfileChangesPasswordAndCompletesPasswordReset()
+        throws Exception {
+        MvcResult registration = mockMvc.perform(post("/session/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email": "account-settings@example.com",
+                      "password": "initial-password-123",
+                      "displayName": "Account Settings",
+                      "deviceLabel": "Account Browser"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String registrationBody =
+            registration.getResponse().getContentAsString();
+        String accessToken = JsonPath.read(
+            registrationBody,
+            "$.accessToken"
+        );
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "query":"mutation($displayName:String!){ updateViewerProfile(displayName:$displayName){ displayName email } }",
+                      "variables":{"displayName":"Updated Account"}
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.data.updateViewerProfile.displayName"
+            ).value("Updated Account"));
+
+        mockMvc.perform(put("/session/password")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "currentPassword":"initial-password-123",
+                      "newPassword":"changed-password-456"
+                    }
+                    """))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"account-settings@example.com",
+                      "password":"initial-password-123"
+                    }
+                    """))
+            .andExpect(status().isUnauthorized());
+
+        MvcResult changedLogin = mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"account-settings@example.com",
+                      "password":"changed-password-456",
+                      "deviceLabel":"Password Reset Browser"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andReturn();
+        Cookie refreshBeforeReset =
+            changedLogin.getResponse().getCookie("rt_session");
+        assertThat(refreshBeforeReset).isNotNull();
+
+        mockMvc.perform(post("/session/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"account-settings@example.com"}
+                    """))
+            .andExpect(status().isAccepted());
+        String resetToken = passwordResetMailSender.latestToken();
+
+        mockMvc.perform(post("/session/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"unknown-account@example.com"}
+                    """))
+            .andExpect(status().isAccepted());
+
+        mockMvc.perform(post("/session/password-reset/confirm")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "token":"%s",
+                      "newPassword":"reset-password-789"
+                    }
+                    """.formatted(resetToken)))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(post("/session/refresh").cookie(refreshBeforeReset))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/session/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"account-settings@example.com",
+                      "password":"reset-password-789"
+                    }
+                    """))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     void protectsAdministratorLoginWithTotpAndOneTimeRecoveryCodes()
         throws Exception {
         MvcResult registration = mockMvc.perform(post("/session/register")
@@ -447,6 +563,12 @@ class InfrastructureIntegrationTest {
         RecordingVerificationMailSender recordingVerificationMailSender() {
             return new RecordingVerificationMailSender();
         }
+
+        @Bean
+        @Primary
+        RecordingPasswordResetMailSender recordingPasswordResetMailSender() {
+            return new RecordingPasswordResetMailSender();
+        }
     }
 
     static class RecordingVerificationMailSender
@@ -477,6 +599,37 @@ class InfrastructureIntegrationTest {
                 }
             }
             throw new AssertionError("Verification URL has no token");
+        }
+    }
+
+    static class RecordingPasswordResetMailSender
+        implements PasswordResetMailSender {
+
+        private final AtomicReference<String> latestUrl = new AtomicReference<>();
+
+        @Override
+        public void sendPasswordReset(
+            String recipient,
+            String displayName,
+            String resetUrl
+        ) {
+            latestUrl.set(resetUrl);
+        }
+
+        String latestToken() {
+            String url = latestUrl.get();
+            assertThat(url).isNotBlank();
+            String query = URI.create(url).getRawQuery();
+            for (String parameter : query.split("&")) {
+                String[] pair = parameter.split("=", 2);
+                if ("token".equals(pair[0]) && pair.length == 2) {
+                    return URLDecoder.decode(
+                        pair[1],
+                        StandardCharsets.UTF_8
+                    );
+                }
+            }
+            throw new AssertionError("Password reset URL has no token");
         }
     }
 }

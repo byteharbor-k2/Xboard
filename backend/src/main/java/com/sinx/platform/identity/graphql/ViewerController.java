@@ -10,12 +10,17 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Controller;
+import org.springframework.validation.annotation.Validated;
 
 import com.sinx.platform.identity.application.IdentityService;
 import com.sinx.platform.identity.application.DeviceSessionView;
 import com.sinx.platform.identity.application.ViewerView;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
 @Controller
+@Validated
 public class ViewerController {
 
     private final IdentityService identityService;
@@ -52,5 +57,17 @@ public class ViewerController {
             id
         );
         return true;
+    }
+
+    @MutationMapping
+    @PreAuthorize("isAuthenticated()")
+    ViewerView updateViewerProfile(
+        @Argument @NotBlank @Size(max = 80) String displayName,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        return identityService.updateProfile(
+            UUID.fromString(jwt.getSubject()),
+            displayName
+        );
     }
 }
