@@ -12,7 +12,10 @@ import java.time.Duration;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
@@ -389,6 +392,149 @@ class InfrastructureIntegrationTest {
                     }
                     """))
             .andExpect(status().isOk());
+    }
+
+    @Test
+    void exposesAvailablePlansAndTheUsersSubscriptionEntitlement()
+        throws Exception {
+        MvcResult registration = mockMvc.perform(post("/session/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"catalog-member@example.com",
+                      "password":"catalog-member-password",
+                      "displayName":"Catalog Member",
+                      "deviceLabel":"Catalog Browser"
+                    }
+                    """))
+            .andExpect(status().isCreated())
+            .andReturn();
+        String registrationBody =
+            registration.getResponse().getContentAsString();
+        String userId = JsonPath.read(registrationBody, "$.viewer.id");
+        String accessToken = JsonPath.read(
+            registrationBody,
+            "$.accessToken"
+        );
+
+        UUID planId = UUID.randomUUID();
+        UUID entitlementId = UUID.randomUUID();
+        Instant now = Instant.now();
+        long transferLimit = 100L * 1024 * 1024 * 1024;
+        long uploaded = 8L * 1024 * 1024 * 1024;
+        long downloaded = 12L * 1024 * 1024 * 1024;
+        jdbcTemplate.update(
+            """
+            INSERT INTO service_plans (
+                id, name, description, transfer_limit_bytes,
+                speed_limit_mbps, device_limit, reset_policy,
+                capacity_limit, published, sellable, renewable,
+                sort_order, created_at, updated_at
+            ) VALUES (
+                ?::uuid, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE,
+                1, ?, ?
+            )
+            """,
+            planId.toString(),
+            "Basic",
+            "Suitable for everyday browsing.",
+            transferLimit,
+            200,
+            5,
+            "MONTHLY_FROM_ACTIVATION",
+            10,
+            Timestamp.from(now),
+            Timestamp.from(now)
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO service_plan_tags (plan_id, position, label)
+            VALUES (?::uuid, 0, 'Popular')
+            """,
+            planId.toString()
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO service_plan_prices (
+                id, plan_id, billing_period, amount_minor, currency
+            ) VALUES (?::uuid, ?::uuid, 'MONTHLY', 1200, 'CNY')
+            """,
+            UUID.randomUUID().toString(),
+            planId.toString()
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO subscription_entitlements (
+                id, user_id, plan_id, plan_name,
+                transfer_limit_bytes, uploaded_bytes, downloaded_bytes,
+                speed_limit_mbps, device_limit, reset_policy,
+                starts_at, expires_at, next_reset_at,
+                created_at, updated_at
+            ) VALUES (
+                ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?
+            )
+            """,
+            entitlementId.toString(),
+            userId,
+            planId.toString(),
+            "Basic",
+            transferLimit,
+            uploaded,
+            downloaded,
+            200,
+            5,
+            "MONTHLY_FROM_ACTIVATION",
+            Timestamp.from(now.minus(Duration.ofDays(3))),
+            Timestamp.from(now.plus(Duration.ofDays(27))),
+            Timestamp.from(now.plus(Duration.ofDays(27))),
+            Timestamp.from(now),
+            Timestamp.from(now)
+        );
+
+        mockMvc.perform(post("/gateway")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "query":"{ offerCatalog { id name tags transferLimitBytes capacityRemaining prices { period amountMinor currency monthCount } } }"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.offerCatalog.length()").value(1))
+            .andExpect(jsonPath("$.data.offerCatalog[0].name").value("Basic"))
+            .andExpect(jsonPath(
+                "$.data.offerCatalog[0].capacityRemaining"
+            ).value(9))
+            .andExpect(jsonPath(
+                "$.data.offerCatalog[0].prices[0].amountMinor"
+            ).value("1200"));
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "query":"{ viewerEntitlement { planName state transferLimitBytes uploadedBytes downloadedBytes usedBytes remainingBytes usagePercent speedLimitMbps deviceLimit resetPolicy expiresAt nextResetAt } }"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath(
+                "$.data.viewerEntitlement.planName"
+            ).value("Basic"))
+            .andExpect(jsonPath(
+                "$.data.viewerEntitlement.state"
+            ).value("ACTIVE"))
+            .andExpect(jsonPath(
+                "$.data.viewerEntitlement.usedBytes"
+            ).value(Long.toString(uploaded + downloaded)))
+            .andExpect(jsonPath(
+                "$.data.viewerEntitlement.remainingBytes"
+            ).value(Long.toString(
+                transferLimit - uploaded - downloaded
+            )))
+            .andExpect(jsonPath(
+                "$.data.viewerEntitlement.usagePercent"
+            ).value(20.0));
     }
 
     @Test

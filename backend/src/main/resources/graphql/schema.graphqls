@@ -2,6 +2,8 @@ type Query {
     systemStatus: SystemStatus!
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
+    offerCatalog: [PlanOffer!]!
+    viewerEntitlement: SubscriptionEntitlement
 }
 
 type Mutation {
@@ -30,4 +32,70 @@ type DeviceSession {
     lastUsedAt: String!
     expiresAt: String!
     current: Boolean!
+}
+
+type PlanOffer {
+    id: ID!
+    name: String!
+    description: String!
+    tags: [String!]!
+    transferLimitBytes: String!
+    speedLimitMbps: Int
+    deviceLimit: Int
+    resetPolicy: TrafficResetPolicy!
+    renewable: Boolean!
+    capacityRemaining: Int
+    prices: [PlanPrice!]!
+}
+
+type PlanPrice {
+    period: BillingPeriod!
+    amountMinor: String!
+    currency: String!
+    durationDays: Int
+    monthCount: Int
+}
+
+type SubscriptionEntitlement {
+    id: ID!
+    planId: ID!
+    planName: String!
+    state: EntitlementState!
+    transferLimitBytes: String!
+    uploadedBytes: String!
+    downloadedBytes: String!
+    usedBytes: String!
+    remainingBytes: String!
+    usagePercent: Float!
+    speedLimitMbps: Int
+    deviceLimit: Int
+    resetPolicy: TrafficResetPolicy!
+    startsAt: String!
+    expiresAt: String
+    nextResetAt: String
+}
+
+enum BillingPeriod {
+    MONTHLY
+    QUARTERLY
+    HALF_YEARLY
+    YEARLY
+    TWO_YEARLY
+    THREE_YEARLY
+    ONETIME
+}
+
+enum TrafficResetPolicy {
+    FIRST_DAY_OF_MONTH
+    MONTHLY_FROM_ACTIVATION
+    NEVER
+    FIRST_DAY_OF_YEAR
+    YEARLY_FROM_ACTIVATION
+}
+
+enum EntitlementState {
+    ACTIVE
+    EXPIRED
+    EXHAUSTED
+    CANCELED
 }
