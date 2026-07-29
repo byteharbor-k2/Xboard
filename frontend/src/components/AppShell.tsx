@@ -1,8 +1,10 @@
 import type { PropsWithChildren } from "react";
 
 import { logout } from "../lib/http";
+import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
 import { AppLink } from "./AppLink";
+import { FreedomBrand } from "./FreedomBrand";
 
 export function AppShell({ children }: PropsWithChildren) {
   const viewer = useAuthStore((state) => state.viewer);
@@ -13,18 +15,35 @@ export function AppShell({ children }: PropsWithChildren) {
       await logout();
     } finally {
       clearSession();
-      window.location.replace("/login");
+      navigate("/login", true);
     }
   }
 
   return (
     <div className="app-frame">
       <aside className="sidebar">
-        <div className="brand">
-          <span className="brand-mark">S</span>
-          <span>SinX Cloud</span>
-        </div>
+        <FreedomBrand href="/account" />
         <nav>
+          <AppLink
+            className={
+              window.location.pathname === "/account"
+                ? "active"
+                : undefined
+            }
+            href="/account"
+          >
+            账户概览
+          </AppLink>
+          <AppLink
+            className={
+              window.location.pathname === "/account/profile"
+                ? "active"
+                : undefined
+            }
+            href="/account/profile"
+          >
+            账户资料
+          </AppLink>
           <AppLink
             className={
               window.location.pathname === "/security/sessions"
@@ -47,6 +66,7 @@ export function AppShell({ children }: PropsWithChildren) {
               >
                 管理员 MFA
               </AppLink>
+              <AppLink href="/admin/dashboard">管理后台</AppLink>
             </>
           )}
         </nav>

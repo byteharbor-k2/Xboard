@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
-import { AppShell } from "../components/AppShell";
+import { AdminShell } from "../components/AdminShell";
 import {
   ApiError,
   confirmMfaEnrollment,
@@ -90,7 +90,7 @@ export function AdminMfaPage() {
   }
 
   return (
-    <AppShell>
+    <AdminShell>
       <header className="page-header">
         <p className="eyebrow">Administration</p>
         <h1>管理员 MFA</h1>
@@ -224,6 +224,6 @@ export function AdminMfaPage() {
         )}
         {error && <p className="error-message">{error}</p>}
       </section>
-    </AppShell>
+    </AdminShell>
   );
 }

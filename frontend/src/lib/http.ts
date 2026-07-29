@@ -49,6 +49,21 @@ export async function login(
   return parseResponse<LoginResult>(response);
 }
 
+export async function register(
+  email: string,
+  password: string,
+  displayName: string,
+  deviceLabel: string
+): Promise<SessionGrant> {
+  const response = await fetch("/session/register", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, displayName, deviceLabel })
+  });
+  return parseResponse<SessionGrant>(response);
+}
+
 export async function completeMfaLogin(
   challengeToken: string,
   code: string
@@ -84,6 +99,54 @@ export async function confirmEmail(token: string): Promise<void> {
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token })
+  });
+  return parseResponse<void>(response);
+}
+
+export async function requestEmailVerification(
+  accessToken: string
+): Promise<void> {
+  const response = await fetch("/session/email-verification/request", {
+    method: "POST",
+    credentials: "include",
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  return parseResponse<void>(response);
+}
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  const response = await fetch("/session/password-reset/request", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email })
+  });
+  return parseResponse<void>(response);
+}
+
+export async function confirmPasswordReset(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  const response = await fetch("/session/password-reset/confirm", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, newPassword })
+  });
+  return parseResponse<void>(response);
+}
+
+export async function changePassword(
+  accessToken: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  const response = await fetch("/session/password", {
+    method: "PUT",
+    credentials: "include",
+    headers: bearer(accessToken),
+    body: JSON.stringify({ currentPassword, newPassword })
   });
   return parseResponse<void>(response);
 }

@@ -1,6 +1,9 @@
 import { useState, type FormEvent } from "react";
 
+import { AppLink } from "../components/AppLink";
+import { AuthLayout } from "../components/AuthLayout";
 import { ApiError, completeMfaLogin, login } from "../lib/http";
+import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
 
 export function LoginPage() {
@@ -65,24 +68,25 @@ export function LoginPage() {
     const returnTo =
       requested?.startsWith("/") && !requested.startsWith("//")
         ? requested
-        : "/security/sessions";
-    window.location.replace(returnTo);
+        : "/account";
+    navigate(returnTo, true);
   }
 
   return (
-    <main className="auth-page">
-      <section className="auth-card">
-        <div className="brand auth-brand">
-          <span className="brand-mark">S</span>
-          <span>SinX Cloud</span>
-        </div>
-        <div>
-          <p className="eyebrow">Account security</p>
-          <h1>欢迎回来</h1>
-          <p className="muted">登录以管理账户与已授权设备。</p>
-        </div>
+    <AuthLayout
+      title="欢迎回来"
+      description="登录以管理账户与已授权设备。"
+      eyebrow="Account security"
+      footer={
+        challengeToken ? null : (
+          <p>
+            还没有账户？ <AppLink href="/register">创建账户</AppLink>
+          </p>
+        )
+      }
+    >
         {challengeToken ? (
-          <form onSubmit={handleMfaSubmit}>
+          <form className="freedom-form" onSubmit={handleMfaSubmit}>
             <p className="security-notice">
               管理员账户需要二次验证。输入验证器中的 6 位验证码，
               或使用一枚恢复码。
@@ -101,7 +105,7 @@ export function LoginPage() {
               />
             </label>
             {error && <p className="error-message">{error}</p>}
-            <button className="primary-button" disabled={submitting}>
+            <button className="freedom-button primary submit" disabled={submitting}>
               {submitting ? "正在验证…" : "完成安全验证"}
             </button>
             <button
@@ -117,7 +121,7 @@ export function LoginPage() {
             </button>
           </form>
         ) : (
-        <form onSubmit={handleSubmit}>
+        <form className="freedom-form" onSubmit={handleSubmit}>
           <label>
             邮箱
             <input
@@ -138,13 +142,16 @@ export function LoginPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
+          <div className="freedom-form-meta">
+            <span />
+            <AppLink href="/forgot-password">忘记密码？</AppLink>
+          </div>
           {error && <p className="error-message">{error}</p>}
-          <button className="primary-button" disabled={submitting}>
+          <button className="freedom-button primary submit" disabled={submitting}>
             {submitting ? "正在登录…" : "登录"}
           </button>
         </form>
         )}
-      </section>
-    </main>
+    </AuthLayout>
   );
 }

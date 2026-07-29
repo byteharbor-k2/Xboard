@@ -7,6 +7,7 @@ type AuthState = {
   viewer: Viewer | null;
   bootstrapped: boolean;
   setSession: (session: SessionGrant) => void;
+  setViewer: (viewer: Viewer) => void;
   clearSession: () => void;
   finishBootstrap: () => void;
 };
@@ -21,6 +22,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       viewer: session.viewer,
       bootstrapped: true
     }),
+  setViewer: (viewer) => set({ viewer }),
   clearSession: () =>
     set({ accessToken: null, viewer: null, bootstrapped: true }),
   finishBootstrap: () => set({ bootstrapped: true })

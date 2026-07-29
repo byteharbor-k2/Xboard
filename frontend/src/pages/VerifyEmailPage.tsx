@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 
+import { AppLink } from "../components/AppLink";
+import { AuthLayout } from "../components/AuthLayout";
 import { confirmEmail } from "../lib/http";
+import { useAuthStore } from "../store/auth";
 
 export function VerifyEmailPage() {
+  const viewer = useAuthStore((state) => state.viewer);
+  const setViewer = useAuthStore((state) => state.setViewer);
   const [state, setState] = useState<"loading" | "success" | "error">(
     "loading"
   );
@@ -15,34 +20,50 @@ export function VerifyEmailPage() {
       return;
     }
     void confirmEmail(token)
-      .then(() => setState("success"))
+      .then(() => {
+        const currentViewer = useAuthStore.getState().viewer;
+        if (currentViewer) {
+          setViewer({ ...currentViewer, emailVerified: true });
+        }
+        setState("success");
+      })
       .catch(() => setState("error"));
-  }, []);
+  }, [setViewer]);
 
   return (
-    <main className="auth-page">
-      <section className="auth-card verification-card">
-        <p className="eyebrow">Email verification</p>
-        {state === "loading" && <h1>正在验证邮箱…</h1>}
+    <AuthLayout
+      title={
+        state === "loading"
+          ? "正在验证邮箱…"
+          : state === "success"
+            ? "邮箱已验证"
+            : "验证链接不可用"
+      }
+      description={
+        state === "loading"
+          ? "请稍候，我们正在确认这条验证链接。"
+          : state === "success"
+            ? "你的账户邮箱已完成确认。"
+            : "链接可能已过期、被替换或已经使用。"
+      }
+      eyebrow="Email verification"
+    >
+      <div className="verification-card">
+        {state === "loading" && <p className="muted">正在读取验证凭据…</p>}
         {state === "success" && (
-          <>
-            <h1>邮箱已验证</h1>
-            <p className="muted">你的账户邮箱已完成确认。</p>
-            <a className="primary-button link-button" href="/login">
-              返回登录
-            </a>
-          </>
+          <AppLink
+            className="freedom-button primary submit"
+            href={viewer ? "/account" : "/login"}
+          >
+            {viewer ? "返回账户" : "返回登录"}
+          </AppLink>
         )}
         {state === "error" && (
-          <>
-            <h1>验证链接不可用</h1>
-            <p className="muted">链接可能已过期、被替换或已经使用。</p>
-            <a className="secondary-button link-button" href="/login">
-              返回登录
-            </a>
-          </>
+          <AppLink className="freedom-button ghost submit" href="/login">
+            返回登录
+          </AppLink>
         )}
-      </section>
-    </main>
+      </div>
+    </AuthLayout>
   );
 }
