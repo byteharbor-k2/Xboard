@@ -46,6 +46,16 @@ export function AppShell({ children }: PropsWithChildren) {
           </AppLink>
           <AppLink
             className={
+              window.location.pathname === "/plans"
+                ? "active"
+                : undefined
+            }
+            href="/plans"
+          >
+            套餐
+          </AppLink>
+          <AppLink
+            className={
               window.location.pathname === "/security/sessions"
                 ? "active"
                 : undefined

@@ -17,6 +17,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { AccountOverviewPage } from "./pages/AccountOverviewPage";
 import { AccountProfilePage } from "./pages/AccountProfilePage";
+import { PlansPage } from "./pages/PlansPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { useAuthStore } from "./store/auth";
 
@@ -75,6 +76,13 @@ export function App() {
     return (
       <ProtectedRoute>
         <AccountProfilePage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/plans") {
+    return (
+      <ProtectedRoute>
+        <PlansPage />
       </ProtectedRoute>
     );
   }

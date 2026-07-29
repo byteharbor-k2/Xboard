@@ -211,12 +211,29 @@ export async function graphQl<T>(
   query: string,
   variables?: Record<string, unknown>
 ): Promise<T> {
+  return gatewayRequest<T>(query, variables, accessToken);
+}
+
+export async function publicGraphQl<T>(
+  query: string,
+  variables?: Record<string, unknown>
+): Promise<T> {
+  return gatewayRequest<T>(query, variables);
+}
+
+async function gatewayRequest<T>(
+  query: string,
+  variables?: Record<string, unknown>,
+  accessToken?: string
+): Promise<T> {
   const response = await fetch("/gateway", {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`
+      ...(accessToken
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {})
     },
     body: JSON.stringify({ query, variables })
   });
@@ -225,7 +242,7 @@ export async function graphQl<T>(
     errors?: Array<{ message: string }>;
   };
   if (!response.ok || payload.errors?.length || !payload.data) {
-    throw new ApiError(response.status || 500, {
+    throw new ApiError(response.ok ? 500 : response.status, {
       detail: payload.errors?.[0]?.message ?? "请求未能完成"
     });
   }

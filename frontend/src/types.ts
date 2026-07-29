@@ -50,3 +50,66 @@ export type ProblemDetails = {
   detail?: string;
   status?: number;
 };
+
+export type BillingPeriod =
+  | "MONTHLY"
+  | "QUARTERLY"
+  | "HALF_YEARLY"
+  | "YEARLY"
+  | "TWO_YEARLY"
+  | "THREE_YEARLY"
+  | "ONETIME";
+
+export type TrafficResetPolicy =
+  | "FIRST_DAY_OF_MONTH"
+  | "MONTHLY_FROM_ACTIVATION"
+  | "NEVER"
+  | "FIRST_DAY_OF_YEAR"
+  | "YEARLY_FROM_ACTIVATION";
+
+export type PlanPrice = {
+  period: BillingPeriod;
+  amountMinor: string;
+  currency: string;
+  durationDays: number | null;
+  monthCount: number | null;
+};
+
+export type PlanOffer = {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  transferLimitBytes: string;
+  speedLimitMbps: number | null;
+  deviceLimit: number | null;
+  resetPolicy: TrafficResetPolicy;
+  renewable: boolean;
+  capacityRemaining: number | null;
+  prices: PlanPrice[];
+};
+
+export type EntitlementState =
+  | "ACTIVE"
+  | "EXPIRED"
+  | "EXHAUSTED"
+  | "CANCELED";
+
+export type SubscriptionEntitlement = {
+  id: string;
+  planId: string;
+  planName: string;
+  state: EntitlementState;
+  transferLimitBytes: string;
+  uploadedBytes: string;
+  downloadedBytes: string;
+  usedBytes: string;
+  remainingBytes: string;
+  usagePercent: number;
+  speedLimitMbps: number | null;
+  deviceLimit: number | null;
+  resetPolicy: TrafficResetPolicy;
+  startsAt: string;
+  expiresAt: string | null;
+  nextResetAt: string | null;
+};
