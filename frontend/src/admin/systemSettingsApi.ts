@@ -98,11 +98,17 @@ export function getSystemSettings(
 
 export function saveSystemSettings(
   accessToken: string,
+  section: SystemSettingsSection,
   values: SettingsValues
 ) {
+  const endpoint = new URL(
+    systemSettingsEndpoints.save,
+    window.location.origin
+  );
+  endpoint.searchParams.set("key", section);
   return settingsRequest<XboardResponse<boolean>>(
     accessToken,
-    systemSettingsEndpoints.save,
+    `${endpoint.pathname}${endpoint.search}`,
     {
       method: "POST",
       body: JSON.stringify(values)

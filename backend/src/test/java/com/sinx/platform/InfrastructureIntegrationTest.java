@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 
 import java.time.Duration;
 import java.net.URI;
@@ -33,6 +34,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
@@ -109,6 +111,53 @@ class InfrastructureIntegrationTest {
 
         assertThat(schemaVersion).isEqualTo("1");
         assertThat(redisTemplate.opsForValue().get("sinx:test:health")).isEqualTo("ok");
+    }
+
+    @Test
+    void exposesAdministratorConfiguredTermsUrlDuringRegistration()
+        throws Exception {
+        mockMvc.perform(post("/api/v2/admin/config/save")
+                .param("key", "site")
+                .with(jwt().authorities(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("SCOPE_ADMIN")
+                ))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"tos_url":"https://www.sinx.it.com/legal/terms"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value(true));
+
+        mockMvc.perform(get("/api/v2/admin/config/fetch")
+                .param("key", "site")
+                .with(jwt().authorities(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("SCOPE_ADMIN")
+                )))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.site.tos_url").value(
+                "https://www.sinx.it.com/legal/terms"
+            ));
+
+        mockMvc.perform(get("/session/registration/config"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.termsUrl").value(
+                "https://www.sinx.it.com/legal/terms"
+            ));
+
+        mockMvc.perform(post("/api/v2/admin/config/save")
+                .param("key", "site")
+                .with(jwt().authorities(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("SCOPE_ADMIN")
+                ))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"tos_url":"javascript:alert(1)"}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value("TERMS_URL_INVALID"));
     }
 
     @Test

@@ -117,6 +117,19 @@ public class SecurityConfiguration {
                             && authentication.get().getAuthorities().stream()
                                 .anyMatch(authority ->
                                     "SCOPE_ADMIN".equals(authority.getAuthority())
+                            )
+                    )
+                )
+                .requestMatchers("/api/v2/admin/**")
+                .access((authentication, context) ->
+                    new org.springframework.security.authorization.AuthorizationDecision(
+                        authentication.get().getAuthorities().stream()
+                            .anyMatch(authority ->
+                                "ROLE_ADMIN".equals(authority.getAuthority())
+                            )
+                            && authentication.get().getAuthorities().stream()
+                                .anyMatch(authority ->
+                                    "SCOPE_ADMIN".equals(authority.getAuthority())
                                 )
                     )
                 )

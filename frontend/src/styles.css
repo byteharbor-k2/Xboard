@@ -231,6 +231,31 @@
   box-shadow: 0 0 0 3px rgb(34 211 238 / 11%);
 }
 
+.freedom-form .freedom-terms {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  cursor: pointer;
+}
+
+.freedom-form .freedom-terms input {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  accent-color: var(--freedom-cyan);
+}
+
+.freedom-terms span {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.freedom-terms a {
+  color: var(--freedom-cyan);
+  text-decoration: none;
+}
+
 .freedom-button.submit {
   width: 100%;
   margin-top: 3px;

@@ -29,6 +29,7 @@ export function RegisterPage() {
   const [confirmation, setConfirmation] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileReset, setTurnstileReset] = useState(0);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -87,6 +88,10 @@ export function RegisterPage() {
     }
     if (config?.turnstileEnabled && !turnstileToken) {
       setError("提交注册前请再次完成人机验证");
+      return;
+    }
+    if (config?.termsUrl && !termsAccepted) {
+      setError("请先阅读并同意用户条款");
       return;
     }
     setSubmitting(true);
@@ -219,6 +224,26 @@ export function RegisterPage() {
         )}
         {config?.turnstileEnabled && !config.turnstileSiteKey && (
           <p className="error-message">人机验证配置不完整。</p>
+        )}
+        {config?.termsUrl && (
+          <label className="freedom-terms">
+            <input
+              checked={termsAccepted}
+              required
+              type="checkbox"
+              onChange={(event) => setTermsAccepted(event.target.checked)}
+            />
+            <span>
+              我已阅读并同意
+              <a
+                href={config.termsUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                用户条款
+              </a>
+            </span>
+          </label>
         )}
         {error && <p className="error-message">{error}</p>}
         <button

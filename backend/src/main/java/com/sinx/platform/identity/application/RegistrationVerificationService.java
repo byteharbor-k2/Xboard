@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.sinx.platform.configuration.application.SiteConfigurationService;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.identity.security.RegistrationSecurityProperties;
@@ -28,6 +29,7 @@ public class RegistrationVerificationService {
     private final TurnstileVerificationService turnstile;
     private final RegistrationCodeMailSender mailSender;
     private final UserAccountRepository userRepository;
+    private final SiteConfigurationService siteConfiguration;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public RegistrationVerificationService(
@@ -36,7 +38,8 @@ public class RegistrationVerificationService {
         RegistrationSecurityProperties properties,
         TurnstileVerificationService turnstile,
         RegistrationCodeMailSender mailSender,
-        UserAccountRepository userRepository
+        UserAccountRepository userRepository,
+        SiteConfigurationService siteConfiguration
     ) {
         this.redis = redis;
         this.tokenService = tokenService;
@@ -44,6 +47,7 @@ public class RegistrationVerificationService {
         this.turnstile = turnstile;
         this.mailSender = mailSender;
         this.userRepository = userRepository;
+        this.siteConfiguration = siteConfiguration;
     }
 
     public RegistrationConfig config() {
@@ -52,7 +56,8 @@ public class RegistrationVerificationService {
             properties.turnstileEnabled(),
             properties.turnstileEnabled()
                 ? properties.turnstileSiteKey()
-                : null
+                : null,
+            siteConfiguration.termsUrl().orElse(null)
         );
     }
 
@@ -190,7 +195,8 @@ public class RegistrationVerificationService {
     public record RegistrationConfig(
         boolean emailVerificationRequired,
         boolean turnstileEnabled,
-        String turnstileSiteKey
+        String turnstileSiteKey,
+        String termsUrl
     ) {
     }
 }

@@ -67,6 +67,7 @@ export type RegistrationConfig = {
   emailVerificationRequired: boolean;
   turnstileEnabled: boolean;
   turnstileSiteKey: string | null;
+  termsUrl: string | null;
 };
 
 export type BillingPeriod =

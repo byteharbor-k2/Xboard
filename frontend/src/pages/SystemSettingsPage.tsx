@@ -471,7 +471,7 @@ export function SystemSettingsPage() {
 
   const autoSave = useMutation({
     mutationFn: (values: SettingsValues) =>
-      saveSystemSettings(accessToken, values),
+      saveSystemSettings(accessToken, selectedSection, values),
     onSuccess: () => setStatus(labels.autoSaved),
     onError: () => setStatus(labels.saveFailed)
   });
@@ -497,7 +497,10 @@ export function SystemSettingsPage() {
   function updateField(field: SettingsField, value: SettingValue) {
     const next = { ...draft, [field.key]: value };
     setDraft(next);
-    scheduleSave(next, selectedSection === "subscribe_template" ? 1500 : 1000);
+    scheduleSave(
+      { [field.key]: value },
+      selectedSection === "subscribe_template" ? 1500 : 1000
+    );
   }
 
   function isVisible(field: SettingsField) {
