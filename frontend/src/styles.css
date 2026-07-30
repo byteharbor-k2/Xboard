@@ -2136,6 +2136,10 @@ button:disabled {
   align-items: start;
 }
 
+.settings-layout-standalone {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .settings-section-nav {
   position: sticky;
   top: 98px;

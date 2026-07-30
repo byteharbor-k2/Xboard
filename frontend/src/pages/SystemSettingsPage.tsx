@@ -39,12 +39,17 @@ const sectionPaths: Record<SystemSettingsSection, string> = {
   safe: "/admin/system/settings/safe",
   subscribe: "/admin/system/settings/subscribe",
   invite: "/admin/system/settings/invite",
-  server: "/admin/system/settings/server",
+  server: "/admin/nodes/settings",
   email: "/admin/system/settings/email",
   telegram: "/admin/system/settings/telegram",
   app: "/admin/system/settings/app",
-  subscribe_template: "/admin/system/settings/subscribe-template"
+  subscribe_template: "/admin/nodes/subscription-templates"
 };
+
+const nodeSections = new Set<SystemSettingsSection>([
+  "server",
+  "subscribe_template"
+]);
 
 const copy = {
   "zh-CN": {
@@ -425,6 +430,11 @@ export function SystemSettingsPage() {
       systemSettingsSections[0],
     [selectedSection]
   );
+  const standaloneSection = nodeSections.has(selectedSection);
+  const systemSections = useMemo(
+    () => systemSettingsSections.filter((item) => !nodeSections.has(item.id)),
+    []
+  );
   const defaults = useMemo(() => getSettingsDefaults(section), [section]);
   const [draft, setDraft] = useState<SettingsValues>(defaults);
   const [status, setStatus] = useState("");
@@ -620,43 +630,59 @@ export function SystemSettingsPage() {
   return (
     <AdminShell>
       <header className="settings-page-title">
-        <h1>{labels.title}</h1>
-        <p>{labels.description}</p>
+        <h1>{standaloneSection ? section.title[language] : labels.title}</h1>
+        <p>
+          {standaloneSection
+            ? section.description[language]
+            : labels.description}
+        </p>
       </header>
       <div className="settings-page-separator" />
 
-      <div className="settings-layout">
-        <select
-          className="settings-mobile-select"
-          value={sectionPaths[selectedSection]}
-          onChange={(event) => navigate(event.target.value)}
-        >
-          {systemSettingsSections.map((item) => (
-            <option key={item.id} value={sectionPaths[item.id]}>
-              {item.title[language]}
-            </option>
-          ))}
-        </select>
-        <nav className="settings-section-nav" aria-label={labels.title}>
-          {systemSettingsSections.map((item) => (
-            <button
-              className={item.id === selectedSection ? "active" : ""}
-              key={item.id}
-              onClick={() => navigate(sectionPaths[item.id])}
-              type="button"
+      <div
+        className={`settings-layout ${
+          standaloneSection ? "settings-layout-standalone" : ""
+        }`}
+      >
+        {!standaloneSection && (
+          <>
+            <select
+              className="settings-mobile-select"
+              value={sectionPaths[selectedSection]}
+              onChange={(event) => navigate(event.target.value)}
             >
-              <i aria-hidden="true">{item.glyph}</i>
-              <strong>{item.title[language]}</strong>
-            </button>
-          ))}
-        </nav>
+              {systemSections.map((item) => (
+                <option key={item.id} value={sectionPaths[item.id]}>
+                  {item.title[language]}
+                </option>
+              ))}
+            </select>
+            <nav className="settings-section-nav" aria-label={labels.title}>
+              {systemSections.map((item) => (
+                <button
+                  className={item.id === selectedSection ? "active" : ""}
+                  key={item.id}
+                  onClick={() => navigate(sectionPaths[item.id])}
+                  type="button"
+                >
+                  <i aria-hidden="true">{item.glyph}</i>
+                  <strong>{item.title[language]}</strong>
+                </button>
+              ))}
+            </nav>
+          </>
+        )}
 
         <section className="settings-main">
-          <header className="settings-section-title">
-            <h2>{section.title[language]}</h2>
-            <p>{section.description[language]}</p>
-          </header>
-          <div className="settings-page-separator" />
+          {!standaloneSection && (
+            <>
+              <header className="settings-section-title">
+                <h2>{section.title[language]}</h2>
+                <p>{section.description[language]}</p>
+              </header>
+              <div className="settings-page-separator" />
+            </>
+          )}
 
           {settings.isPending && (
             <p className="settings-status">{labels.loading}</p>

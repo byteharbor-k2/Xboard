@@ -134,7 +134,11 @@ export function App() {
       </AdminProtectedRoute>
     );
   }
-  if (path.startsWith("/admin/system/settings")) {
+  if (
+    path.startsWith("/admin/system/settings") ||
+    path === "/admin/nodes/settings" ||
+    path === "/admin/nodes/subscription-templates"
+  ) {
     return (
       <AdminProtectedRoute>
         <SystemSettingsPage />

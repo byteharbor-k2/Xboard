@@ -41,8 +41,8 @@ export const adminNavigation: AdminNavGroup[] = [
         glyph: "⚙",
         label: { "zh-CN": "系统配置", "en-US": "System settings" },
         description: {
-          "zh-CN": "管理站点、安全、订阅、邀请、节点和通知设置。",
-          "en-US": "Manage site, security, subscription, node, and notification settings."
+          "zh-CN": "管理站点、安全、订阅、邀请、邮件和通知设置。",
+          "en-US": "Manage site, security, subscription, email, and notification settings."
         }
       },
       {
@@ -139,6 +139,26 @@ export const adminNavigation: AdminNavGroup[] = [
         description: {
           "zh-CN": "管理节点路由和入口分组。",
           "en-US": "Manage node routes and entry groups."
+        }
+      },
+      {
+        id: "node-settings",
+        href: "/admin/nodes/settings",
+        glyph: "▰",
+        label: { "zh-CN": "节点配置", "en-US": "Node settings" },
+        description: {
+          "zh-CN": "配置节点通信密钥、轮询和 WebSocket。",
+          "en-US": "Configure node tokens, polling, and WebSocket communication."
+        }
+      },
+      {
+        id: "subscription-templates",
+        href: "/admin/nodes/subscription-templates",
+        glyph: "⌘",
+        label: { "zh-CN": "订阅模板", "en-US": "Subscription templates" },
+        description: {
+          "zh-CN": "管理各客户端使用的订阅配置模板。",
+          "en-US": "Manage subscription templates for supported clients."
         }
       }
     ]

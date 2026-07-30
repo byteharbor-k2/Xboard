@@ -39,6 +39,18 @@ export function AdminShell({ children }: PropsWithChildren) {
   const [search, setSearch] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const copy = shellCopy[language];
+  const activeNavHref = useMemo(
+    () =>
+      adminNavigation
+        .flatMap((group) => group.items)
+        .filter(
+          (item) =>
+            pathname === item.href ||
+            pathname.startsWith(`${item.href}/`)
+        )
+        .sort((left, right) => right.href.length - left.href.length)[0]?.href,
+    [pathname]
+  );
 
   const searchResults = useMemo(() => {
     const query = search.trim().toLocaleLowerCase(language);
@@ -84,8 +96,7 @@ export function AdminShell({ children }: PropsWithChildren) {
               {group.items.map((item) => (
                 <AppLink
                   className={
-                    pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`)
+                    activeNavHref === item.href
                       ? "admin-nav-link active"
                       : "admin-nav-link"
                   }
