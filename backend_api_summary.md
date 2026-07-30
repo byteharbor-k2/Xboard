@@ -1,7 +1,44 @@
 # Backend API Summary
 
-> 当前范围：用户套餐与订阅权益、管理员仪表盘、系统设置
-> 更新时间：2026-07-29
+> 当前范围：身份与注册安全、用户套餐与订阅权益、管理员仪表盘、系统设置
+> 更新时间：2026-07-30
+
+## 身份与注册安全 API
+
+### 用户注册
+
+- `GET /session/registration/config`：返回邮箱验证与 Turnstile公开配置。
+- `POST /session/registration/email-code`：通过人机验证后发送 6位邮箱验证码。
+- `POST /session/register`：再次校验人机令牌和邮箱验证码，全部通过后才写入用户表。
+- 邮箱验证码有效 5分钟，同邮箱默认 60秒内不能重复发送。
+- 单 IP默认每 60分钟最多成功注册 3个账户。
+- 生产环境强制配置 Cloudflare Turnstile站点密钥与服务端密钥。
+
+新注册成功时邮箱已经验证，不再创建“未验证邮箱”的垃圾账户。无效、过期或
+尝试次数超限的验证码不会产生数据库记录。
+
+### 用户会话
+
+- 用户登录、刷新和退出：`/session/login`、`/session/refresh`、
+  `/session/current`。
+- 用户 Access Token audience为 `sinx-web`，只包含 `USER`角色。
+- 用户 Refresh Cookie默认名为 `rt_session`，路径限制为 `/session`。
+
+### 管理员会话
+
+- 管理员密码登录：`POST /admin-session/login`。
+- 首次 MFA配置：`POST /admin-session/enrollment`与
+  `POST /admin-session/enrollment/confirm`。
+- MFA登录完成：`POST /admin-session/login/mfa`。
+- 刷新和退出：`POST /admin-session/refresh`与
+  `DELETE /admin-session/current`。
+- MFA状态和关闭：`GET/DELETE /admin-session/mfa`。
+- 管理员 Access Token audience为 `sinx-admin`，只包含 `ADMIN`角色。
+- 管理员 Refresh Cookie默认名为 `rt_admin`，路径限制为
+  `/admin-session`。
+
+用户与管理员 Refresh Token在数据库中也分别标记为 `USER`和 `ADMIN`。
+即使人为交换 Cookie名称，错误作用域的 Refresh Token仍会被拒绝。
 
 ## 用户套餐与订阅权益 API
 
