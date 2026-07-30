@@ -2136,8 +2136,9 @@ button:disabled {
   align-items: start;
 }
 
-.settings-layout-standalone {
+.settings-layout.settings-layout-standalone {
   grid-template-columns: minmax(0, 1fr);
+  gap: 0;
 }
 
 .settings-section-nav {
