@@ -14,13 +14,25 @@ export type SessionGrant = {
   viewer: Viewer;
 };
 
-export type MfaRequired = {
-  mfaRequired: true;
-  challengeToken: string;
-  challengeExpiresAt: string;
+export type LoginResult = SessionGrant;
+
+export type MfaEnrollmentRequired = {
+  mfaEnrollmentRequired: true;
+  mfaRequired: false;
+  enrollmentToken: string;
+  expiresAt: string;
 };
 
-export type LoginResult = SessionGrant | MfaRequired;
+export type AdminMfaRequired = {
+  mfaRequired: true;
+  mfaEnrollmentRequired: false;
+  challengeToken: string;
+  expiresAt: string;
+};
+
+export type AdminLoginResult =
+  | AdminMfaRequired
+  | MfaEnrollmentRequired;
 
 export type MfaStatus = {
   enabled: boolean;
@@ -49,6 +61,12 @@ export type ProblemDetails = {
   code?: string;
   detail?: string;
   status?: number;
+};
+
+export type RegistrationConfig = {
+  emailVerificationRequired: boolean;
+  turnstileEnabled: boolean;
+  turnstileSiteKey: string | null;
 };
 
 export type BillingPeriod =

@@ -18,7 +18,7 @@ import {
 import { AdminShell } from "../components/AdminShell";
 import { AppLink } from "../components/AppLink";
 import { useAdminPreferences } from "../store/adminPreferences";
-import { useAuthStore } from "../store/auth";
+import { useAdminAuthStore } from "../store/adminAuth";
 
 const dashboardCopy = {
   "zh-CN": {
@@ -456,7 +456,7 @@ function FailedJobsDialog({
 }
 
 export function AdminDashboardPage() {
-  const accessToken = useAuthStore((state) => state.accessToken)!;
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
   const language = useAdminPreferences((state) => state.language);
   const copy = dashboardCopy[language];
   const queryClient = useQueryClient();

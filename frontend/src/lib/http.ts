@@ -1,9 +1,11 @@
 import type {
+  AdminLoginResult,
   LoginResult,
   MfaEnrollment,
   MfaEnrollmentComplete,
   MfaStatus,
   ProblemDetails,
+  RegistrationConfig,
   SessionGrant
 } from "../types";
 
@@ -53,28 +55,96 @@ export async function register(
   email: string,
   password: string,
   displayName: string,
-  deviceLabel: string
+  deviceLabel: string,
+  emailCode: string,
+  turnstileToken: string
 ): Promise<SessionGrant> {
   const response = await fetch("/session/register", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, displayName, deviceLabel })
+    body: JSON.stringify({
+      email,
+      password,
+      displayName,
+      deviceLabel,
+      emailCode,
+      turnstileToken
+    })
   });
   return parseResponse<SessionGrant>(response);
 }
 
-export async function completeMfaLogin(
+export async function getRegistrationConfig(): Promise<RegistrationConfig> {
+  const response = await fetch("/session/registration/config", {
+    credentials: "include"
+  });
+  return parseResponse<RegistrationConfig>(response);
+}
+
+export async function requestRegistrationCode(
+  email: string,
+  turnstileToken: string
+): Promise<void> {
+  const response = await fetch("/session/registration/email-code", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, turnstileToken })
+  });
+  return parseResponse<void>(response);
+}
+
+export async function adminLogin(
+  email: string,
+  password: string,
+  deviceLabel: string
+): Promise<AdminLoginResult> {
+  const response = await fetch("/admin-session/login", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, deviceLabel })
+  });
+  return parseResponse<AdminLoginResult>(response);
+}
+
+export async function completeAdminMfaLogin(
   challengeToken: string,
   code: string
 ): Promise<SessionGrant> {
-  const response = await fetch("/session/login/mfa", {
+  const response = await fetch("/admin-session/login/mfa", {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ challengeToken, code })
   });
   return parseResponse<SessionGrant>(response);
+}
+
+export async function startAdminMfaEnrollment(
+  enrollmentToken: string
+): Promise<MfaEnrollment> {
+  const response = await fetch("/admin-session/enrollment", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enrollmentToken })
+  });
+  return parseResponse<MfaEnrollment>(response);
+}
+
+export async function confirmAdminMfaEnrollment(
+  enrollmentToken: string,
+  code: string
+): Promise<MfaEnrollmentComplete> {
+  const response = await fetch("/admin-session/enrollment/confirm", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enrollmentToken, code })
+  });
+  return parseResponse<MfaEnrollmentComplete>(response);
 }
 
 export async function refreshSession(): Promise<SessionGrant> {
@@ -85,8 +155,24 @@ export async function refreshSession(): Promise<SessionGrant> {
   return parseResponse<SessionGrant>(response);
 }
 
+export async function refreshAdminSession(): Promise<SessionGrant> {
+  const response = await fetch("/admin-session/refresh", {
+    method: "POST",
+    credentials: "include"
+  });
+  return parseResponse<SessionGrant>(response);
+}
+
 export async function logout(): Promise<void> {
   const response = await fetch("/session/current", {
+    method: "DELETE",
+    credentials: "include"
+  });
+  return parseResponse<void>(response);
+}
+
+export async function adminLogout(): Promise<void> {
+  const response = await fetch("/admin-session/current", {
     method: "DELETE",
     credentials: "include"
   });
@@ -161,35 +247,11 @@ function bearer(accessToken: string) {
 export async function getMfaStatus(
   accessToken: string
 ): Promise<MfaStatus> {
-  const response = await fetch("/session/mfa", {
+  const response = await fetch("/admin-session/mfa", {
     credentials: "include",
     headers: { Authorization: `Bearer ${accessToken}` }
   });
   return parseResponse<MfaStatus>(response);
-}
-
-export async function startMfaEnrollment(
-  accessToken: string
-): Promise<MfaEnrollment> {
-  const response = await fetch("/session/mfa/enrollment", {
-    method: "POST",
-    credentials: "include",
-    headers: bearer(accessToken)
-  });
-  return parseResponse<MfaEnrollment>(response);
-}
-
-export async function confirmMfaEnrollment(
-  accessToken: string,
-  code: string
-): Promise<MfaEnrollmentComplete> {
-  const response = await fetch("/session/mfa/enrollment/confirm", {
-    method: "POST",
-    credentials: "include",
-    headers: bearer(accessToken),
-    body: JSON.stringify({ code })
-  });
-  return parseResponse<MfaEnrollmentComplete>(response);
 }
 
 export async function disableMfa(
@@ -197,7 +259,7 @@ export async function disableMfa(
   password: string,
   code: string
 ): Promise<void> {
-  const response = await fetch("/session/mfa", {
+  const response = await fetch("/admin-session/mfa", {
     method: "DELETE",
     credentials: "include",
     headers: bearer(accessToken),

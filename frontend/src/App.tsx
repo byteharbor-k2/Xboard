@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 
 import { ProtectedRoute } from "./components/ProtectedRoute";
-import { AdminRoute } from "./components/AdminRoute";
+import { AdminProtectedRoute } from "./components/AdminProtectedRoute";
 import { findAdminNavItem } from "./admin/adminNavigation";
-import { refreshSession } from "./lib/http";
+import { refreshAdminSession, refreshSession } from "./lib/http";
 import { navigate, usePathname } from "./lib/navigation";
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
+import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
 import { AdminMfaPage } from "./pages/AdminMfaPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
@@ -20,8 +21,10 @@ import { AccountProfilePage } from "./pages/AccountProfilePage";
 import { PlansPage } from "./pages/PlansPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { useAuthStore } from "./store/auth";
+import { useAdminAuthStore } from "./store/adminAuth";
 
-let bootstrapSession: ReturnType<typeof refreshSession> | null = null;
+let bootstrapUserSession: ReturnType<typeof refreshSession> | null = null;
+let bootstrapAdminSession: ReturnType<typeof refreshAdminSession> | null = null;
 
 function RedirectHome() {
   useEffect(() => {
@@ -34,19 +37,43 @@ export function App() {
   const bootstrapped = useAuthStore((state) => state.bootstrapped);
   const setSession = useAuthStore((state) => state.setSession);
   const finishBootstrap = useAuthStore((state) => state.finishBootstrap);
+  const adminBootstrapped = useAdminAuthStore(
+    (state) => state.bootstrapped
+  );
+  const setAdminSession = useAdminAuthStore((state) => state.setSession);
+  const finishAdminBootstrap = useAdminAuthStore(
+    (state) => state.finishBootstrap
+  );
   const path = usePathname();
+  const adminPath = path.startsWith("/admin");
 
   useEffect(() => {
-    bootstrapSession ??= refreshSession();
-    void bootstrapSession
+    if (adminPath) {
+      bootstrapAdminSession ??= refreshAdminSession();
+      void bootstrapAdminSession
+        .then(setAdminSession)
+        .catch(finishAdminBootstrap);
+      return;
+    }
+    bootstrapUserSession ??= refreshSession();
+    void bootstrapUserSession
       .then(setSession)
       .catch(finishBootstrap);
-  }, [finishBootstrap, setSession]);
+  }, [
+    adminPath,
+    finishAdminBootstrap,
+    finishBootstrap,
+    setAdminSession,
+    setSession
+  ]);
 
-  if (!bootstrapped) {
+  if (adminPath ? !adminBootstrapped : !bootstrapped) {
     return <div className="app-loading">正在建立安全会话…</div>;
   }
 
+  if (path === "/admin/login") {
+    return <AdminLoginPage />;
+  }
   if (path === "/login") {
     return <LoginPage />;
   }
@@ -95,39 +122,31 @@ export function App() {
   }
   if (path === "/admin" || path === "/admin/dashboard") {
     return (
-      <ProtectedRoute>
-        <AdminRoute>
-          <AdminDashboardPage />
-        </AdminRoute>
-      </ProtectedRoute>
+      <AdminProtectedRoute>
+        <AdminDashboardPage />
+      </AdminProtectedRoute>
     );
   }
   if (path === "/admin/mfa") {
     return (
-      <ProtectedRoute>
-        <AdminRoute>
-          <AdminMfaPage />
-        </AdminRoute>
-      </ProtectedRoute>
+      <AdminProtectedRoute>
+        <AdminMfaPage />
+      </AdminProtectedRoute>
     );
   }
   if (path.startsWith("/admin/system/settings")) {
     return (
-      <ProtectedRoute>
-        <AdminRoute>
-          <SystemSettingsPage />
-        </AdminRoute>
-      </ProtectedRoute>
+      <AdminProtectedRoute>
+        <SystemSettingsPage />
+      </AdminProtectedRoute>
     );
   }
   const adminItem = findAdminNavItem(path);
   if (adminItem) {
     return (
-      <ProtectedRoute>
-        <AdminRoute>
-          <AdminModulePlaceholderPage item={adminItem} />
-        </AdminRoute>
-      </ProtectedRoute>
+      <AdminProtectedRoute>
+        <AdminModulePlaceholderPage item={adminItem} />
+      </AdminProtectedRoute>
     );
   }
   return <RedirectHome />;

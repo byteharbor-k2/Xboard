@@ -218,7 +218,7 @@ export function AccountOverviewPage() {
         </article>
         <article className="account-summary-card">
           <span>账户身份</span>
-          <strong>{viewer.roles.includes("ADMIN") ? "管理员" : "用户"}</strong>
+          <strong>用户</strong>
           <small>权限由系统角色控制</small>
         </article>
         <article className="account-summary-card">

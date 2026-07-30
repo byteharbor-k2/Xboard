@@ -64,21 +64,6 @@ export function AppShell({ children }: PropsWithChildren) {
           >
             登录设备
           </AppLink>
-          {viewer?.roles.includes("ADMIN") && (
-            <>
-              <AppLink
-                className={
-                  window.location.pathname === "/admin/mfa"
-                    ? "active"
-                    : undefined
-                }
-                href="/admin/mfa"
-              >
-                管理员 MFA
-              </AppLink>
-              <AppLink href="/admin/dashboard">管理后台</AppLink>
-            </>
-          )}
         </nav>
         <div className="account">
           <strong>{viewer?.displayName}</strong>

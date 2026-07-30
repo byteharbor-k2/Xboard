@@ -32,7 +32,7 @@ import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
 import { navigate, usePathname } from "../lib/navigation";
 import { useAdminPreferences } from "../store/adminPreferences";
-import { useAuthStore } from "../store/auth";
+import { useAdminAuthStore } from "../store/adminAuth";
 
 const sectionPaths: Record<SystemSettingsSection, string> = {
   site: "/admin/system/settings",
@@ -188,7 +188,7 @@ function MailTemplateManager({
 }) {
   const labels = copy[language];
   const queryClient = useQueryClient();
-  const viewer = useAuthStore((state) => state.viewer);
+  const viewer = useAdminAuthStore((state) => state.viewer);
   const [selected, setSelected] = useState("");
   const [draft, setDraft] = useState<MailTemplateDetail | null>(null);
   const [saved, setSaved] = useState<MailTemplateDetail | null>(null);
@@ -415,7 +415,7 @@ function MailTemplateManager({
 
 export function SystemSettingsPage() {
   const pathname = usePathname();
-  const accessToken = useAuthStore((state) => state.accessToken)!;
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
   const language = useAdminPreferences((state) => state.language);
   const labels = copy[language];
   const selectedSection = sectionFromPath(pathname);

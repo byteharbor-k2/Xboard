@@ -1,10 +1,10 @@
 import { useMemo, useState, type PropsWithChildren } from "react";
 
 import { adminNavigation } from "../admin/adminNavigation";
-import { logout } from "../lib/http";
+import { adminLogout } from "../lib/http";
 import { usePathname } from "../lib/navigation";
 import { useAdminPreferences } from "../store/adminPreferences";
-import { useAuthStore } from "../store/auth";
+import { useAdminAuthStore } from "../store/adminAuth";
 import { AppLink } from "./AppLink";
 
 const shellCopy = {
@@ -32,8 +32,8 @@ const shellCopy = {
 
 export function AdminShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
-  const viewer = useAuthStore((state) => state.viewer);
-  const clearSession = useAuthStore((state) => state.clearSession);
+  const viewer = useAdminAuthStore((state) => state.viewer);
+  const clearSession = useAdminAuthStore((state) => state.clearSession);
   const language = useAdminPreferences((state) => state.language);
   const setLanguage = useAdminPreferences((state) => state.setLanguage);
   const [search, setSearch] = useState("");
@@ -57,10 +57,10 @@ export function AdminShell({ children }: PropsWithChildren) {
 
   async function handleLogout() {
     try {
-      await logout();
+      await adminLogout();
     } finally {
       clearSession();
-      window.location.replace("/login");
+      window.location.replace("/admin/login");
     }
   }
 
