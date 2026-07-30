@@ -2,13 +2,14 @@ package com.sinx.platform.identity.application;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
-import com.sinx.platform.configuration.application.SiteConfigurationService;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.identity.security.RegistrationSecurityProperties;
@@ -29,7 +30,7 @@ public class RegistrationVerificationService {
     private final TurnstileVerificationService turnstile;
     private final RegistrationCodeMailSender mailSender;
     private final UserAccountRepository userRepository;
-    private final SiteConfigurationService siteConfiguration;
+    private final PlatformConfigurationService configuration;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public RegistrationVerificationService(
@@ -39,7 +40,7 @@ public class RegistrationVerificationService {
         TurnstileVerificationService turnstile,
         RegistrationCodeMailSender mailSender,
         UserAccountRepository userRepository,
-        SiteConfigurationService siteConfiguration
+        PlatformConfigurationService configuration
     ) {
         this.redis = redis;
         this.tokenService = tokenService;
@@ -47,17 +48,21 @@ public class RegistrationVerificationService {
         this.turnstile = turnstile;
         this.mailSender = mailSender;
         this.userRepository = userRepository;
-        this.siteConfiguration = siteConfiguration;
+        this.configuration = configuration;
     }
 
     public RegistrationConfig config() {
+        PlatformConfigurationService.EmailDomainPolicy emailPolicy =
+            configuration.emailDomainPolicy();
         return new RegistrationConfig(
             true,
             properties.turnstileEnabled(),
             properties.turnstileEnabled()
                 ? properties.turnstileSiteKey()
                 : null,
-            siteConfiguration.termsUrl().orElse(null)
+            configuration.termsUrl().orElse(null),
+            emailPolicy.enabled(),
+            emailPolicy.domains()
         );
     }
 
@@ -67,6 +72,7 @@ public class RegistrationVerificationService {
         String remoteIp
     ) {
         String normalizedEmail = normalizeEmail(email);
+        configuration.assertEmailDomainAllowed(normalizedEmail);
         turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
 
@@ -115,6 +121,7 @@ public class RegistrationVerificationService {
         String turnstileToken,
         String remoteIp
     ) {
+        configuration.assertEmailDomainAllowed(normalizeEmail(email));
         turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
         String codeKey = codeKey(email);
@@ -196,7 +203,9 @@ public class RegistrationVerificationService {
         boolean emailVerificationRequired,
         boolean turnstileEnabled,
         String turnstileSiteKey,
-        String termsUrl
+        String termsUrl,
+        boolean emailDomainAllowlistEnabled,
+        List<String> allowedEmailDomains
     ) {
     }
 }

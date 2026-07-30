@@ -161,6 +161,103 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void enforcesAdministratorConfiguredRegistrationEmailDomains()
+        throws Exception {
+        try {
+            mockMvc.perform(post("/api/v2/admin/config/save")
+                    .param("key", "safe")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    ))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email_whitelist_suffix": [
+                            "gmail.com",
+                            "@QQ.COM",
+                            "gmail.com"
+                          ]
+                        }
+                        """))
+                .andExpect(status().isOk());
+
+            mockMvc.perform(post("/api/v2/admin/config/save")
+                    .param("key", "safe")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    ))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"email_whitelist_enable":true}
+                        """))
+                .andExpect(status().isOk());
+
+            mockMvc.perform(get("/api/v2/admin/config/fetch")
+                    .param("key", "safe")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                    "$.data.safe.email_whitelist_enable"
+                ).value(true))
+                .andExpect(jsonPath(
+                    "$.data.safe.email_whitelist_suffix[0]"
+                ).value("gmail.com"))
+                .andExpect(jsonPath(
+                    "$.data.safe.email_whitelist_suffix[1]"
+                ).value("qq.com"))
+                .andExpect(jsonPath(
+                    "$.data.safe.email_whitelist_suffix.length()"
+                ).value(2));
+
+            mockMvc.perform(get("/session/registration/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                    "$.emailDomainAllowlistEnabled"
+                ).value(true))
+                .andExpect(jsonPath(
+                    "$.allowedEmailDomains[0]"
+                ).value("gmail.com"))
+                .andExpect(jsonPath(
+                    "$.allowedEmailDomains[1]"
+                ).value("qq.com"));
+
+            mockMvc.perform(post("/session/registration/email-code")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"email":"blocked@example.net"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(
+                    "EMAIL_DOMAIN_NOT_ALLOWED"
+                ));
+
+            mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"blocked@example.net",
+                          "password":"blocked-domain-password",
+                          "displayName":"Blocked Domain",
+                          "emailCode":"000000"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(
+                    "EMAIL_DOMAIN_NOT_ALLOWED"
+                ));
+        } finally {
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings WHERE setting_key LIKE 'safe.%'"
+            );
+        }
+    }
+
+    @Test
     void refusesToCreateAnAccountBeforeEmailCodeVerification()
         throws Exception {
         String email = "registration-guard@example.com";

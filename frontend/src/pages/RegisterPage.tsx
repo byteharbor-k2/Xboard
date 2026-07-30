@@ -23,7 +23,9 @@ export function RegisterPage() {
   const emailInput = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState<RegistrationConfig | null>(null);
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
+  const [emailAddress, setEmailAddress] = useState("");
+  const [emailLocalPart, setEmailLocalPart] = useState("");
+  const [emailDomain, setEmailDomain] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -52,7 +54,31 @@ export function RegisterPage() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!config?.emailDomainAllowlistEnabled) return;
+    setEmailDomain((current) =>
+      config.allowedEmailDomains.includes(current)
+        ? current
+        : (config.allowedEmailDomains[0] ?? "")
+    );
+  }, [config]);
+
+  const domainSelectionEnabled =
+    config?.emailDomainAllowlistEnabled ?? false;
+  const allowedEmailDomains = config?.allowedEmailDomains ?? [];
+  const domainPolicyReady =
+    !domainSelectionEnabled || Boolean(allowedEmailDomains.length);
+  const email = domainSelectionEnabled
+    ? emailDomain
+      ? `${emailLocalPart}@${emailDomain}`
+      : ""
+    : emailAddress;
+
   async function sendCode() {
+    if (!domainPolicyReady) {
+      setError("管理员尚未配置可注册的邮箱域名");
+      return;
+    }
     if (!emailInput.current?.reportValidity()) return;
     if (config?.turnstileEnabled && !turnstileToken) {
       setError("请先完成人机验证");
@@ -123,6 +149,11 @@ export function RegisterPage() {
     setTurnstileReset((value) => value + 1);
   }
 
+  function resetEmailVerification() {
+    setCodeSent(false);
+    setEmailCode("");
+  }
+
   return (
     <AuthLayout
       title="创建账户"
@@ -147,18 +178,57 @@ export function RegisterPage() {
         </label>
         <label>
           邮箱
-          <input
-            ref={emailInput}
-            autoComplete="email"
-            required
-            type="email"
-            value={email}
-            onChange={(event) => {
-              setEmail(event.target.value);
-              setCodeSent(false);
-              setEmailCode("");
-            }}
-          />
+          {domainSelectionEnabled ? (
+            allowedEmailDomains.length ? (
+              <span className="freedom-email-domain-row">
+                <input
+                  ref={emailInput}
+                  autoComplete="username"
+                  inputMode="email"
+                  maxLength={64}
+                  pattern="[^@\s]+"
+                  required
+                  value={emailLocalPart}
+                  onChange={(event) => {
+                    setEmailLocalPart(event.target.value);
+                    resetEmailVerification();
+                  }}
+                />
+                <select
+                  aria-label="邮箱域名"
+                  value={emailDomain}
+                  onChange={(event) => {
+                    setEmailDomain(event.target.value);
+                    resetEmailVerification();
+                  }}
+                >
+                  {allowedEmailDomains.map((domain) => (
+                    <option key={domain} value={domain}>
+                      @{domain}
+                    </option>
+                  ))}
+                </select>
+              </span>
+            ) : (
+              <input
+                ref={emailInput}
+                disabled
+                placeholder="管理员尚未配置可注册的邮箱域名"
+              />
+            )
+          ) : (
+            <input
+              ref={emailInput}
+              autoComplete="email"
+              required
+              type="email"
+              value={emailAddress}
+              onChange={(event) => {
+                setEmailAddress(event.target.value);
+                resetEmailVerification();
+              }}
+            />
+          )}
         </label>
         <label>
           邮箱验证码
@@ -174,7 +244,7 @@ export function RegisterPage() {
               onChange={(event) => setEmailCode(event.target.value)}
             />
             <button
-              disabled={sendingCode || !config}
+              disabled={sendingCode || !config || !domainPolicyReady}
               type="button"
               onClick={() => void sendCode()}
             >
@@ -248,7 +318,7 @@ export function RegisterPage() {
         {error && <p className="error-message">{error}</p>}
         <button
           className="freedom-button primary submit"
-          disabled={submitting || !config}
+          disabled={submitting || !config || !domainPolicyReady}
         >
           {submitting ? "正在创建…" : "验证并创建账户"}
         </button>

@@ -231,6 +231,31 @@
   box-shadow: 0 0 0 3px rgb(34 211 238 / 11%);
 }
 
+.freedom-email-domain-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.freedom-form .freedom-email-domain-row input {
+  border-radius: 9px 0 0 9px;
+}
+
+.freedom-email-domain-row select {
+  max-width: 190px;
+  padding: 11px 34px 11px 12px;
+  border: 1px solid rgb(168 190 217 / 22%);
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  color: var(--freedom-text);
+  background: rgb(10 22 40 / 96%);
+  font: inherit;
+}
+
+.freedom-email-domain-row select:focus {
+  border-color: var(--freedom-cyan);
+  outline: none;
+}
+
 .freedom-form .freedom-terms {
   display: flex;
   gap: 9px;

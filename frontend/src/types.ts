@@ -68,6 +68,8 @@ export type RegistrationConfig = {
   turnstileEnabled: boolean;
   turnstileSiteKey: string | null;
   termsUrl: string | null;
+  emailDomainAllowlistEnabled: boolean;
+  allowedEmailDomains: string[];
 };
 
 export type BillingPeriod =
