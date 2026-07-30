@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
 import com.sinx.platform.notification.email.PasswordResetMailSender;
-import com.sinx.platform.notification.email.VerificationMailSender;
+import com.sinx.platform.notification.email.RegistrationCodeMailSender;
 import com.sinx.platform.identity.security.TotpService;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
@@ -33,6 +33,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -85,13 +86,16 @@ class InfrastructureIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private RecordingVerificationMailSender verificationMailSender;
+    private RecordingRegistrationCodeMailSender registrationCodeMailSender;
 
     @Autowired
     private RecordingPasswordResetMailSender passwordResetMailSender;
 
     @Autowired
     private TotpService totpService;
+
+    @Autowired
+    private JwtDecoder jwtDecoder;
 
     @Test
     void startsWithMigratedPostgresAndReachableRedis() {
@@ -108,7 +112,51 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void refusesToCreateAnAccountBeforeEmailCodeVerification()
+        throws Exception {
+        String email = "registration-guard@example.com";
+        String code = requestRegistrationCode(email);
+
+        mockMvc.perform(post("/session/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"registration-guard@example.com",
+                      "password":"registration-guard-password",
+                      "displayName":"Registration Guard",
+                      "emailCode":"000000"
+                    }
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(
+                "REGISTRATION_EMAIL_CODE_INVALID"
+            ));
+        Integer countBeforeVerification = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM users WHERE email = ?",
+            Integer.class,
+            email
+        );
+        assertThat(countBeforeVerification).isZero();
+
+        mockMvc.perform(post("/session/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "email":"registration-guard@example.com",
+                      "password":"registration-guard-password",
+                      "displayName":"Registration Guard",
+                      "emailCode":"%s"
+                    }
+                    """.formatted(code)))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.viewer.emailVerified").value(true));
+    }
+
+    @Test
     void rotatesRefreshSessionsAndRejectsReplayAfterLogout() throws Exception {
+        String registrationCode = requestRegistrationCode(
+            "Identity.Test@Example.com"
+        );
         MvcResult registration = mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -116,9 +164,10 @@ class InfrastructureIntegrationTest {
                       "email": "Identity.Test@Example.com",
                       "password": "correct-horse-battery-staple",
                       "displayName": "Identity Test",
-                      "deviceLabel": "Integration Test"
+                      "deviceLabel": "Integration Test",
+                      "emailCode": "%s"
                     }
-                    """))
+                    """.formatted(registrationCode)))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.viewer.email").value("identity.test@example.com"))
             .andExpect(jsonPath("$.viewer.roles[0]").value("USER"))
@@ -132,33 +181,7 @@ class InfrastructureIntegrationTest {
         assertThat(JsonPath.<Boolean>read(
             registrationBody,
             "$.viewer.emailVerified"
-        )).isFalse();
-        String firstVerificationToken = verificationMailSender.latestToken();
-
-        mockMvc.perform(post("/session/email-verification/request")
-                .header("Authorization", "Bearer " + accessToken))
-            .andExpect(status().isAccepted());
-        String replacementVerificationToken =
-            verificationMailSender.latestToken();
-        assertThat(replacementVerificationToken)
-            .isNotEqualTo(firstVerificationToken);
-
-        mockMvc.perform(post("/session/email-verification/confirm")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"token":"%s"}
-                    """.formatted(firstVerificationToken)))
-            .andExpect(status().isUnauthorized())
-            .andExpect(jsonPath("$.code").value(
-                "INVALID_EMAIL_VERIFICATION_TOKEN"
-            ));
-
-        mockMvc.perform(post("/session/email-verification/confirm")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"token":"%s"}
-                    """.formatted(replacementVerificationToken)))
-            .andExpect(status().isNoContent());
+        )).isTrue();
 
         mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -166,7 +189,8 @@ class InfrastructureIntegrationTest {
                     {
                       "email": "identity.test@example.com",
                       "password": "another-valid-password",
-                      "displayName": "Duplicate"
+                      "displayName": "Duplicate",
+                      "emailCode": "000000"
                     }
                     """))
             .andExpect(status().isConflict())
@@ -286,6 +310,9 @@ class InfrastructureIntegrationTest {
     @Test
     void updatesProfileChangesPasswordAndCompletesPasswordReset()
         throws Exception {
+        String registrationCode = requestRegistrationCode(
+            "account-settings@example.com"
+        );
         MvcResult registration = mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -293,9 +320,10 @@ class InfrastructureIntegrationTest {
                       "email": "account-settings@example.com",
                       "password": "initial-password-123",
                       "displayName": "Account Settings",
-                      "deviceLabel": "Account Browser"
+                      "deviceLabel": "Account Browser",
+                      "emailCode": "%s"
                     }
-                    """))
+                    """.formatted(registrationCode)))
             .andExpect(status().isCreated())
             .andReturn();
         String registrationBody =
@@ -397,6 +425,9 @@ class InfrastructureIntegrationTest {
     @Test
     void exposesAvailablePlansAndTheUsersSubscriptionEntitlement()
         throws Exception {
+        String registrationCode = requestRegistrationCode(
+            "catalog-member@example.com"
+        );
         MvcResult registration = mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -404,9 +435,10 @@ class InfrastructureIntegrationTest {
                       "email":"catalog-member@example.com",
                       "password":"catalog-member-password",
                       "displayName":"Catalog Member",
-                      "deviceLabel":"Catalog Browser"
+                      "deviceLabel":"Catalog Browser",
+                      "emailCode":"%s"
                     }
-                    """))
+                    """.formatted(registrationCode)))
             .andExpect(status().isCreated())
             .andReturn();
         String registrationBody =
@@ -538,8 +570,11 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
-    void protectsAdministratorLoginWithTotpAndOneTimeRecoveryCodes()
+    void separatesUserAndAdministratorSessionsAndRequiresAdminMfa()
         throws Exception {
+        String registrationCode = requestRegistrationCode(
+            "mfa-admin@example.com"
+        );
         MvcResult registration = mockMvc.perform(post("/session/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -547,10 +582,12 @@ class InfrastructureIntegrationTest {
                       "email": "mfa-admin@example.com",
                       "password": "mfa-admin-password",
                       "displayName": "MFA Admin",
-                      "deviceLabel": "Enrollment Browser"
+                      "deviceLabel": "User Browser",
+                      "emailCode": "%s"
                     }
-                    """))
+                    """.formatted(registrationCode)))
             .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.viewer.roles[0]").value("USER"))
             .andReturn();
         String userId = JsonPath.read(
             registration.getResponse().getContentAsString(),
@@ -564,29 +601,64 @@ class InfrastructureIntegrationTest {
             userId
         );
 
-        MvcResult adminLogin = mockMvc.perform(post("/session/login")
+        MvcResult userLogin = mockMvc.perform(post("/session/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
                       "email": "mfa-admin@example.com",
                       "password": "mfa-admin-password",
-                      "deviceLabel": "Enrollment Browser"
+                      "deviceLabel": "Second User Browser"
                     }
                     """))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewer.roles.length()").value(1))
+            .andExpect(jsonPath("$.viewer.roles[0]").value("USER"))
             .andReturn();
-        String accessToken = JsonPath.read(
-            adminLogin.getResponse().getContentAsString(),
+        String userAccessToken = JsonPath.read(
+            userLogin.getResponse().getContentAsString(),
             "$.accessToken"
         );
+        Cookie userRefreshCookie = userLogin.getResponse()
+            .getCookie("rt_session");
+        assertThat(userRefreshCookie).isNotNull();
+        assertThat(jwtDecoder.decode(userAccessToken).getAudience())
+            .containsExactly("sinx-web");
+        assertThat(jwtDecoder.decode(userAccessToken).getClaimAsString("scope"))
+            .isEqualTo("USER");
 
-        mockMvc.perform(get("/session/mfa")
-                .header("Authorization", "Bearer " + accessToken))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.enabled").value(false));
+        mockMvc.perform(get("/admin-session/mfa")
+                .header("Authorization", "Bearer " + userAccessToken))
+            .andExpect(status().isForbidden());
 
-        MvcResult enrollment = mockMvc.perform(post("/session/mfa/enrollment")
-                .header("Authorization", "Bearer " + accessToken))
+        MvcResult enrollmentRequired = mockMvc.perform(
+                post("/admin-session/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email": "mfa-admin@example.com",
+                          "password": "mfa-admin-password",
+                          "deviceLabel": "Admin Browser"
+                        }
+                        """)
+            )
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.mfaEnrollmentRequired").value(true))
+            .andExpect(jsonPath("$.mfaRequired").value(false))
+            .andReturn();
+        assertThat(enrollmentRequired.getResponse().getCookie("rt_admin"))
+            .isNull();
+        String enrollmentToken = JsonPath.read(
+            enrollmentRequired.getResponse().getContentAsString(),
+            "$.enrollmentToken"
+        );
+
+        MvcResult enrollment = mockMvc.perform(
+                post("/admin-session/enrollment")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"enrollmentToken":"%s"}
+                        """.formatted(enrollmentToken))
+            )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.otpauthUri").value(
                 org.hamcrest.Matchers.startsWith("otpauth://totp/")
@@ -599,12 +671,17 @@ class InfrastructureIntegrationTest {
         String confirmationCode = totpService.currentCode(secret);
 
         MvcResult confirmation = mockMvc.perform(
-                post("/session/mfa/enrollment/confirm")
-                    .header("Authorization", "Bearer " + accessToken)
+                post("/admin-session/enrollment/confirm")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
-                        {"code":"%s"}
-                        """.formatted(confirmationCode))
+                        {
+                          "enrollmentToken":"%s",
+                          "code":"%s"
+                        }
+                        """.formatted(
+                            enrollmentToken,
+                            confirmationCode
+                        ))
             )
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.recoveryCodes.length()").value(8))
@@ -614,7 +691,8 @@ class InfrastructureIntegrationTest {
             "$.recoveryCodes"
         );
 
-        MvcResult challengedLogin = mockMvc.perform(post("/session/login")
+        MvcResult challengedLogin = mockMvc.perform(
+                post("/admin-session/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -629,12 +707,15 @@ class InfrastructureIntegrationTest {
             .andReturn();
         assertThat(challengedLogin.getResponse().getCookie("rt_session"))
             .isNull();
+        assertThat(challengedLogin.getResponse().getCookie("rt_admin"))
+            .isNull();
         String challengeToken = JsonPath.read(
             challengedLogin.getResponse().getContentAsString(),
             "$.challengeToken"
         );
 
-        MvcResult completedLogin = mockMvc.perform(post("/session/login/mfa")
+        MvcResult completedLogin = mockMvc.perform(
+                post("/admin-session/login/mfa")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -643,14 +724,58 @@ class InfrastructureIntegrationTest {
                     }
                     """.formatted(challengeToken, recoveryCodes.getFirst())))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.viewer.roles").isArray())
+            .andExpect(jsonPath("$.viewer.roles.length()").value(1))
+            .andExpect(jsonPath("$.viewer.roles[0]").value("ADMIN"))
             .andReturn();
+        Cookie adminRefreshCookie = completedLogin.getResponse()
+            .getCookie("rt_admin");
+        assertThat(adminRefreshCookie).isNotNull();
+        assertThat(completedLogin.getResponse().getCookie("rt_session"))
+            .isNull();
         String mfaAccessToken = JsonPath.read(
             completedLogin.getResponse().getContentAsString(),
             "$.accessToken"
         );
+        assertThat(jwtDecoder.decode(mfaAccessToken).getAudience())
+            .containsExactly("sinx-admin");
+        assertThat(jwtDecoder.decode(mfaAccessToken).getClaimAsString("scope"))
+            .isEqualTo("ADMIN");
 
-        MvcResult secondChallenge = mockMvc.perform(post("/session/login")
+        Cookie renamedAdminCookie = new Cookie(
+            "rt_session",
+            adminRefreshCookie.getValue()
+        );
+        mockMvc.perform(post("/session/refresh").cookie(renamedAdminCookie))
+            .andExpect(status().isUnauthorized());
+        Cookie renamedUserCookie = new Cookie(
+            "rt_admin",
+            userRefreshCookie.getValue()
+        );
+        mockMvc.perform(post("/admin-session/refresh")
+                .cookie(renamedUserCookie))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + mfaAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"{ viewer { email roles } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.viewer").doesNotExist())
+            .andExpect(jsonPath("$.errors[0]").exists());
+
+        mockMvc.perform(post("/gateway")
+                .header("Authorization", "Bearer " + userAccessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"query":"{ deviceSessions { deviceLabel } }"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.deviceSessions.length()").value(2));
+
+        MvcResult secondChallenge = mockMvc.perform(
+                post("/admin-session/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -664,7 +789,7 @@ class InfrastructureIntegrationTest {
             secondChallenge.getResponse().getContentAsString(),
             "$.challengeToken"
         );
-        mockMvc.perform(post("/session/login/mfa")
+        mockMvc.perform(post("/admin-session/login/mfa")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -678,7 +803,7 @@ class InfrastructureIntegrationTest {
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.code").value("INVALID_MFA_CODE"));
 
-        mockMvc.perform(delete("/session/mfa")
+        mockMvc.perform(delete("/admin-session/mfa")
                 .header("Authorization", "Bearer " + mfaAccessToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
@@ -689,7 +814,11 @@ class InfrastructureIntegrationTest {
                     """.formatted(recoveryCodes.get(1))))
             .andExpect(status().isNoContent());
 
-        mockMvc.perform(post("/session/login")
+        mockMvc.perform(post("/admin-session/refresh")
+                .cookie(adminRefreshCookie))
+            .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/admin-session/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
@@ -697,8 +826,19 @@ class InfrastructureIntegrationTest {
                       "password": "mfa-admin-password"
                     }
                     """))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").isString());
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.mfaEnrollmentRequired").value(true))
+            .andExpect(jsonPath("$.accessToken").doesNotExist());
+    }
+
+    private String requestRegistrationCode(String email) throws Exception {
+        mockMvc.perform(post("/session/registration/email-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"%s"}
+                    """.formatted(email)))
+            .andExpect(status().isAccepted());
+        return registrationCodeMailSender.latestCode();
     }
 
     @TestConfiguration
@@ -706,8 +846,9 @@ class InfrastructureIntegrationTest {
 
         @Bean
         @Primary
-        RecordingVerificationMailSender recordingVerificationMailSender() {
-            return new RecordingVerificationMailSender();
+        RecordingRegistrationCodeMailSender
+            recordingRegistrationCodeMailSender() {
+            return new RecordingRegistrationCodeMailSender();
         }
 
         @Bean
@@ -717,34 +858,20 @@ class InfrastructureIntegrationTest {
         }
     }
 
-    static class RecordingVerificationMailSender
-        implements VerificationMailSender {
+    static class RecordingRegistrationCodeMailSender
+        implements RegistrationCodeMailSender {
 
-        private final AtomicReference<String> latestUrl = new AtomicReference<>();
+        private final AtomicReference<String> latestCode = new AtomicReference<>();
 
         @Override
-        public void sendVerification(
-            String recipient,
-            String displayName,
-            String verificationUrl
-        ) {
-            latestUrl.set(verificationUrl);
+        public void sendRegistrationCode(String recipient, String code) {
+            latestCode.set(code);
         }
 
-        String latestToken() {
-            String url = latestUrl.get();
-            assertThat(url).isNotBlank();
-            String query = URI.create(url).getRawQuery();
-            for (String parameter : query.split("&")) {
-                String[] pair = parameter.split("=", 2);
-                if ("token".equals(pair[0]) && pair.length == 2) {
-                    return URLDecoder.decode(
-                        pair[1],
-                        StandardCharsets.UTF_8
-                    );
-                }
-            }
-            throw new AssertionError("Verification URL has no token");
+        String latestCode() {
+            String code = latestCode.get();
+            assertThat(code).matches("\\d{6}");
+            return code;
         }
     }
 

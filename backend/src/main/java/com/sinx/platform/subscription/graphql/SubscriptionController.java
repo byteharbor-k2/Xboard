@@ -21,7 +21,7 @@ public class SubscriptionController {
     }
 
     @QueryMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     SubscriptionEntitlementView viewerEntitlement(
         @AuthenticationPrincipal Jwt jwt
     ) {

@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sinx.platform.identity.domain.AdminMfaMethod;
 import com.sinx.platform.identity.domain.AdminMfaRecoveryCode;
 import com.sinx.platform.identity.domain.Role;
+import com.sinx.platform.identity.domain.SessionScope;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.AdminMfaMethodRepository;
 import com.sinx.platform.identity.repository.AdminMfaRecoveryCodeRepository;
@@ -177,7 +178,6 @@ public class AdminMfaService {
     @Transactional
     public void disable(
         UUID userId,
-        UUID currentSessionId,
         String password,
         String code
     ) {
@@ -195,9 +195,9 @@ public class AdminMfaService {
             methodRepository.findForUpdateByUserId(userId)
                 .orElseThrow(this::invalidCode)
         );
-        sessionRepository.revokeOtherActiveForUser(
+        sessionRepository.revokeAllActiveForUserAndScope(
             userId,
-            currentSessionId,
+            SessionScope.ADMIN,
             Instant.now(clock)
         );
     }

@@ -49,7 +49,10 @@ public class TokenConfiguration {
         OAuth2TokenValidator<Jwt> audienceValidator =
             new JwtClaimValidator<List<String>>(
                 "aud",
-                audience -> audience != null && audience.contains("sinx-web")
+                audience -> audience != null && (
+                    audience.contains("sinx-web")
+                        || audience.contains("sinx-admin")
+                )
             );
         decoder.setJwtValidator(
             new DelegatingOAuth2TokenValidator<>(

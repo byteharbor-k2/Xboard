@@ -18,7 +18,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Component;
 
-import com.sinx.platform.identity.domain.Role;
+import com.sinx.platform.identity.domain.SessionScope;
 import com.sinx.platform.identity.domain.UserAccount;
 
 @Component
@@ -41,23 +41,36 @@ public class IdentityTokenService {
 
     public AccessTokenGrant issueAccessToken(
         UserAccount user,
-        UUID sessionId
+        UUID sessionId,
+        SessionScope scope
     ) {
         Instant issuedAt = Instant.now(clock);
-        Instant expiresAt = issuedAt.plus(properties.accessTokenTtl());
-        List<String> roles = user.getRoles().stream()
+        Instant expiresAt = issuedAt.plus(
+            scope == SessionScope.ADMIN
+                ? properties.adminAccessTokenTtl()
+                : properties.accessTokenTtl()
+        );
+        String role = scope.name();
+        boolean entitled = user.getRoles().stream()
             .map(Role::getCode)
-            .sorted()
-            .toList();
+            .anyMatch(role::equals);
+        if (!entitled) {
+            throw new IllegalArgumentException(
+                "The account is not entitled to the requested session scope"
+            );
+        }
 
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .issuer(properties.issuer())
             .subject(user.getId().toString())
-            .audience(List.of("sinx-web"))
+            .audience(List.of(
+                scope == SessionScope.ADMIN ? "sinx-admin" : "sinx-web"
+            ))
             .issuedAt(issuedAt)
             .expiresAt(expiresAt)
             .id(UUID.randomUUID().toString())
-            .claim("roles", roles)
+            .claim("roles", List.of(role))
+            .claim("scope", scope.name())
             .claim("sid", sessionId.toString())
             .build();
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)

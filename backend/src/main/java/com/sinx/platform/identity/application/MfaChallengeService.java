@@ -16,7 +16,7 @@ import com.sinx.platform.shared.web.ApiProblemException;
 @Service
 public class MfaChallengeService {
 
-    private static final String KEY_PREFIX = "identity:mfa-login:";
+    private static final String KEY_PREFIX = "identity:admin-challenge:";
     private static final int MAX_ATTEMPTS = 5;
 
     private final StringRedisTemplate redis;
@@ -36,12 +36,28 @@ public class MfaChallengeService {
         this.clock = clock;
     }
 
-    public IssuedChallenge issue(UUID userId, String deviceLabel) {
+    public IssuedChallenge issueLogin(UUID userId, String deviceLabel) {
+        return issue(userId, deviceLabel, ChallengePurpose.LOGIN);
+    }
+
+    public IssuedChallenge issueEnrollment(
+        UUID userId,
+        String deviceLabel
+    ) {
+        return issue(userId, deviceLabel, ChallengePurpose.ENROLLMENT);
+    }
+
+    private IssuedChallenge issue(
+        UUID userId,
+        String deviceLabel,
+        ChallengePurpose purpose
+    ) {
         String rawToken = tokenService.newOpaqueToken();
         String key = key(rawToken);
         redis.opsForHash().putAll(key, Map.of(
             "userId", userId.toString(),
             "deviceLabel", deviceLabel,
+            "purpose", purpose.name(),
             "attempts", "0"
         ));
         redis.expire(key, properties.mfaChallengeTtl());
@@ -51,11 +67,24 @@ public class MfaChallengeService {
         );
     }
 
-    public ChallengeContext read(String rawToken) {
+    public ChallengeContext readLogin(String rawToken) {
+        return read(rawToken, ChallengePurpose.LOGIN);
+    }
+
+    public ChallengeContext readEnrollment(String rawToken) {
+        return read(rawToken, ChallengePurpose.ENROLLMENT);
+    }
+
+    private ChallengeContext read(
+        String rawToken,
+        ChallengePurpose expectedPurpose
+    ) {
         String key = key(rawToken);
         Object userId = redis.opsForHash().get(key, "userId");
         Object deviceLabel = redis.opsForHash().get(key, "deviceLabel");
-        if (userId == null || deviceLabel == null) {
+        Object purpose = redis.opsForHash().get(key, "purpose");
+        if (userId == null || deviceLabel == null || purpose == null
+                || !expectedPurpose.name().equals(purpose.toString())) {
             throw invalidChallenge();
         }
         return new ChallengeContext(
@@ -92,5 +121,10 @@ public class MfaChallengeService {
     }
 
     public record ChallengeContext(UUID userId, String deviceLabel) {
+    }
+
+    private enum ChallengePurpose {
+        LOGIN,
+        ENROLLMENT
     }
 }

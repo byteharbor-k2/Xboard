@@ -48,6 +48,8 @@ class TotpServiceTest {
             "sinx-test",
             Duration.ofMinutes(10),
             Duration.ofDays(30),
+            Duration.ofMinutes(5),
+            Duration.ofHours(12),
             Duration.ofMinutes(30),
             Duration.ofMinutes(30),
             Duration.ofMinutes(5),
@@ -55,6 +57,7 @@ class TotpServiceTest {
             TEST_KEY,
             "test-only-jwt-secret-with-at-least-32-characters",
             "rt_session",
+            "rt_admin",
             false
         );
     }

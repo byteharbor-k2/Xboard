@@ -10,3 +10,6 @@ sinx:
     jwt-secret: test-only-jwt-secret-with-at-least-32-characters
     mfa-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     secure-cookies: false
+  registration:
+    turnstile-enabled: false
+    max-registrations-per-ip: 100

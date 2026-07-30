@@ -12,6 +12,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sinx.platform.identity.domain.DeviceSession;
+import com.sinx.platform.identity.domain.SessionScope;
 
 import jakarta.persistence.LockModeType;
 
@@ -75,12 +76,14 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, UU
         select session
         from DeviceSession session
         where session.user.id = :userId
+          and session.sessionScope = :scope
           and session.revokedAt is null
           and session.expiresAt > :now
         order by session.lastUsedAt desc
         """)
-    List<DeviceSession> findActiveByUserId(
+    List<DeviceSession> findActiveByUserIdAndScope(
         @Param("userId") UUID userId,
+        @Param("scope") SessionScope scope,
         @Param("now") Instant now
     );
 
@@ -90,9 +93,27 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, UU
         from DeviceSession session
         where session.id = :sessionId
           and session.user.id = :userId
+          and session.sessionScope = :scope
         """)
     Optional<DeviceSession> findOwnedForUpdate(
         @Param("sessionId") UUID sessionId,
-        @Param("userId") UUID userId
+        @Param("userId") UUID userId,
+        @Param("scope") SessionScope scope
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update DeviceSession session
+        set session.revokedAt = :revokedAt,
+            session.lastUsedAt = :revokedAt,
+            session.version = session.version + 1
+        where session.user.id = :userId
+          and session.sessionScope = :scope
+          and session.revokedAt is null
+        """)
+    int revokeAllActiveForUserAndScope(
+        @Param("userId") UUID userId,
+        @Param("scope") SessionScope scope,
+        @Param("revokedAt") Instant revokedAt
     );
 }

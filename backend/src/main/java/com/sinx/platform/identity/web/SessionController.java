@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,8 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sinx.platform.identity.application.IdentityService;
-import com.sinx.platform.identity.application.IdentityService.LoginResult;
-import com.sinx.platform.identity.application.IdentityService.SessionGrant;
+import com.sinx.platform.identity.application.RegistrationVerificationService;
+import com.sinx.platform.identity.application.ScopedSessionService.SessionGrant;
 import com.sinx.platform.identity.application.ViewerView;
 import com.sinx.platform.shared.web.ApiProblemException;
 
@@ -34,64 +35,68 @@ public class SessionController {
 
     private final IdentityService identityService;
     private final SessionCookieService cookieService;
+    private final RegistrationVerificationService registrationVerification;
     private final Clock clock;
 
     public SessionController(
         IdentityService identityService,
         SessionCookieService cookieService,
+        RegistrationVerificationService registrationVerification,
         Clock clock
     ) {
         this.identityService = identityService;
         this.cookieService = cookieService;
+        this.registrationVerification = registrationVerification;
         this.clock = clock;
     }
 
     @PostMapping("/register")
     ResponseEntity<SessionResponse> register(
         @Valid @RequestBody RegisterRequest request,
+        HttpServletRequest servletRequest,
         HttpServletResponse response
     ) {
         SessionGrant grant = identityService.register(
             request.email(),
             request.password(),
             request.displayName(),
-            request.deviceLabel()
+            request.deviceLabel(),
+            request.emailCode(),
+            request.turnstileToken(),
+            servletRequest.getRemoteAddr()
         );
         writeRefreshCookie(response, grant);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(SessionResponse.from(grant));
     }
 
+    @GetMapping("/registration/config")
+    RegistrationVerificationService.RegistrationConfig registrationConfig() {
+        return registrationVerification.config();
+    }
+
+    @PostMapping("/registration/email-code")
+    ResponseEntity<Void> requestRegistrationCode(
+        @Valid @RequestBody RegistrationCodeRequest request,
+        HttpServletRequest servletRequest
+    ) {
+        registrationVerification.requestCode(
+            request.email(),
+            request.turnstileToken(),
+            servletRequest.getRemoteAddr()
+        );
+        return ResponseEntity.accepted().build();
+    }
+
     @PostMapping("/login")
-    ResponseEntity<?> login(
+    SessionResponse login(
         @Valid @RequestBody LoginRequest request,
         HttpServletResponse response
     ) {
-        LoginResult result = identityService.login(
+        SessionGrant grant = identityService.login(
             request.email(),
             request.password(),
             request.deviceLabel()
-        );
-        if (result.requiresMfa()) {
-            return ResponseEntity.accepted().body(new MfaRequiredResponse(
-                true,
-                result.challenge().token(),
-                result.challenge().expiresAt()
-            ));
-        }
-        SessionGrant grant = result.session();
-        writeRefreshCookie(response, grant);
-        return ResponseEntity.ok(SessionResponse.from(grant));
-    }
-
-    @PostMapping("/login/mfa")
-    SessionResponse completeMfaLogin(
-        @Valid @RequestBody CompleteMfaLoginRequest request,
-        HttpServletResponse response
-    ) {
-        SessionGrant grant = identityService.completeMfaLogin(
-            request.challengeToken(),
-            request.code()
         );
         writeRefreshCookie(response, grant);
         return SessionResponse.from(grant);
@@ -102,7 +107,7 @@ public class SessionController {
         HttpServletRequest request,
         HttpServletResponse response
     ) {
-        String refreshToken = cookieService.read(request)
+        String refreshToken = cookieService.readUser(request)
             .orElseThrow(this::missingRefreshToken);
         SessionGrant grant = identityService.refresh(refreshToken);
         writeRefreshCookie(response, grant);
@@ -114,8 +119,8 @@ public class SessionController {
         HttpServletRequest request,
         HttpServletResponse response
     ) {
-        cookieService.read(request).ifPresent(identityService::logout);
-        cookieService.clear(response);
+        cookieService.readUser(request).ifPresent(identityService::logout);
+        cookieService.clearUser(response);
         return ResponseEntity.noContent().build();
     }
 
@@ -174,7 +179,7 @@ public class SessionController {
         HttpServletResponse response,
         SessionGrant grant
     ) {
-        cookieService.write(
+        cookieService.writeUser(
             response,
             grant.refreshToken(),
             grant.refreshTokenExpiresAt(),
@@ -194,7 +199,15 @@ public class SessionController {
         @NotBlank @Email @Size(max = 320) String email,
         @NotBlank @Size(min = 12, max = 128) String password,
         @NotBlank @Size(max = 80) String displayName,
-        @Size(max = 120) String deviceLabel
+        @Size(max = 120) String deviceLabel,
+        @NotBlank @Size(min = 6, max = 6) String emailCode,
+        @Size(max = 2048) String turnstileToken
+    ) {
+    }
+
+    public record RegistrationCodeRequest(
+        @NotBlank @Email @Size(max = 320) String email,
+        @Size(max = 2048) String turnstileToken
     ) {
     }
 
@@ -207,12 +220,6 @@ public class SessionController {
 
     public record ConfirmEmailRequest(
         @NotBlank @Size(min = 32, max = 256) String token
-    ) {
-    }
-
-    public record CompleteMfaLoginRequest(
-        @NotBlank @Size(min = 32, max = 256) String challengeToken,
-        @NotBlank @Size(min = 6, max = 32) String code
     ) {
     }
 
@@ -230,13 +237,6 @@ public class SessionController {
     public record ChangePasswordRequest(
         @NotBlank @Size(max = 128) String currentPassword,
         @NotBlank @Size(min = 12, max = 128) String newPassword
-    ) {
-    }
-
-    public record MfaRequiredResponse(
-        boolean mfaRequired,
-        String challengeToken,
-        Instant challengeExpiresAt
     ) {
     }
 

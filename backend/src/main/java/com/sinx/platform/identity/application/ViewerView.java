@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import com.sinx.platform.identity.domain.Role;
+import com.sinx.platform.identity.domain.SessionScope;
 import com.sinx.platform.identity.domain.UserAccount;
 
 public record ViewerView(
@@ -15,16 +15,16 @@ public record ViewerView(
     List<String> roles,
     Instant createdAt
 ) {
-    static ViewerView from(UserAccount user) {
+    public static ViewerView forScope(
+        UserAccount user,
+        SessionScope scope
+    ) {
         return new ViewerView(
             user.getId(),
             user.getEmail(),
             user.getDisplayName(),
             user.isEmailVerified(),
-            user.getRoles().stream()
-                .map(Role::getCode)
-                .sorted()
-                .toList(),
+            List.of(scope.name()),
             user.getCreatedAt()
         );
     }

@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
@@ -32,6 +34,10 @@ public class DeviceSession {
 
     @Column(name = "device_label", length = 120, nullable = false)
     private String deviceLabel;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "session_scope", length = 16, nullable = false)
+    private SessionScope sessionScope;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -61,6 +67,7 @@ public class DeviceSession {
         UUID sessionFamilyId,
         String refreshTokenHash,
         String deviceLabel,
+        SessionScope sessionScope,
         Instant now,
         Instant expiresAt
     ) {
@@ -70,6 +77,7 @@ public class DeviceSession {
         session.sessionFamilyId = sessionFamilyId;
         session.refreshTokenHash = refreshTokenHash;
         session.deviceLabel = deviceLabel;
+        session.sessionScope = sessionScope;
         session.createdAt = now;
         session.lastUsedAt = now;
         session.expiresAt = expiresAt;
@@ -104,6 +112,10 @@ public class DeviceSession {
 
     public String getDeviceLabel() {
         return deviceLabel;
+    }
+
+    public SessionScope getSessionScope() {
+        return sessionScope;
     }
 
     public Instant getCreatedAt() {

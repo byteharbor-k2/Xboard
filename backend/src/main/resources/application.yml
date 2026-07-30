@@ -58,11 +58,23 @@ sinx:
     issuer: ${SECURITY_ISSUER:sinx-platform}
     access-token-ttl: ${ACCESS_TOKEN_TTL:10m}
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
+    admin-access-token-ttl: ${ADMIN_ACCESS_TOKEN_TTL:5m}
+    admin-refresh-token-ttl: ${ADMIN_REFRESH_TOKEN_TTL:12h}
     email-verification-ttl: ${EMAIL_VERIFICATION_TTL:30m}
     password-reset-ttl: ${PASSWORD_RESET_TTL:30m}
     mfa-challenge-ttl: ${MFA_CHALLENGE_TTL:5m}
     mfa-issuer: ${MFA_ISSUER:SinX Cloud}
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:rt_session}
+    admin-refresh-cookie-name: ${ADMIN_REFRESH_COOKIE_NAME:rt_admin}
+  registration:
+    email-code-ttl: ${REGISTRATION_EMAIL_CODE_TTL:5m}
+    email-code-cooldown: ${REGISTRATION_EMAIL_CODE_COOLDOWN:60s}
+    max-code-attempts: ${REGISTRATION_MAX_CODE_ATTEMPTS:5}
+    max-registrations-per-ip: ${REGISTRATION_MAX_PER_IP:3}
+    registration-window: ${REGISTRATION_WINDOW:60m}
+    turnstile-enabled: true
+    turnstile-site-key: ${TURNSTILE_SITE_KEY:}
+    turnstile-secret-key: ${TURNSTILE_SECRET_KEY:}
   mail:
     delivery: ${MAIL_DELIVERY:log}
     public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}

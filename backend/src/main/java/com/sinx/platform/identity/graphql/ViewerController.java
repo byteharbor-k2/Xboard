@@ -30,13 +30,13 @@ public class ViewerController {
     }
 
     @QueryMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     ViewerView viewer(@AuthenticationPrincipal Jwt jwt) {
         return identityService.viewer(UUID.fromString(jwt.getSubject()));
     }
 
     @QueryMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     List<DeviceSessionView> deviceSessions(
         @AuthenticationPrincipal Jwt jwt
     ) {
@@ -47,7 +47,7 @@ public class ViewerController {
     }
 
     @MutationMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     boolean revokeDeviceSession(
         @Argument UUID id,
         @AuthenticationPrincipal Jwt jwt
@@ -60,7 +60,7 @@ public class ViewerController {
     }
 
     @MutationMapping
-    @PreAuthorize("isAuthenticated()")
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     ViewerView updateViewerProfile(
         @Argument @NotBlank @Size(max = 80) String displayName,
         @AuthenticationPrincipal Jwt jwt

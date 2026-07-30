@@ -17,6 +17,7 @@ import com.sinx.platform.identity.domain.DeviceSession;
 import com.sinx.platform.identity.domain.EmailVerificationToken;
 import com.sinx.platform.identity.domain.PasswordResetToken;
 import com.sinx.platform.identity.domain.Role;
+import com.sinx.platform.identity.domain.SessionScope;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
@@ -26,7 +27,7 @@ import com.sinx.platform.identity.repository.RoleRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.identity.security.IdentityTokenService;
-import com.sinx.platform.identity.security.IdentityTokenService.AccessTokenGrant;
+import com.sinx.platform.identity.application.ScopedSessionService.SessionGrant;
 import com.sinx.platform.shared.web.ApiProblemException;
 
 @Service
@@ -41,12 +42,12 @@ public class IdentityService {
     private final PasswordResetTokenRepository passwordResetRepository;
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokenService;
+    private final ScopedSessionService sessions;
     private final IdentitySecurityProperties securityProperties;
     private final LoginAttemptService loginAttempts;
     private final EmailVerificationAttemptService emailVerificationAttempts;
     private final PasswordResetAttemptService passwordResetAttempts;
-    private final AdminMfaService adminMfaService;
-    private final MfaChallengeService mfaChallenges;
+    private final RegistrationVerificationService registrationVerification;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
@@ -59,12 +60,12 @@ public class IdentityService {
         PasswordResetTokenRepository passwordResetRepository,
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokenService,
+        ScopedSessionService sessions,
         IdentitySecurityProperties securityProperties,
         LoginAttemptService loginAttempts,
         EmailVerificationAttemptService emailVerificationAttempts,
         PasswordResetAttemptService passwordResetAttempts,
-        AdminMfaService adminMfaService,
-        MfaChallengeService mfaChallenges,
+        RegistrationVerificationService registrationVerification,
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
@@ -75,12 +76,12 @@ public class IdentityService {
         this.passwordResetRepository = passwordResetRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
+        this.sessions = sessions;
         this.securityProperties = securityProperties;
         this.loginAttempts = loginAttempts;
         this.emailVerificationAttempts = emailVerificationAttempts;
         this.passwordResetAttempts = passwordResetAttempts;
-        this.adminMfaService = adminMfaService;
-        this.mfaChallenges = mfaChallenges;
+        this.registrationVerification = registrationVerification;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
@@ -93,12 +94,21 @@ public class IdentityService {
         String email,
         String password,
         String displayName,
-        String deviceLabel
+        String deviceLabel,
+        String emailCode,
+        String turnstileToken,
+        String remoteIp
     ) {
         String normalizedEmail = normalizeEmail(email);
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw emailAlreadyRegistered();
         }
+        registrationVerification.verifyRegistration(
+            normalizedEmail,
+            emailCode,
+            turnstileToken,
+            remoteIp
+        );
 
         Role defaultRole = roleRepository.findById(DEFAULT_ROLE)
             .orElseThrow(() -> new IllegalStateException("Default role is missing"));
@@ -111,17 +121,26 @@ public class IdentityService {
             defaultRole,
             now
         );
+        user.markEmailVerified(now);
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
             throw emailAlreadyRegistered();
         }
-        issueEmailVerification(user, now);
-        return issueSession(user, normalizeDeviceLabel(deviceLabel), now, null);
+        eventPublisher.publishEvent(new RegistrationCompleted(
+            normalizedEmail,
+            remoteIp
+        ));
+        return sessions.issue(
+            user,
+            normalizeDeviceLabel(deviceLabel),
+            SessionScope.USER,
+            null
+        );
     }
 
     @Transactional
-    public LoginResult login(
+    public SessionGrant login(
         String email,
         String password,
         String deviceLabel
@@ -141,7 +160,7 @@ public class IdentityService {
             ? dummyPasswordHash
             : user.getPasswordHash();
         boolean passwordMatches = passwordEncoder.matches(password, storedHash);
-        if (user == null || !passwordMatches) {
+        if (user == null || !passwordMatches || !hasRole(user, DEFAULT_ROLE)) {
             loginAttempts.recordFailure(normalizedEmail);
             throw invalidCredentials();
         }
@@ -155,93 +174,22 @@ public class IdentityService {
 
         loginAttempts.reset(normalizedEmail);
         String normalizedDeviceLabel = normalizeDeviceLabel(deviceLabel);
-        if (adminMfaService.isEnabled(user.getId())) {
-            return LoginResult.challenge(
-                mfaChallenges.issue(user.getId(), normalizedDeviceLabel)
-            );
-        }
         Instant now = Instant.now(clock);
         user.recordSuccessfulLogin(now);
-        return LoginResult.session(
-            issueSession(user, normalizedDeviceLabel, now, null)
-        );
-    }
-
-    @Transactional
-    public SessionGrant completeMfaLogin(String challengeToken, String code) {
-        MfaChallengeService.ChallengeContext challenge =
-            mfaChallenges.read(challengeToken);
-        UserAccount user = userRepository.findWithRolesById(challenge.userId())
-            .orElseThrow(this::sessionUserNotFound);
-        if (user.getStatus() != UserStatus.ACTIVE) {
-            throw new ApiProblemException(
-                HttpStatus.FORBIDDEN,
-                "ACCOUNT_SUSPENDED",
-                "This account is not available"
-            );
-        }
-        try {
-            adminMfaService.verifyLoginCode(user.getId(), code);
-        } catch (ApiProblemException exception) {
-            mfaChallenges.recordFailure(challengeToken);
-            throw exception;
-        }
-        Instant now = Instant.now(clock);
-        user.recordSuccessfulLogin(now);
-        SessionGrant grant = issueSession(
+        return sessions.issue(
             user,
-            challenge.deviceLabel(),
-            now,
+            normalizedDeviceLabel,
+            SessionScope.USER,
             null
         );
-        mfaChallenges.consume(challengeToken);
-        return grant;
     }
 
-    @Transactional(noRollbackFor = ApiProblemException.class)
     public SessionGrant refresh(String refreshToken) {
-        String tokenHash = tokenService.hashRefreshToken(refreshToken);
-        DeviceSession currentSession = sessionRepository
-            .findForUpdateByTokenHash(tokenHash)
-            .orElseThrow(this::invalidRefreshToken);
-        Instant now = Instant.now(clock);
-
-        if (currentSession.isRevoked()) {
-            sessionRepository.revokeActiveFamily(
-                currentSession.getSessionFamilyId(),
-                now
-            );
-            throw invalidRefreshToken();
-        }
-        if (!currentSession.isActiveAt(now)) {
-            throw invalidRefreshToken();
-        }
-        if (currentSession.getUser().getStatus() != UserStatus.ACTIVE) {
-            throw new ApiProblemException(
-                HttpStatus.FORBIDDEN,
-                "ACCOUNT_SUSPENDED",
-                "This account is not available"
-            );
-        }
-
-        SessionGrant replacement = issueSession(
-            currentSession.getUser(),
-            currentSession.getDeviceLabel(),
-            now,
-            currentSession.getSessionFamilyId()
-        );
-        currentSession.revoke(now, replacement.sessionId());
-        return replacement;
+        return sessions.refresh(refreshToken, SessionScope.USER);
     }
 
-    @Transactional
     public void logout(String refreshToken) {
-        String tokenHash = tokenService.hashRefreshToken(refreshToken);
-        sessionRepository.findForUpdateByTokenHash(tokenHash).ifPresent(session -> {
-            if (session.isActiveAt(Instant.now(clock))) {
-                session.revoke(Instant.now(clock), null);
-            }
-        });
+        sessions.logout(refreshToken, SessionScope.USER);
     }
 
     @Transactional(readOnly = true)
@@ -252,7 +200,7 @@ public class IdentityService {
                 "SESSION_USER_NOT_FOUND",
                 "The authenticated user no longer exists"
             ));
-        return ViewerView.from(user);
+        return ViewerView.forScope(user, SessionScope.USER);
     }
 
     @Transactional
@@ -291,7 +239,7 @@ public class IdentityService {
         UserAccount user = userRepository.findWithRolesById(userId)
             .orElseThrow(this::sessionUserNotFound);
         user.updateDisplayName(displayName.trim(), Instant.now(clock));
-        return ViewerView.from(user);
+        return ViewerView.forScope(user, SessionScope.USER);
     }
 
     @Transactional
@@ -382,7 +330,11 @@ public class IdentityService {
         UUID currentSessionId
     ) {
         return sessionRepository
-            .findActiveByUserId(userId, Instant.now(clock))
+            .findActiveByUserIdAndScope(
+                userId,
+                SessionScope.USER,
+                Instant.now(clock)
+            )
             .stream()
             .map(session -> DeviceSessionView.from(
                 session,
@@ -395,7 +347,8 @@ public class IdentityService {
     public void revokeDeviceSession(UUID userId, UUID sessionId) {
         DeviceSession session = sessionRepository.findOwnedForUpdate(
             sessionId,
-            userId
+            userId,
+            SessionScope.USER
         ).orElseThrow(() -> new ApiProblemException(
             HttpStatus.NOT_FOUND,
             "DEVICE_SESSION_NOT_FOUND",
@@ -405,42 +358,6 @@ public class IdentityService {
         if (session.isActiveAt(now)) {
             session.revoke(now, null);
         }
-    }
-
-    private SessionGrant issueSession(
-        UserAccount user,
-        String deviceLabel,
-        Instant now,
-        UUID existingFamilyId
-    ) {
-        String refreshToken = tokenService.newRefreshToken();
-        Instant refreshExpiresAt = now.plus(securityProperties.refreshTokenTtl());
-        UUID sessionId = UUID.randomUUID();
-        UUID sessionFamilyId = existingFamilyId == null
-            ? sessionId
-            : existingFamilyId;
-        DeviceSession session = DeviceSession.create(
-            sessionId,
-            user,
-            sessionFamilyId,
-            tokenService.hashRefreshToken(refreshToken),
-            deviceLabel,
-            now,
-            refreshExpiresAt
-        );
-        sessionRepository.save(session);
-        AccessTokenGrant accessToken = tokenService.issueAccessToken(
-            user,
-            sessionId
-        );
-        return new SessionGrant(
-            accessToken.token(),
-            accessToken.expiresAt(),
-            refreshToken,
-            refreshExpiresAt,
-            session.getId(),
-            ViewerView.from(user)
-        );
     }
 
     private void issueEmailVerification(UserAccount user, Instant now) {
@@ -464,6 +381,12 @@ public class IdentityService {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
+    private boolean hasRole(UserAccount user, String role) {
+        return user.getRoles().stream()
+            .map(Role::getCode)
+            .anyMatch(role::equals);
+    }
+
     private String normalizeDeviceLabel(String deviceLabel) {
         if (deviceLabel == null || deviceLabel.isBlank()) {
             return "Browser";
@@ -484,14 +407,6 @@ public class IdentityService {
             HttpStatus.CONFLICT,
             "EMAIL_ALREADY_REGISTERED",
             "An account already exists for this email"
-        );
-    }
-
-    private ApiProblemException invalidRefreshToken() {
-        return new ApiProblemException(
-            HttpStatus.UNAUTHORIZED,
-            "INVALID_REFRESH_TOKEN",
-            "The refresh session is invalid or expired"
         );
     }
 
@@ -519,32 +434,4 @@ public class IdentityService {
         );
     }
 
-    public record SessionGrant(
-        String accessToken,
-        Instant accessTokenExpiresAt,
-        String refreshToken,
-        Instant refreshTokenExpiresAt,
-        UUID sessionId,
-        ViewerView viewer
-    ) {
-    }
-
-    public record LoginResult(
-        SessionGrant session,
-        MfaChallengeService.IssuedChallenge challenge
-    ) {
-        public static LoginResult session(SessionGrant session) {
-            return new LoginResult(session, null);
-        }
-
-        public static LoginResult challenge(
-            MfaChallengeService.IssuedChallenge challenge
-        ) {
-            return new LoginResult(null, challenge);
-        }
-
-        public boolean requiresMfa() {
-            return challenge != null;
-        }
-    }
 }
