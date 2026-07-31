@@ -125,24 +125,6 @@ public class SessionController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/email-verification/request")
-    ResponseEntity<Void> requestEmailVerification(
-        @AuthenticationPrincipal Jwt jwt
-    ) {
-        identityService.requestEmailVerification(
-            UUID.fromString(jwt.getSubject())
-        );
-        return ResponseEntity.accepted().build();
-    }
-
-    @PostMapping("/email-verification/confirm")
-    ResponseEntity<Void> confirmEmailVerification(
-        @Valid @RequestBody ConfirmEmailRequest request
-    ) {
-        identityService.confirmEmailVerification(request.token());
-        return ResponseEntity.noContent().build();
-    }
-
     @PostMapping("/password-reset/request")
     ResponseEntity<Void> requestPasswordReset(
         @Valid @RequestBody PasswordResetRequest request
@@ -217,11 +199,6 @@ public class SessionController {
         @NotBlank @Email @Size(max = 320) String email,
         @NotBlank @Size(max = 128) String password,
         @Size(max = 120) String deviceLabel
-    ) {
-    }
-
-    public record ConfirmEmailRequest(
-        @NotBlank @Size(min = 32, max = 256) String token
     ) {
     }
 

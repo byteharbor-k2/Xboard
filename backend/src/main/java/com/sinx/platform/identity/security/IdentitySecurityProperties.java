@@ -17,7 +17,6 @@ public record IdentitySecurityProperties(
     @NotNull Duration refreshTokenTtl,
     @NotNull Duration adminAccessTokenTtl,
     @NotNull Duration adminRefreshTokenTtl,
-    @NotNull Duration emailVerificationTtl,
     @NotNull Duration passwordResetTtl,
     @NotNull Duration mfaChallengeTtl,
     @NotBlank String mfaIssuer,

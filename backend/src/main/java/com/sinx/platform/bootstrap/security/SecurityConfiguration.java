@@ -80,7 +80,6 @@ public class SecurityConfiguration {
                     "/session/login",
                     "/session/refresh",
                     "/session/current",
-                    "/session/email-verification/confirm",
                     "/session/password-reset/request",
                     "/session/password-reset/confirm",
                     "/admin-session/login",
@@ -91,7 +90,6 @@ public class SecurityConfiguration {
                     "/admin-session/current"
                 ).permitAll()
                 .requestMatchers(
-                    "/session/email-verification/request",
                     "/session/password",
                     "/session/invitations"
                 ).access((authentication, context) ->

@@ -19,7 +19,6 @@ import jakarta.mail.internet.MimeMessage;
 @Component
 public class ConfiguredNotificationMailSender
     implements RegistrationCodeMailSender,
-        VerificationMailSender,
         PasswordResetMailSender {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
@@ -48,28 +47,6 @@ public class ConfiguredNotificationMailSender
             <p>This code expires in 5 minutes. If you did not request it, ignore this email.</p>
             """.formatted(escapeHtml(code)),
             "registration code " + code
-        );
-    }
-
-    @Override
-    public void sendVerification(
-        String recipient,
-        String displayName,
-        String verificationUrl
-    ) {
-        deliver(
-            recipient,
-            "Verify your email address",
-            """
-            <p>Hello %s,</p>
-            <p>Confirm your email address to finish securing your account.</p>
-            <p><a href="%s">Verify email address</a></p>
-            <p>This link expires shortly. If you did not create this account, ignore this email.</p>
-            """.formatted(
-                escapeHtml(displayName),
-                escapeHtml(verificationUrl)
-            ),
-            "verification link " + verificationUrl
         );
     }
 

@@ -16,10 +16,13 @@ import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { TicketsPage } from "./pages/TicketsPage";
 import { AccountOverviewPage } from "./pages/AccountOverviewPage";
 import { AccountProfilePage } from "./pages/AccountProfilePage";
+import { InvitationsPage } from "./pages/InvitationsPage";
+import { KnowledgeBasePage } from "./pages/KnowledgeBasePage";
+import { OrdersPage } from "./pages/OrdersPage";
 import { PlansPage } from "./pages/PlansPage";
-import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 import { useAuthStore } from "./store/auth";
 import { useAdminAuthStore } from "./store/adminAuth";
 
@@ -29,6 +32,13 @@ let bootstrapAdminSession: ReturnType<typeof refreshAdminSession> | null = null;
 function RedirectHome() {
   useEffect(() => {
     navigate("/", true);
+  }, []);
+  return null;
+}
+
+function RedirectDashboard() {
+  useEffect(() => {
+    navigate("/dashboard", true);
   }, []);
   return null;
 }
@@ -86,13 +96,13 @@ export function App() {
   if (path === "/reset-password") {
     return <ResetPasswordPage />;
   }
-  if (path === "/verify-email") {
-    return <VerifyEmailPage />;
-  }
   if (path === "/") {
     return <HomePage />;
   }
   if (path === "/account") {
+    return <RedirectDashboard />;
+  }
+  if (path === "/dashboard") {
     return (
       <ProtectedRoute>
         <AccountOverviewPage />
@@ -110,6 +120,34 @@ export function App() {
     return (
       <ProtectedRoute>
         <PlansPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/docs") {
+    return (
+      <ProtectedRoute>
+        <KnowledgeBasePage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/account/orders") {
+    return (
+      <ProtectedRoute>
+        <OrdersPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/account/invitations") {
+    return (
+      <ProtectedRoute>
+        <InvitationsPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/account/tickets") {
+    return (
+      <ProtectedRoute>
+        <TicketsPage />
       </ProtectedRoute>
     );
   }

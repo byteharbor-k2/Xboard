@@ -51,7 +51,6 @@ class TotpServiceTest {
             Duration.ofMinutes(5),
             Duration.ofHours(12),
             Duration.ofMinutes(30),
-            Duration.ofMinutes(30),
             Duration.ofMinutes(5),
             "SinX Cloud",
             TEST_KEY,

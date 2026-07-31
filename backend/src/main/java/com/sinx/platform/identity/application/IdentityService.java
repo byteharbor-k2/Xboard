@@ -14,14 +14,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.identity.domain.DeviceSession;
-import com.sinx.platform.identity.domain.EmailVerificationToken;
 import com.sinx.platform.identity.domain.PasswordResetToken;
 import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.SessionScope;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
-import com.sinx.platform.identity.repository.EmailVerificationTokenRepository;
 import com.sinx.platform.identity.repository.PasswordResetTokenRepository;
 import com.sinx.platform.identity.repository.RoleRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
@@ -38,14 +36,12 @@ public class IdentityService {
     private final UserAccountRepository userRepository;
     private final RoleRepository roleRepository;
     private final DeviceSessionRepository sessionRepository;
-    private final EmailVerificationTokenRepository emailVerificationRepository;
     private final PasswordResetTokenRepository passwordResetRepository;
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokenService;
     private final ScopedSessionService sessions;
     private final IdentitySecurityProperties securityProperties;
     private final LoginAttemptService loginAttempts;
-    private final EmailVerificationAttemptService emailVerificationAttempts;
     private final PasswordResetAttemptService passwordResetAttempts;
     private final RegistrationVerificationService registrationVerification;
     private final InvitationService invitations;
@@ -57,14 +53,12 @@ public class IdentityService {
         UserAccountRepository userRepository,
         RoleRepository roleRepository,
         DeviceSessionRepository sessionRepository,
-        EmailVerificationTokenRepository emailVerificationRepository,
         PasswordResetTokenRepository passwordResetRepository,
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokenService,
         ScopedSessionService sessions,
         IdentitySecurityProperties securityProperties,
         LoginAttemptService loginAttempts,
-        EmailVerificationAttemptService emailVerificationAttempts,
         PasswordResetAttemptService passwordResetAttempts,
         RegistrationVerificationService registrationVerification,
         InvitationService invitations,
@@ -74,14 +68,12 @@ public class IdentityService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.sessionRepository = sessionRepository;
-        this.emailVerificationRepository = emailVerificationRepository;
         this.passwordResetRepository = passwordResetRepository;
         this.passwordEncoder = passwordEncoder;
         this.tokenService = tokenService;
         this.sessions = sessions;
         this.securityProperties = securityProperties;
         this.loginAttempts = loginAttempts;
-        this.emailVerificationAttempts = emailVerificationAttempts;
         this.passwordResetAttempts = passwordResetAttempts;
         this.registrationVerification = registrationVerification;
         this.invitations = invitations;
@@ -212,37 +204,6 @@ public class IdentityService {
     }
 
     @Transactional
-    public void requestEmailVerification(UUID userId) {
-        UserAccount user = userRepository.findWithRolesById(userId)
-            .orElseThrow(this::sessionUserNotFound);
-        if (user.isEmailVerified()) {
-            return;
-        }
-        emailVerificationAttempts.consumeRequest(userId);
-        Instant now = Instant.now(clock);
-        emailVerificationRepository.consumeActiveForUser(userId, now);
-        issueEmailVerification(user, now);
-    }
-
-    @Transactional
-    public void confirmEmailVerification(String rawToken) {
-        String tokenHash = tokenService.hashOpaqueToken(rawToken);
-        EmailVerificationToken token = emailVerificationRepository
-            .findForUpdateByTokenHash(tokenHash)
-            .orElseThrow(this::invalidEmailVerificationToken);
-        Instant now = Instant.now(clock);
-        if (!token.isUsableAt(now)) {
-            throw invalidEmailVerificationToken();
-        }
-        token.consume(now);
-        token.getUser().markEmailVerified(now);
-        emailVerificationRepository.consumeActiveForUser(
-            token.getUser().getId(),
-            now
-        );
-    }
-
-    @Transactional
     public ViewerView updateProfile(UUID userId, String displayName) {
         UserAccount user = userRepository.findWithRolesById(userId)
             .orElseThrow(this::sessionUserNotFound);
@@ -368,23 +329,6 @@ public class IdentityService {
         }
     }
 
-    private void issueEmailVerification(UserAccount user, Instant now) {
-        String rawToken = tokenService.newOpaqueToken();
-        EmailVerificationToken token = EmailVerificationToken.create(
-            UUID.randomUUID(),
-            user,
-            tokenService.hashOpaqueToken(rawToken),
-            now,
-            now.plus(securityProperties.emailVerificationTtl())
-        );
-        emailVerificationRepository.save(token);
-        eventPublisher.publishEvent(new EmailVerificationRequested(
-            user.getEmail(),
-            user.getDisplayName(),
-            rawToken
-        ));
-    }
-
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
@@ -415,14 +359,6 @@ public class IdentityService {
             HttpStatus.CONFLICT,
             "EMAIL_ALREADY_REGISTERED",
             "An account already exists for this email"
-        );
-    }
-
-    private ApiProblemException invalidEmailVerificationToken() {
-        return new ApiProblemException(
-            HttpStatus.UNAUTHORIZED,
-            "INVALID_EMAIL_VERIFICATION_TOKEN",
-            "The email verification link is invalid or expired"
         );
     }
 

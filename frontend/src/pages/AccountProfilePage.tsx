@@ -6,6 +6,12 @@ import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import type { Viewer } from "../types";
 
+function formatDate(value: string, locale: "zh-CN" | "en-US") {
+  return new Intl.DateTimeFormat(locale, {
+    dateStyle: "long"
+  }).format(new Date(value));
+}
+
 const updateProfileMutation = `
   mutation UpdateViewerProfile($displayName: String!) {
     updateViewerProfile(displayName: $displayName) {
@@ -16,8 +22,14 @@ const updateProfileMutation = `
 
 const copy = {
   "zh-CN": {
-    title: "账户资料",
+    title: "个人中心",
     description: "更新显示名称或更换登录密码。",
+    accountDetails: "账户信息",
+    accountDetailsDescription: "查看当前账户的基础资料。",
+    accountEmail: "账户邮箱",
+    identity: "账户身份",
+    user: "用户",
+    joined: "加入时间",
     profile: "个人资料",
     email: "邮箱",
     displayName: "显示名称",
@@ -34,8 +46,14 @@ const copy = {
     passwordFailed: "密码更新失败"
   },
   "en-US": {
-    title: "Account profile",
+    title: "Personal center",
     description: "Update your display name or change your password.",
+    accountDetails: "Account information",
+    accountDetailsDescription: "Review the basic details of this account.",
+    accountEmail: "Account email",
+    identity: "Account role",
+    user: "User",
+    joined: "Joined",
     profile: "Profile",
     email: "Email",
     displayName: "Display name",
@@ -119,6 +137,26 @@ export function AccountProfilePage() {
         <h1>{labels.title}</h1>
         <p className="muted">{labels.description}</p>
       </header>
+      <section className="panel profile-account-summary">
+        <header>
+          <h2>{labels.accountDetails}</h2>
+          <p>{labels.accountDetailsDescription}</p>
+        </header>
+        <dl>
+          <div>
+            <dt>{labels.accountEmail}</dt>
+            <dd>{viewer.email}</dd>
+          </div>
+          <div>
+            <dt>{labels.identity}</dt>
+            <dd>{labels.user}</dd>
+          </div>
+          <div>
+            <dt>{labels.joined}</dt>
+            <dd>{formatDate(viewer.createdAt, language)}</dd>
+          </div>
+        </dl>
+      </section>
       <div className="account-settings-grid">
         <section className="panel account-form-panel">
           <h2>{labels.profile}</h2>

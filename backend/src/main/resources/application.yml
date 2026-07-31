@@ -60,7 +60,6 @@ sinx:
     refresh-token-ttl: ${REFRESH_TOKEN_TTL:30d}
     admin-access-token-ttl: ${ADMIN_ACCESS_TOKEN_TTL:5m}
     admin-refresh-token-ttl: ${ADMIN_REFRESH_TOKEN_TTL:12h}
-    email-verification-ttl: ${EMAIL_VERIFICATION_TTL:30m}
     password-reset-ttl: ${PASSWORD_RESET_TTL:30m}
     mfa-challenge-ttl: ${MFA_CHALLENGE_TTL:5m}
     mfa-issuer: ${MFA_ISSUER:SinX Cloud}

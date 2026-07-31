@@ -181,27 +181,6 @@ export async function adminLogout(): Promise<void> {
   return parseResponse<void>(response);
 }
 
-export async function confirmEmail(token: string): Promise<void> {
-  const response = await fetch("/session/email-verification/confirm", {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token })
-  });
-  return parseResponse<void>(response);
-}
-
-export async function requestEmailVerification(
-  accessToken: string
-): Promise<void> {
-  const response = await fetch("/session/email-verification/request", {
-    method: "POST",
-    credentials: "include",
-    headers: { Authorization: `Bearer ${accessToken}` }
-  });
-  return parseResponse<void>(response);
-}
-
 export async function requestPasswordReset(email: string): Promise<void> {
   const response = await fetch("/session/password-reset/request", {
     method: "POST",

@@ -221,7 +221,7 @@ export function RegisterPage() {
         inviteCode.trim() || null
       );
       setSession(session);
-      navigate("/account", true);
+      navigate("/dashboard", true);
     } catch (caught) {
       setError(
         caught instanceof ApiError
@@ -239,7 +239,7 @@ export function RegisterPage() {
     setTurnstileReset((value) => value + 1);
   }
 
-  function resetEmailVerification() {
+  function resetRegistrationVerification() {
     setCodeSent(false);
     setEmailCode("");
   }
@@ -281,7 +281,7 @@ export function RegisterPage() {
                   value={emailLocalPart}
                   onChange={(event) => {
                     setEmailLocalPart(event.target.value);
-                    resetEmailVerification();
+                    resetRegistrationVerification();
                   }}
                 />
                 <select
@@ -289,7 +289,7 @@ export function RegisterPage() {
                   value={emailDomain}
                   onChange={(event) => {
                     setEmailDomain(event.target.value);
-                    resetEmailVerification();
+                    resetRegistrationVerification();
                   }}
                 >
                   {allowedEmailDomains.map((domain) => (
@@ -315,7 +315,7 @@ export function RegisterPage() {
               value={emailAddress}
               onChange={(event) => {
                 setEmailAddress(event.target.value);
-                resetEmailVerification();
+                resetRegistrationVerification();
               }}
             />
           )}

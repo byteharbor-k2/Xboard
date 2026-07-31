@@ -73,7 +73,7 @@ export function LoginPage() {
     const returnTo =
       requested?.startsWith("/") && !requested.startsWith("//")
         ? requested
-        : "/account";
+        : "/dashboard";
     navigate(returnTo, true);
   }
 
