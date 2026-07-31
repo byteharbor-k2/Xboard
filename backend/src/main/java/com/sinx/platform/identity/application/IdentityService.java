@@ -48,6 +48,7 @@ public class IdentityService {
     private final EmailVerificationAttemptService emailVerificationAttempts;
     private final PasswordResetAttemptService passwordResetAttempts;
     private final RegistrationVerificationService registrationVerification;
+    private final InvitationService invitations;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
@@ -66,6 +67,7 @@ public class IdentityService {
         EmailVerificationAttemptService emailVerificationAttempts,
         PasswordResetAttemptService passwordResetAttempts,
         RegistrationVerificationService registrationVerification,
+        InvitationService invitations,
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
@@ -82,6 +84,7 @@ public class IdentityService {
         this.emailVerificationAttempts = emailVerificationAttempts;
         this.passwordResetAttempts = passwordResetAttempts;
         this.registrationVerification = registrationVerification;
+        this.invitations = invitations;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
@@ -97,6 +100,7 @@ public class IdentityService {
         String deviceLabel,
         String emailCode,
         String turnstileToken,
+        String inviteCode,
         String remoteIp
     ) {
         String normalizedEmail = normalizeEmail(email);
@@ -124,6 +128,8 @@ public class IdentityService {
         if (emailVerified) {
             user.markEmailVerified(now);
         }
+        invitations.consumeForRegistration(inviteCode)
+            .ifPresent(inviterId -> user.assignInviter(inviterId, now));
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {

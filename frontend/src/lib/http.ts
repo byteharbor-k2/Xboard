@@ -57,7 +57,8 @@ export async function register(
   displayName: string,
   deviceLabel: string,
   emailCode: string | null,
-  turnstileToken: string
+  turnstileToken: string,
+  inviteCode: string | null
 ): Promise<SessionGrant> {
   const response = await fetch("/session/register", {
     method: "POST",
@@ -69,7 +70,8 @@ export async function register(
       displayName,
       deviceLabel,
       emailCode,
-      turnstileToken
+      turnstileToken,
+      inviteCode
     })
   });
   return parseResponse<SessionGrant>(response);

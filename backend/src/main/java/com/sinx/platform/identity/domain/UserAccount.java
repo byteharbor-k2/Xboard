@@ -44,6 +44,9 @@ public class UserAccount {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    @Column(name = "inviter_user_id")
+    private UUID inviterUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -97,6 +100,11 @@ public class UserAccount {
         }
     }
 
+    public void assignInviter(UUID inviterUserId, Instant now) {
+        this.inviterUserId = inviterUserId;
+        updatedAt = now;
+    }
+
     public void updateDisplayName(String displayName, Instant now) {
         this.displayName = displayName;
         updatedAt = now;
@@ -137,5 +145,9 @@ public class UserAccount {
 
     public Set<Role> getRoles() {
         return Set.copyOf(roles);
+    }
+
+    public UUID getInviterUserId() {
+        return inviterUserId;
     }
 }

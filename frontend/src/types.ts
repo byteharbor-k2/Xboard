@@ -70,6 +70,7 @@ export type RegistrationConfig = {
   termsUrl: string | null;
   emailDomainAllowlistEnabled: boolean;
   allowedEmailDomains: string[];
+  invitationRequired: boolean;
 };
 
 export type BillingPeriod =

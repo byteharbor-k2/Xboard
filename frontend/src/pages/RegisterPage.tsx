@@ -38,6 +38,10 @@ const copy = {
     password: "密码",
     passwordHint: "至少 12 个字符",
     confirmation: "确认密码",
+    inviteCode: "邀请码",
+    inviteOptional: "选填",
+    inviteRequired: "必填",
+    finishInvitation: "请输入邀请码",
     verifyAgain: "验证码发送后，请再次完成人机验证再提交注册。",
     turnstileIncomplete: "人机验证配置不完整。",
     termsPrefix: "我已阅读并同意",
@@ -70,6 +74,10 @@ const copy = {
     password: "Password",
     passwordHint: "At least 12 characters",
     confirmation: "Confirm password",
+    inviteCode: "Invitation code",
+    inviteOptional: "Optional",
+    inviteRequired: "Required",
+    finishInvitation: "Enter an invitation code",
     verifyAgain: "Complete the human check again before submitting.",
     turnstileIncomplete: "Human verification is not fully configured.",
     termsPrefix: "I have read and agree to the",
@@ -99,6 +107,7 @@ export function RegisterPage() {
   const [emailCode, setEmailCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileReset, setTurnstileReset] = useState(0);
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -196,6 +205,10 @@ export function RegisterPage() {
       setError(labels.acceptTerms);
       return;
     }
+    if (config?.invitationRequired && !inviteCode.trim()) {
+      setError(labels.finishInvitation);
+      return;
+    }
     setSubmitting(true);
     try {
       const session = await register(
@@ -204,7 +217,8 @@ export function RegisterPage() {
         displayName,
         navigator.userAgent.slice(0, 120),
         config?.emailVerificationRequired ? emailCode : null,
-        turnstileToken
+        turnstileToken,
+        inviteCode.trim() || null
       );
       setSession(session);
       navigate("/account", true);
@@ -356,6 +370,21 @@ export function RegisterPage() {
             type="password"
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
+          />
+        </label>
+        <label>
+          {labels.inviteCode}{" "}
+          <small>
+            ({config?.invitationRequired
+              ? labels.inviteRequired
+              : labels.inviteOptional})
+          </small>
+          <input
+            autoComplete="off"
+            maxLength={32}
+            required={config?.invitationRequired}
+            value={inviteCode}
+            onChange={(event) => setInviteCode(event.target.value)}
           />
         </label>
         {config?.turnstileEnabled && config.turnstileSiteKey && (

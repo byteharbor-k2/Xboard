@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.jayway.jsonpath.JsonPath;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.notification.email.PasswordResetMailSender;
 import com.sinx.platform.notification.email.RegistrationCodeMailSender;
 import com.sinx.platform.identity.security.TotpService;
@@ -98,6 +99,9 @@ class InfrastructureIntegrationTest {
 
     @Autowired
     private JwtDecoder jwtDecoder;
+
+    @Autowired
+    private PlatformConfigurationService platformConfiguration;
 
     @Test
     void startsWithMigratedPostgresAndReachableRedis() {
@@ -236,7 +240,8 @@ class InfrastructureIntegrationTest {
                     "EMAIL_DOMAIN_NOT_ALLOWED"
                 ));
 
-            mockMvc.perform(post("/session/register")
+            mockMvc.perform(
+                    post("/session/register")
                     .contentType(MediaType.APPLICATION_JSON)
                     .content("""
                         {
@@ -341,6 +346,205 @@ class InfrastructureIntegrationTest {
         } finally {
             jdbcTemplate.update(
                 "DELETE FROM platform_settings WHERE setting_key LIKE 'safe.%'"
+            );
+        }
+    }
+
+    @Test
+    void appliesOriginalXboardInvitationRulesDuringRegistration()
+        throws Exception {
+        UUID inviterId = UUID.randomUUID();
+        UUID inviteCodeId = UUID.randomUUID();
+        Instant now = Instant.now();
+        redisTemplate.delete(
+            redisTemplate.keys("identity:registration-ip:*")
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO users (
+                id, email, password_hash, display_name, status,
+                created_at, updated_at
+            ) VALUES (?::uuid, ?, ?, ?, 'ACTIVE', ?, ?)
+            """,
+            inviterId.toString(),
+            "inviter@example.com",
+            "not-used-for-login",
+            "Inviter",
+            Timestamp.from(now),
+            Timestamp.from(now)
+        );
+        jdbcTemplate.update(
+            """
+            INSERT INTO invite_codes (
+                id, user_id, code, created_at, updated_at
+            ) VALUES (?::uuid, ?::uuid, ?, ?, ?)
+            """,
+            inviteCodeId.toString(),
+            inviterId.toString(),
+            "SINXTEST",
+            Timestamp.from(now),
+            Timestamp.from(now)
+        );
+
+        try {
+            saveSetting("safe", "email_verify", "false");
+            saveSetting("invite", "invite_force", "true");
+            saveSetting("invite", "invite_never_expire", "false");
+
+            mockMvc.perform(get("/session/registration/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.invitationRequired").value(true));
+
+            mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"invite-required@example.com",
+                          "password":"invitation-required-password",
+                          "displayName":"Missing Invitation"
+                        }
+                        """))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.code").value("INVITATION_REQUIRED"));
+
+            MvcResult invitedRegistration = mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"invited@example.com",
+                          "password":"invited-account-password",
+                          "displayName":"Invited Account",
+                          "inviteCode":"sinxtest"
+                        }
+                        """))
+                .andExpect(status().isCreated())
+                .andReturn();
+            String invitedAccessToken = JsonPath.read(
+                invitedRegistration.getResponse().getContentAsString(),
+                "$.accessToken"
+            );
+
+            assertThat(jdbcTemplate.queryForObject(
+                "SELECT inviter_user_id FROM users WHERE email = ?",
+                UUID.class,
+                "invited@example.com"
+            )).isEqualTo(inviterId);
+            assertThat(jdbcTemplate.queryForObject(
+                "SELECT used_at FROM invite_codes WHERE id = ?::uuid",
+                Timestamp.class,
+                inviteCodeId.toString()
+            )).isNotNull();
+
+            mockMvc.perform(post("/session/invitations")
+                    .header(
+                        "Authorization",
+                        "Bearer " + invitedAccessToken
+                    ))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.code").isString());
+            mockMvc.perform(get("/session/invitations")
+                    .header(
+                        "Authorization",
+                        "Bearer " + invitedAccessToken
+                    ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].code").isString());
+
+            mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"reused-invite@example.com",
+                          "password":"reused-invitation-password",
+                          "displayName":"Reused Invitation",
+                          "inviteCode":"SINXTEST"
+                        }
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVITATION_INVALID"));
+
+            saveSetting("invite", "invite_force", "false");
+            mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"optional-invalid-invite@example.com",
+                          "password":"optional-invitation-password",
+                          "displayName":"Optional Invitation",
+                          "inviteCode":"DOES-NOT-EXIST"
+                        }
+                        """))
+                .andExpect(status().isCreated());
+        } finally {
+            jdbcTemplate.update(
+                """
+                DELETE FROM users
+                WHERE email IN (
+                    'invite-required@example.com',
+                    'invited@example.com',
+                    'reused-invite@example.com',
+                    'optional-invalid-invite@example.com',
+                    'inviter@example.com'
+                )
+                """
+            );
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings WHERE setting_key LIKE 'invite.%'"
+            );
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings WHERE setting_key = 'safe.email_verify'"
+            );
+            redisTemplate.delete(
+                redisTemplate.keys("identity:registration-ip:*")
+            );
+        }
+    }
+
+    @Test
+    void storesSmtpConfigurationWithoutReturningThePassword()
+        throws Exception {
+        try {
+            saveSetting("email", "email_host", "\"smtp.resend.com\"");
+            saveSetting("email", "email_port", "587");
+            saveSetting("email", "email_encryption", "\"tls\"");
+            saveSetting("email", "email_username", "\"resend\"");
+            saveSetting(
+                "email",
+                "email_password",
+                "\"smtp-password-secret\""
+            );
+            saveSetting(
+                "email",
+                "email_from_address",
+                "\"noreply@app.sinx.it.com\""
+            );
+
+            mockMvc.perform(get("/api/v2/admin/config/fetch")
+                    .param("key", "email")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                    "$.data.email.email_host"
+                ).value("smtp.resend.com"))
+                .andExpect(jsonPath("$.data.email.email_port").value(587))
+                .andExpect(jsonPath(
+                    "$.data.email.email_encryption"
+                ).value("tls"))
+                .andExpect(jsonPath(
+                    "$.data.email.email_password"
+                ).value(""));
+
+            assertThat(platformConfiguration.mailSettings().password())
+                .isEqualTo("smtp-password-secret");
+            saveSetting("email", "email_password", "\"\"");
+            assertThat(platformConfiguration.mailSettings().password())
+                .isEqualTo("smtp-password-secret");
+        } finally {
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings WHERE setting_key LIKE 'email.%'"
             );
         }
     }
@@ -1067,8 +1271,16 @@ class InfrastructureIntegrationTest {
 
     private void saveSafeSetting(String key, String jsonValue)
         throws Exception {
+        saveSetting("safe", key, jsonValue);
+    }
+
+    private void saveSetting(
+        String section,
+        String key,
+        String jsonValue
+    ) throws Exception {
         mockMvc.perform(post("/api/v2/admin/config/save")
-                .param("key", "safe")
+                .param("key", section)
                 .with(jwt().authorities(
                     new SimpleGrantedAuthority("ROLE_ADMIN"),
                     new SimpleGrantedAuthority("SCOPE_ADMIN")

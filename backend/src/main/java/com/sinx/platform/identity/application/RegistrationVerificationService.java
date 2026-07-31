@@ -62,7 +62,8 @@ public class RegistrationVerificationService {
             turnstilePolicy.enabled() ? turnstilePolicy.siteKey() : null,
             configuration.termsUrl().orElse(null),
             emailPolicy.enabled(),
-            emailPolicy.domains()
+            emailPolicy.domains(),
+            configuration.invitationPolicy().required()
         );
     }
 
@@ -212,7 +213,8 @@ public class RegistrationVerificationService {
         String turnstileSiteKey,
         String termsUrl,
         boolean emailDomainAllowlistEnabled,
-        List<String> allowedEmailDomains
+        List<String> allowedEmailDomains,
+        boolean invitationRequired
     ) {
     }
 }

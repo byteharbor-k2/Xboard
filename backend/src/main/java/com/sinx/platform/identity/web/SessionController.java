@@ -63,6 +63,7 @@ public class SessionController {
             request.deviceLabel(),
             request.emailCode(),
             request.turnstileToken(),
+            request.inviteCode(),
             servletRequest.getRemoteAddr()
         );
         writeRefreshCookie(response, grant);
@@ -201,7 +202,8 @@ public class SessionController {
         @NotBlank @Size(max = 80) String displayName,
         @Size(max = 120) String deviceLabel,
         @Size(min = 6, max = 6) String emailCode,
-        @Size(max = 2048) String turnstileToken
+        @Size(max = 2048) String turnstileToken,
+        @Size(max = 32) String inviteCode
     ) {
     }
 

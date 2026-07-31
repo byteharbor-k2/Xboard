@@ -92,7 +92,8 @@ public class SecurityConfiguration {
                 ).permitAll()
                 .requestMatchers(
                     "/session/email-verification/request",
-                    "/session/password"
+                    "/session/password",
+                    "/session/invitations"
                 ).access((authentication, context) ->
                     new org.springframework.security.authorization.AuthorizationDecision(
                         authentication.get().getAuthorities().stream()
