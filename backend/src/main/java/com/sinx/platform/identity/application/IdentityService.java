@@ -103,7 +103,7 @@ public class IdentityService {
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw emailAlreadyRegistered();
         }
-        registrationVerification.verifyRegistration(
+        boolean emailVerified = registrationVerification.verifyRegistration(
             normalizedEmail,
             emailCode,
             turnstileToken,
@@ -121,7 +121,9 @@ public class IdentityService {
             defaultRole,
             now
         );
-        user.markEmailVerified(now);
+        if (emailVerified) {
+            user.markEmailVerified(now);
+        }
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {

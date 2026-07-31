@@ -8,6 +8,7 @@ import {
   formatMoney,
   trafficResetLabel
 } from "../lib/subscription";
+import { useUserPreferences } from "../store/userPreferences";
 import type { PlanOffer } from "../types";
 
 const offerQuery = `
@@ -34,7 +35,47 @@ const offerQuery = `
   }
 `;
 
+const copy = {
+  "zh-CN": {
+    title: "选择适合你的套餐",
+    description: "套餐价格、流量、限速和设备权益均来自实时商品目录。",
+    loading: "正在加载套餐…",
+    failed: "套餐加载失败",
+    empty: "暂时没有可购买的套餐",
+    emptyDescription: "套餐发布后会自动显示在这里。",
+    data: "套餐流量",
+    speed: "峰值速率",
+    unlimitedSpeed: "不限速",
+    devices: "设备数量",
+    unlimitedDevices: "不限制",
+    deviceUnit: "台",
+    reset: "流量重置",
+    remainingPrefix: "当前剩余",
+    remainingSuffix: "个名额"
+  },
+  "en-US": {
+    title: "Choose your plan",
+    description:
+      "Pricing, data, speed, and device benefits come from the live catalog.",
+    loading: "Loading plans…",
+    failed: "Plans could not be loaded",
+    empty: "No plans are available",
+    emptyDescription: "Published plans will appear here automatically.",
+    data: "Data allowance",
+    speed: "Peak speed",
+    unlimitedSpeed: "Unlimited",
+    devices: "Devices",
+    unlimitedDevices: "Unlimited",
+    deviceUnit: "devices",
+    reset: "Data reset",
+    remainingPrefix: "",
+    remainingSuffix: "spots remaining"
+  }
+};
+
 export function PlansPage() {
+  const language = useUserPreferences((state) => state.language);
+  const labels = copy[language];
   const [offers, setOffers] = useState<PlanOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -52,7 +93,7 @@ export function PlansPage() {
           setError(
             caught instanceof ApiError
               ? caught.message
-              : "套餐加载失败"
+              : labels.failed
           );
         }
       })
@@ -70,17 +111,15 @@ export function PlansPage() {
     <AppShell>
       <header className="page-header">
         <p className="eyebrow">Plans</p>
-        <h1>选择适合你的套餐</h1>
-        <p className="muted">
-          套餐价格、流量、限速和设备权益均来自实时商品目录。
-        </p>
+        <h1>{labels.title}</h1>
+        <p className="muted">{labels.description}</p>
       </header>
-      {loading && <div className="panel empty-state">正在加载套餐…</div>}
+      {loading && <div className="panel empty-state">{labels.loading}</div>}
       {error && <p className="error-message">{error}</p>}
       {!loading && !error && offers.length === 0 && (
         <div className="panel empty-state">
-          <strong>暂时没有可购买的套餐</strong>
-          <span>套餐发布后会自动显示在这里。</span>
+          <strong>{labels.empty}</strong>
+          <span>{labels.emptyDescription}</span>
         </div>
       )}
       <section className="plan-grid">
@@ -97,43 +136,44 @@ export function PlansPage() {
             </header>
             <dl className="plan-entitlements">
               <div>
-                <dt>套餐流量</dt>
+                <dt>{labels.data}</dt>
                 <dd>{formatBytes(offer.transferLimitBytes)}</dd>
               </div>
               <div>
-                <dt>峰值速率</dt>
+                <dt>{labels.speed}</dt>
                 <dd>
                   {offer.speedLimitMbps
                     ? `${offer.speedLimitMbps} Mbps`
-                    : "不限速"}
+                    : labels.unlimitedSpeed}
                 </dd>
               </div>
               <div>
-                <dt>设备数量</dt>
+                <dt>{labels.devices}</dt>
                 <dd>
                   {offer.deviceLimit
-                    ? `${offer.deviceLimit} 台`
-                    : "不限制"}
+                    ? `${offer.deviceLimit} ${labels.deviceUnit}`
+                    : labels.unlimitedDevices}
                 </dd>
               </div>
               <div>
-                <dt>流量重置</dt>
-                <dd>{trafficResetLabel(offer.resetPolicy)}</dd>
+                <dt>{labels.reset}</dt>
+                <dd>{trafficResetLabel(offer.resetPolicy, language)}</dd>
               </div>
             </dl>
             <div className="plan-prices">
               {offer.prices.map((price) => (
                 <div key={price.period}>
-                  <span>{billingPeriodLabel(price.period)}</span>
+                  <span>{billingPeriodLabel(price.period, language)}</span>
                   <strong>
-                    {formatMoney(price.amountMinor, price.currency)}
+                    {formatMoney(price.amountMinor, price.currency, language)}
                   </strong>
                 </div>
               ))}
             </div>
             {offer.capacityRemaining !== null && (
               <small className="plan-capacity">
-                当前剩余 {offer.capacityRemaining} 个名额
+                {labels.remainingPrefix} {offer.capacityRemaining}{" "}
+                {labels.remainingSuffix}
               </small>
             )}
           </article>

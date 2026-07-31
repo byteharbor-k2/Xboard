@@ -54,12 +54,12 @@ public class RegistrationVerificationService {
     public RegistrationConfig config() {
         PlatformConfigurationService.EmailDomainPolicy emailPolicy =
             configuration.emailDomainPolicy();
+        PlatformConfigurationService.TurnstilePolicy turnstilePolicy =
+            configuration.turnstilePolicy();
         return new RegistrationConfig(
-            true,
-            properties.turnstileEnabled(),
-            properties.turnstileEnabled()
-                ? properties.turnstileSiteKey()
-                : null,
+            configuration.emailVerificationRequired(),
+            turnstilePolicy.enabled(),
+            turnstilePolicy.enabled() ? turnstilePolicy.siteKey() : null,
             configuration.termsUrl().orElse(null),
             emailPolicy.enabled(),
             emailPolicy.domains()
@@ -73,6 +73,9 @@ public class RegistrationVerificationService {
     ) {
         String normalizedEmail = normalizeEmail(email);
         configuration.assertEmailDomainAllowed(normalizedEmail);
+        if (!configuration.emailVerificationRequired()) {
+            return;
+        }
         turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
 
@@ -115,7 +118,7 @@ public class RegistrationVerificationService {
         }
     }
 
-    public void verifyRegistration(
+    public boolean verifyRegistration(
         String email,
         String code,
         String turnstileToken,
@@ -124,6 +127,9 @@ public class RegistrationVerificationService {
         configuration.assertEmailDomainAllowed(normalizeEmail(email));
         turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
+        if (!configuration.emailVerificationRequired()) {
+            return false;
+        }
         String codeKey = codeKey(email);
         Object storedHash = redis.opsForHash().get(codeKey, "codeHash");
         if (storedHash == null) {
@@ -143,6 +149,7 @@ public class RegistrationVerificationService {
             }
             throw invalidCode();
         }
+        return true;
     }
 
     public void completeRegistration(String email, String remoteIp) {

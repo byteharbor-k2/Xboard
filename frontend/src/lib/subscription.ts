@@ -4,29 +4,59 @@ import type {
   TrafficResetPolicy
 } from "../types";
 
-const periodLabels: Record<BillingPeriod, string> = {
-  MONTHLY: "月付",
-  QUARTERLY: "季付",
-  HALF_YEARLY: "半年付",
-  YEARLY: "年付",
-  TWO_YEARLY: "两年付",
-  THREE_YEARLY: "三年付",
-  ONETIME: "一次性"
+type Locale = "zh-CN" | "en-US";
+
+const periodLabels: Record<Locale, Record<BillingPeriod, string>> = {
+  "zh-CN": {
+    MONTHLY: "月付",
+    QUARTERLY: "季付",
+    HALF_YEARLY: "半年付",
+    YEARLY: "年付",
+    TWO_YEARLY: "两年付",
+    THREE_YEARLY: "三年付",
+    ONETIME: "一次性"
+  },
+  "en-US": {
+    MONTHLY: "Monthly",
+    QUARTERLY: "Quarterly",
+    HALF_YEARLY: "Half-yearly",
+    YEARLY: "Yearly",
+    TWO_YEARLY: "Two years",
+    THREE_YEARLY: "Three years",
+    ONETIME: "One-time"
+  }
 };
 
-const resetLabels: Record<TrafficResetPolicy, string> = {
-  FIRST_DAY_OF_MONTH: "每月 1 日",
-  MONTHLY_FROM_ACTIVATION: "按开通日每月",
-  NEVER: "不重置",
-  FIRST_DAY_OF_YEAR: "每年 1 月 1 日",
-  YEARLY_FROM_ACTIVATION: "按开通日每年"
+const resetLabels: Record<Locale, Record<TrafficResetPolicy, string>> = {
+  "zh-CN": {
+    FIRST_DAY_OF_MONTH: "每月 1 日",
+    MONTHLY_FROM_ACTIVATION: "按开通日每月",
+    NEVER: "不重置",
+    FIRST_DAY_OF_YEAR: "每年 1 月 1 日",
+    YEARLY_FROM_ACTIVATION: "按开通日每年"
+  },
+  "en-US": {
+    FIRST_DAY_OF_MONTH: "First day of each month",
+    MONTHLY_FROM_ACTIVATION: "Monthly from activation",
+    NEVER: "Never",
+    FIRST_DAY_OF_YEAR: "First day of each year",
+    YEARLY_FROM_ACTIVATION: "Yearly from activation"
+  }
 };
 
-const stateLabels: Record<EntitlementState, string> = {
-  ACTIVE: "使用中",
-  EXPIRED: "已到期",
-  EXHAUSTED: "流量已用尽",
-  CANCELED: "已取消"
+const stateLabels: Record<Locale, Record<EntitlementState, string>> = {
+  "zh-CN": {
+    ACTIVE: "使用中",
+    EXPIRED: "已到期",
+    EXHAUSTED: "流量已用尽",
+    CANCELED: "已取消"
+  },
+  "en-US": {
+    ACTIVE: "Active",
+    EXPIRED: "Expired",
+    EXHAUSTED: "Data exhausted",
+    CANCELED: "Canceled"
+  }
 };
 
 export function formatBytes(value: string): string {
@@ -45,32 +75,45 @@ export function formatBytes(value: string): string {
 
 export function formatMoney(
   amountMinor: string,
-  currency: string
+  currency: string,
+  locale: Locale = "zh-CN"
 ): string {
-  return new Intl.NumberFormat("zh-CN", {
+  return new Intl.NumberFormat(locale, {
     style: "currency",
     currency
   }).format(Number(amountMinor) / 100);
 }
 
-export function formatDateTime(value: string | null): string {
+export function formatDateTime(
+  value: string | null,
+  locale: Locale = "zh-CN"
+): string {
   if (!value) {
-    return "长期有效";
+    return locale === "zh-CN" ? "长期有效" : "No expiration";
   }
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
 }
 
-export function billingPeriodLabel(period: BillingPeriod): string {
-  return periodLabels[period];
+export function billingPeriodLabel(
+  period: BillingPeriod,
+  locale: Locale = "zh-CN"
+): string {
+  return periodLabels[locale][period];
 }
 
-export function trafficResetLabel(policy: TrafficResetPolicy): string {
-  return resetLabels[policy];
+export function trafficResetLabel(
+  policy: TrafficResetPolicy,
+  locale: Locale = "zh-CN"
+): string {
+  return resetLabels[locale][policy];
 }
 
-export function entitlementStateLabel(state: EntitlementState): string {
-  return stateLabels[state];
+export function entitlementStateLabel(
+  state: EntitlementState,
+  locale: Locale = "zh-CN"
+): string {
+  return stateLabels[locale][state];
 }

@@ -190,6 +190,26 @@
   backdrop-filter: blur(18px);
 }
 
+.freedom-language-switch {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  padding: 6px 9px;
+  border: 1px solid var(--freedom-line);
+  border-radius: 8px;
+  color: var(--freedom-muted);
+  background: rgb(6 11 24 / 48%);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.freedom-language-switch:hover {
+  border-color: var(--freedom-cyan);
+  color: var(--freedom-cyan);
+}
+
 .freedom-auth-card header {
   display: grid;
   gap: 10px;
@@ -813,6 +833,23 @@ button:disabled {
 .sidebar nav {
   display: grid;
   gap: 8px;
+}
+
+.sidebar-language-switch {
+  width: max-content;
+  padding: 7px 11px;
+  border: 1px solid #dce3ef;
+  border-radius: 9px;
+  color: #59657d;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sidebar-language-switch:hover {
+  color: #1e3fd8;
+  border-color: #b9c8f7;
+  background: #f4f7ff;
 }
 
 .sidebar nav a {

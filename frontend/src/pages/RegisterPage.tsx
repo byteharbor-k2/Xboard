@@ -17,9 +17,79 @@ import {
 } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
+import { useUserPreferences } from "../store/userPreferences";
 import type { RegistrationConfig } from "../types";
 
+const copy = {
+  "zh-CN": {
+    title: "创建账户",
+    description: "完成注册安全验证后创建 SinX Cloud 账户。",
+    question: "已有账户？",
+    login: "立即登录",
+    nickname: "昵称",
+    email: "邮箱",
+    emailDomain: "邮箱域名",
+    noDomains: "管理员尚未配置可注册的邮箱域名",
+    emailCode: "邮箱验证码",
+    codeSent: "验证码已发送，5 分钟内有效",
+    sendCode: "发送验证码",
+    resendCode: "重新发送",
+    sendingCode: "发送中…",
+    password: "密码",
+    passwordHint: "至少 12 个字符",
+    confirmation: "确认密码",
+    verifyAgain: "验证码发送后，请再次完成人机验证再提交注册。",
+    turnstileIncomplete: "人机验证配置不完整。",
+    termsPrefix: "我已阅读并同意",
+    terms: "用户条款",
+    submitting: "正在创建…",
+    submit: "验证并创建账户",
+    configUnavailable: "注册安全配置暂时不可用",
+    finishHumanCheck: "请先完成人机验证",
+    finishHumanCheckAgain: "提交注册前请再次完成人机验证",
+    sendCodeFailed: "验证码发送失败，请稍后重试",
+    passwordMismatch: "两次输入的密码不一致",
+    finishEmailCheck: "请先完成邮箱验证码验证",
+    acceptTerms: "请先阅读并同意用户条款",
+    registrationFailed: "注册失败，请稍后重试"
+  },
+  "en-US": {
+    title: "Create account",
+    description: "Complete the registration checks to create your SinX Cloud account.",
+    question: "Already have an account?",
+    login: "Sign in",
+    nickname: "Display name",
+    email: "Email",
+    emailDomain: "Email domain",
+    noDomains: "No registration email domains have been configured",
+    emailCode: "Email verification code",
+    codeSent: "Code sent and valid for 5 minutes",
+    sendCode: "Send code",
+    resendCode: "Send again",
+    sendingCode: "Sending…",
+    password: "Password",
+    passwordHint: "At least 12 characters",
+    confirmation: "Confirm password",
+    verifyAgain: "Complete the human check again before submitting.",
+    turnstileIncomplete: "Human verification is not fully configured.",
+    termsPrefix: "I have read and agree to the",
+    terms: "Terms of Service",
+    submitting: "Creating…",
+    submit: "Verify and create account",
+    configUnavailable: "Registration security settings are unavailable",
+    finishHumanCheck: "Complete the human verification first",
+    finishHumanCheckAgain: "Complete the human verification again before registering",
+    sendCodeFailed: "The verification code could not be sent. Try again later.",
+    passwordMismatch: "The passwords do not match",
+    finishEmailCheck: "Complete email verification first",
+    acceptTerms: "Read and accept the Terms of Service first",
+    registrationFailed: "Registration failed. Try again later."
+  }
+};
+
 export function RegisterPage() {
+  const language = useUserPreferences((state) => state.language);
+  const labels = copy[language];
   const emailInput = useRef<HTMLInputElement>(null);
   const [config, setConfig] = useState<RegistrationConfig | null>(null);
   const [displayName, setDisplayName] = useState("");
@@ -49,7 +119,7 @@ export function RegisterPage() {
         setError(
           caught instanceof ApiError
             ? caught.message
-            : "注册安全配置暂时不可用"
+            : labels.configUnavailable
         );
       });
   }, []);
@@ -68,6 +138,9 @@ export function RegisterPage() {
   const allowedEmailDomains = config?.allowedEmailDomains ?? [];
   const domainPolicyReady =
     !domainSelectionEnabled || Boolean(allowedEmailDomains.length);
+  const turnstileReady =
+    !config?.turnstileEnabled || Boolean(config.turnstileSiteKey);
+  const registrationReady = domainPolicyReady && turnstileReady;
   const email = domainSelectionEnabled
     ? emailDomain
       ? `${emailLocalPart}@${emailDomain}`
@@ -76,12 +149,12 @@ export function RegisterPage() {
 
   async function sendCode() {
     if (!domainPolicyReady) {
-      setError("管理员尚未配置可注册的邮箱域名");
+      setError(labels.noDomains);
       return;
     }
     if (!emailInput.current?.reportValidity()) return;
     if (config?.turnstileEnabled && !turnstileToken) {
-      setError("请先完成人机验证");
+      setError(labels.finishHumanCheck);
       return;
     }
     setSendingCode(true);
@@ -93,7 +166,7 @@ export function RegisterPage() {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "验证码发送失败，请稍后重试"
+          : labels.sendCodeFailed
       );
     } finally {
       setSendingCode(false);
@@ -105,19 +178,22 @@ export function RegisterPage() {
     event.preventDefault();
     setError("");
     if (password !== confirmation) {
-      setError("两次输入的密码不一致");
+      setError(labels.passwordMismatch);
       return;
     }
-    if (!codeSent || !/^\d{6}$/.test(emailCode)) {
-      setError("请先完成邮箱验证码验证");
+    if (
+      config?.emailVerificationRequired
+        && (!codeSent || !/^\d{6}$/.test(emailCode))
+    ) {
+      setError(labels.finishEmailCheck);
       return;
     }
     if (config?.turnstileEnabled && !turnstileToken) {
-      setError("提交注册前请再次完成人机验证");
+      setError(labels.finishHumanCheckAgain);
       return;
     }
     if (config?.termsUrl && !termsAccepted) {
-      setError("请先阅读并同意用户条款");
+      setError(labels.acceptTerms);
       return;
     }
     setSubmitting(true);
@@ -127,7 +203,7 @@ export function RegisterPage() {
         password,
         displayName,
         navigator.userAgent.slice(0, 120),
-        emailCode,
+        config?.emailVerificationRequired ? emailCode : null,
         turnstileToken
       );
       setSession(session);
@@ -136,7 +212,7 @@ export function RegisterPage() {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "注册失败，请稍后重试"
+          : labels.registrationFailed
       );
       resetTurnstile();
     } finally {
@@ -156,18 +232,18 @@ export function RegisterPage() {
 
   return (
     <AuthLayout
-      title="创建账户"
-      description="邮箱验证完成后才会创建 SinX Cloud 账户。"
+      title={labels.title}
+      description={labels.description}
       eyebrow="New account"
       footer={
         <p>
-          已有账户？ <AppLink href="/login">立即登录</AppLink>
+          {labels.question} <AppLink href="/login">{labels.login}</AppLink>
         </p>
       }
     >
       <form className="freedom-form" onSubmit={handleSubmit}>
         <label>
-          昵称
+          {labels.nickname}
           <input
             autoComplete="name"
             maxLength={80}
@@ -177,7 +253,7 @@ export function RegisterPage() {
           />
         </label>
         <label>
-          邮箱
+          {labels.email}
           {domainSelectionEnabled ? (
             allowedEmailDomains.length ? (
               <span className="freedom-email-domain-row">
@@ -195,7 +271,7 @@ export function RegisterPage() {
                   }}
                 />
                 <select
-                  aria-label="邮箱域名"
+                  aria-label={labels.emailDomain}
                   value={emailDomain}
                   onChange={(event) => {
                     setEmailDomain(event.target.value);
@@ -213,7 +289,7 @@ export function RegisterPage() {
               <input
                 ref={emailInput}
                 disabled
-                placeholder="管理员尚未配置可注册的邮箱域名"
+                placeholder={labels.noDomains}
               />
             )
           ) : (
@@ -230,35 +306,37 @@ export function RegisterPage() {
             />
           )}
         </label>
+        {config?.emailVerificationRequired && (
+          <label>
+            {labels.emailCode}
+            <span className="verification-code-row">
+              <input
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                minLength={6}
+                pattern="[0-9]{6}"
+                required
+                value={emailCode}
+                onChange={(event) => setEmailCode(event.target.value)}
+              />
+              <button
+                disabled={sendingCode || !config || !registrationReady}
+                type="button"
+                onClick={() => void sendCode()}
+              >
+                {sendingCode
+                  ? labels.sendingCode
+                  : codeSent
+                    ? labels.resendCode
+                    : labels.sendCode}
+              </button>
+            </span>
+            {codeSent && <small>{labels.codeSent}</small>}
+          </label>
+        )}
         <label>
-          邮箱验证码
-          <span className="verification-code-row">
-            <input
-              autoComplete="one-time-code"
-              inputMode="numeric"
-              maxLength={6}
-              minLength={6}
-              pattern="[0-9]{6}"
-              required
-              value={emailCode}
-              onChange={(event) => setEmailCode(event.target.value)}
-            />
-            <button
-              disabled={sendingCode || !config || !domainPolicyReady}
-              type="button"
-              onClick={() => void sendCode()}
-            >
-              {sendingCode
-                ? "发送中…"
-                : codeSent
-                  ? "重新发送"
-                  : "发送验证码"}
-            </button>
-          </span>
-          {codeSent && <small>验证码已发送，5 分钟内有效</small>}
-        </label>
-        <label>
-          密码
+          {labels.password}
           <input
             autoComplete="new-password"
             minLength={12}
@@ -267,10 +345,10 @@ export function RegisterPage() {
             value={password}
             onChange={(event) => setPassword(event.target.value)}
           />
-          <small>至少 12 个字符</small>
+          <small>{labels.passwordHint}</small>
         </label>
         <label>
-          确认密码
+          {labels.confirmation}
           <input
             autoComplete="new-password"
             minLength={12}
@@ -288,12 +366,12 @@ export function RegisterPage() {
               siteKey={config.turnstileSiteKey}
             />
             {codeSent && (
-              <small>验证码发送后，请再次完成人机验证再提交注册。</small>
+              <small>{labels.verifyAgain}</small>
             )}
           </>
         )}
         {config?.turnstileEnabled && !config.turnstileSiteKey && (
-          <p className="error-message">人机验证配置不完整。</p>
+          <p className="error-message">{labels.turnstileIncomplete}</p>
         )}
         {config?.termsUrl && (
           <label className="freedom-terms">
@@ -304,13 +382,13 @@ export function RegisterPage() {
               onChange={(event) => setTermsAccepted(event.target.checked)}
             />
             <span>
-              我已阅读并同意
+              {labels.termsPrefix}
               <a
                 href={config.termsUrl}
                 rel="noreferrer"
                 target="_blank"
               >
-                用户条款
+                {labels.terms}
               </a>
             </span>
           </label>
@@ -318,9 +396,9 @@ export function RegisterPage() {
         {error && <p className="error-message">{error}</p>}
         <button
           className="freedom-button primary submit"
-          disabled={submitting || !config || !domainPolicyReady}
+          disabled={submitting || !config || !registrationReady}
         >
-          {submitting ? "正在创建…" : "验证并创建账户"}
+          {submitting ? labels.submitting : labels.submit}
         </button>
       </form>
     </AuthLayout>

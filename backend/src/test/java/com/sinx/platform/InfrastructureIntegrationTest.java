@@ -258,6 +258,94 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void configuresEmailVerificationAndTurnstileFromAdministratorSettings()
+        throws Exception {
+        try {
+            mockMvc.perform(post("/api/v2/admin/config/save")
+                    .param("key", "safe")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    ))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"email_verify":false}
+                        """))
+                .andExpect(status().isOk());
+
+            mockMvc.perform(get("/session/registration/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                    "$.emailVerificationRequired"
+                ).value(false));
+
+            mockMvc.perform(post("/session/register")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "email":"optional-verification@example.com",
+                          "password":"optional-verification-password",
+                          "displayName":"Optional Verification"
+                        }
+                        """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.viewer.emailVerified").value(false));
+
+            saveSafeSetting("captcha_type", "\"turnstile\"");
+            saveSafeSetting(
+                "turnstile_site_key",
+                "\"0x4AAAAAA-test-site-key\""
+            );
+            saveSafeSetting(
+                "turnstile_secret_key",
+                "\"0x4AAAAAA-test-secret-key\""
+            );
+            saveSafeSetting("captcha_enable", "true");
+            saveSafeSetting("email_verify", "true");
+
+            mockMvc.perform(get("/api/v2/admin/config/fetch")
+                    .param("key", "safe")
+                    .with(jwt().authorities(
+                        new SimpleGrantedAuthority("ROLE_ADMIN"),
+                        new SimpleGrantedAuthority("SCOPE_ADMIN")
+                    )))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(
+                    "$.data.safe.captcha_enable"
+                ).value(true))
+                .andExpect(jsonPath(
+                    "$.data.safe.captcha_type"
+                ).value("turnstile"))
+                .andExpect(jsonPath(
+                    "$.data.safe.turnstile_site_key"
+                ).value("0x4AAAAAA-test-site-key"))
+                .andExpect(jsonPath(
+                    "$.data.safe.turnstile_secret_key"
+                ).value(""));
+
+            mockMvc.perform(get("/session/registration/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.turnstileEnabled").value(true))
+                .andExpect(jsonPath("$.turnstileSiteKey").value(
+                    "0x4AAAAAA-test-site-key"
+                ))
+                .andExpect(jsonPath("$.turnstileSecretKey").doesNotExist());
+
+            mockMvc.perform(post("/session/registration/email-code")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"email":"turnstile-required@example.com"}
+                        """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("TURNSTILE_INVALID"));
+        } finally {
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings WHERE setting_key LIKE 'safe.%'"
+            );
+        }
+    }
+
+    @Test
     void refusesToCreateAnAccountBeforeEmailCodeVerification()
         throws Exception {
         String email = "registration-guard@example.com";
@@ -975,6 +1063,21 @@ class InfrastructureIntegrationTest {
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.mfaEnrollmentRequired").value(true))
             .andExpect(jsonPath("$.accessToken").doesNotExist());
+    }
+
+    private void saveSafeSetting(String key, String jsonValue)
+        throws Exception {
+        mockMvc.perform(post("/api/v2/admin/config/save")
+                .param("key", "safe")
+                .with(jwt().authorities(
+                    new SimpleGrantedAuthority("ROLE_ADMIN"),
+                    new SimpleGrantedAuthority("SCOPE_ADMIN")
+                ))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"%s":%s}
+                    """.formatted(key, jsonValue)))
+            .andExpect(status().isOk());
     }
 
     private String requestRegistrationCode(String email) throws Exception {

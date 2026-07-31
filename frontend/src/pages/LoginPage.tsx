@@ -5,8 +5,38 @@ import { AuthLayout } from "../components/AuthLayout";
 import { ApiError, login } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
+import { useUserPreferences } from "../store/userPreferences";
+
+const copy = {
+  "zh-CN": {
+    title: "欢迎回来",
+    description: "登录以管理账户与已授权设备。",
+    question: "还没有账户？",
+    create: "创建账户",
+    email: "邮箱",
+    password: "密码",
+    forgot: "忘记密码？",
+    submitting: "正在登录…",
+    submit: "登录",
+    failed: "登录失败，请稍后重试"
+  },
+  "en-US": {
+    title: "Welcome back",
+    description: "Sign in to manage your account and authorized devices.",
+    question: "No account yet?",
+    create: "Create account",
+    email: "Email",
+    password: "Password",
+    forgot: "Forgot password?",
+    submitting: "Signing in…",
+    submit: "Sign in",
+    failed: "Sign-in failed. Try again later."
+  }
+};
 
 export function LoginPage() {
+  const language = useUserPreferences((state) => state.language);
+  const labels = copy[language];
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -28,7 +58,7 @@ export function LoginPage() {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : "登录失败，请稍后重试"
+          : labels.failed
       );
     } finally {
       setSubmitting(false);
@@ -49,18 +79,18 @@ export function LoginPage() {
 
   return (
     <AuthLayout
-      title="欢迎回来"
-      description="登录以管理账户与已授权设备。"
+      title={labels.title}
+      description={labels.description}
       eyebrow="Account security"
       footer={
         <p>
-          还没有账户？ <AppLink href="/register">创建账户</AppLink>
+          {labels.question} <AppLink href="/register">{labels.create}</AppLink>
         </p>
       }
     >
         <form className="freedom-form" onSubmit={handleSubmit}>
           <label>
-            邮箱
+            {labels.email}
             <input
               type="email"
               autoComplete="email"
@@ -70,7 +100,7 @@ export function LoginPage() {
             />
           </label>
           <label>
-            密码
+            {labels.password}
             <input
               type="password"
               autoComplete="current-password"
@@ -81,11 +111,11 @@ export function LoginPage() {
           </label>
           <div className="freedom-form-meta">
             <span />
-            <AppLink href="/forgot-password">忘记密码？</AppLink>
+            <AppLink href="/forgot-password">{labels.forgot}</AppLink>
           </div>
           {error && <p className="error-message">{error}</p>}
           <button className="freedom-button primary submit" disabled={submitting}>
-            {submitting ? "正在登录…" : "登录"}
+            {submitting ? labels.submitting : labels.submit}
           </button>
         </form>
     </AuthLayout>

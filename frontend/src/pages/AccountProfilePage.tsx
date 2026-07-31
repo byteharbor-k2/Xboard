@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { AppShell } from "../components/AppShell";
 import { ApiError, changePassword, graphQl } from "../lib/http";
 import { useAuthStore } from "../store/auth";
+import { useUserPreferences } from "../store/userPreferences";
 import type { Viewer } from "../types";
 
 const updateProfileMutation = `
@@ -13,10 +14,51 @@ const updateProfileMutation = `
   }
 `;
 
+const copy = {
+  "zh-CN": {
+    title: "账户资料",
+    description: "更新显示名称或更换登录密码。",
+    profile: "个人资料",
+    email: "邮箱",
+    displayName: "显示名称",
+    saveProfile: "保存资料",
+    profileSaved: "个人资料已保存。",
+    saveFailed: "保存失败",
+    password: "修改密码",
+    currentPassword: "当前密码",
+    newPassword: "新密码",
+    confirmPassword: "确认新密码",
+    updatePassword: "更新密码",
+    mismatch: "两次输入的新密码不一致",
+    passwordUpdated: "密码已更新，当前设备保持登录。",
+    passwordFailed: "密码更新失败"
+  },
+  "en-US": {
+    title: "Account profile",
+    description: "Update your display name or change your password.",
+    profile: "Profile",
+    email: "Email",
+    displayName: "Display name",
+    saveProfile: "Save profile",
+    profileSaved: "Your profile has been saved.",
+    saveFailed: "Profile update failed",
+    password: "Change password",
+    currentPassword: "Current password",
+    newPassword: "New password",
+    confirmPassword: "Confirm new password",
+    updatePassword: "Update password",
+    mismatch: "The new passwords do not match",
+    passwordUpdated: "Password updated. This device remains signed in.",
+    passwordFailed: "Password update failed"
+  }
+};
+
 export function AccountProfilePage() {
   const accessToken = useAuthStore((state) => state.accessToken)!;
   const viewer = useAuthStore((state) => state.viewer)!;
   const setViewer = useAuthStore((state) => state.setViewer);
+  const language = useUserPreferences((state) => state.language);
+  const labels = copy[language];
   const [displayName, setDisplayName] = useState(viewer.displayName);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -38,9 +80,9 @@ export function AccountProfilePage() {
         { displayName }
       );
       setViewer(result.updateViewerProfile);
-      setProfileMessage("个人资料已保存。");
+      setProfileMessage(labels.profileSaved);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "保存失败");
+      setError(caught instanceof ApiError ? caught.message : labels.saveFailed);
     } finally {
       setSubmitting(false);
     }
@@ -51,7 +93,7 @@ export function AccountProfilePage() {
     setError("");
     setPasswordMessage("");
     if (newPassword !== confirmation) {
-      setError("两次输入的新密码不一致");
+      setError(labels.mismatch);
       return;
     }
     setSubmitting(true);
@@ -60,9 +102,11 @@ export function AccountProfilePage() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmation("");
-      setPasswordMessage("密码已更新，当前设备保持登录。");
+      setPasswordMessage(labels.passwordUpdated);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : "密码更新失败");
+      setError(
+        caught instanceof ApiError ? caught.message : labels.passwordFailed
+      );
     } finally {
       setSubmitting(false);
     }
@@ -72,19 +116,19 @@ export function AccountProfilePage() {
     <AppShell>
       <header className="page-header">
         <p className="eyebrow">Profile</p>
-        <h1>账户资料</h1>
-        <p className="muted">更新显示名称或更换登录密码。</p>
+        <h1>{labels.title}</h1>
+        <p className="muted">{labels.description}</p>
       </header>
       <div className="account-settings-grid">
         <section className="panel account-form-panel">
-          <h2>个人资料</h2>
+          <h2>{labels.profile}</h2>
           <form onSubmit={updateProfile}>
             <label>
-              邮箱
+              {labels.email}
               <input disabled value={viewer.email} />
             </label>
             <label>
-              显示名称
+              {labels.displayName}
               <input
                 maxLength={80}
                 required
@@ -101,15 +145,15 @@ export function AccountProfilePage() {
               className="primary-button compact-button"
               disabled={submitting}
             >
-              保存资料
+              {labels.saveProfile}
             </button>
           </form>
         </section>
         <section className="panel account-form-panel">
-          <h2>修改密码</h2>
+          <h2>{labels.password}</h2>
           <form onSubmit={updatePassword}>
             <label>
-              当前密码
+              {labels.currentPassword}
               <input
                 type="password"
                 autoComplete="current-password"
@@ -119,7 +163,7 @@ export function AccountProfilePage() {
               />
             </label>
             <label>
-              新密码
+              {labels.newPassword}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -130,7 +174,7 @@ export function AccountProfilePage() {
               />
             </label>
             <label>
-              确认新密码
+              {labels.confirmPassword}
               <input
                 type="password"
                 autoComplete="new-password"
@@ -149,7 +193,7 @@ export function AccountProfilePage() {
               className="primary-button compact-button"
               disabled={submitting}
             >
-              更新密码
+              {labels.updatePassword}
             </button>
           </form>
         </section>

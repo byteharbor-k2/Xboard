@@ -30,6 +30,13 @@ public class PlatformConfigurationService {
         "safe.email_whitelist_enable";
     private static final String EMAIL_ALLOWLIST_SUFFIXES_KEY =
         "safe.email_whitelist_suffix";
+    private static final String EMAIL_VERIFICATION_KEY = "safe.email_verify";
+    private static final String CAPTCHA_ENABLED_KEY = "safe.captcha_enable";
+    private static final String CAPTCHA_TYPE_KEY = "safe.captcha_type";
+    private static final String TURNSTILE_SITE_KEY =
+        "safe.turnstile_site_key";
+    private static final String TURNSTILE_SECRET_KEY =
+        "safe.turnstile_secret_key";
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
         "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
             + "(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
@@ -51,11 +58,22 @@ public class PlatformConfigurationService {
             case "site" -> Map.of("tos_url", termsUrl().orElse(""));
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
+                TurnstilePolicy turnstile = turnstilePolicy();
                 yield Map.of(
+                    "email_verify",
+                    emailVerificationRequired(),
                     "email_whitelist_enable",
                     policy.enabled(),
                     "email_whitelist_suffix",
-                    policy.domains()
+                    policy.domains(),
+                    "captcha_enable",
+                    turnstile.enabled(),
+                    "captcha_type",
+                    "turnstile",
+                    "turnstile_site_key",
+                    turnstile.siteKey() == null ? "" : turnstile.siteKey(),
+                    "turnstile_secret_key",
+                    ""
                 );
             }
             default -> throw unsupportedSection();
@@ -79,6 +97,15 @@ public class PlatformConfigurationService {
                 saveEmailAllowlistEnabled(entry.getValue());
             case EMAIL_ALLOWLIST_SUFFIXES_KEY ->
                 saveEmailAllowlistDomains(entry.getValue());
+            case EMAIL_VERIFICATION_KEY ->
+                saveBoolean(EMAIL_VERIFICATION_KEY, entry.getValue());
+            case CAPTCHA_ENABLED_KEY ->
+                saveBoolean(CAPTCHA_ENABLED_KEY, entry.getValue());
+            case CAPTCHA_TYPE_KEY -> saveCaptchaType(entry.getValue());
+            case TURNSTILE_SITE_KEY ->
+                saveTurnstileKey(TURNSTILE_SITE_KEY, entry.getValue(), false);
+            case TURNSTILE_SECRET_KEY ->
+                saveTurnstileKey(TURNSTILE_SECRET_KEY, entry.getValue(), true);
             default -> throw unsupportedSetting();
         }
     }
@@ -97,6 +124,29 @@ public class PlatformConfigurationService {
             .filter(value -> !value.isBlank())
             .toList();
         return new EmailDomainPolicy(enabled, domains);
+    }
+
+    public boolean emailVerificationRequired() {
+        return read(EMAIL_VERIFICATION_KEY)
+            .map(Boolean::parseBoolean)
+            .orElse(true);
+    }
+
+    public TurnstilePolicy turnstilePolicy() {
+        boolean enabled = read(CAPTCHA_ENABLED_KEY)
+            .map(Boolean::parseBoolean)
+            .orElse(false);
+        String type = read(CAPTCHA_TYPE_KEY).orElse("turnstile");
+        if (!"turnstile".equals(type)) {
+            return new TurnstilePolicy(false, null, null);
+        }
+        return new TurnstilePolicy(
+            enabled,
+            read(TURNSTILE_SITE_KEY).filter(value -> !value.isBlank())
+                .orElse(null),
+            read(TURNSTILE_SECRET_KEY).filter(value -> !value.isBlank())
+                .orElse(null)
+        );
     }
 
     public void assertEmailDomainAllowed(String email) {
@@ -131,10 +181,7 @@ public class PlatformConfigurationService {
     }
 
     private void saveEmailAllowlistEnabled(Object rawValue) {
-        if (!(rawValue instanceof Boolean enabled)) {
-            throw invalidEmailDomainPolicy();
-        }
-        store(EMAIL_ALLOWLIST_ENABLED_KEY, Boolean.toString(enabled));
+        saveBoolean(EMAIL_ALLOWLIST_ENABLED_KEY, rawValue);
     }
 
     private void saveEmailAllowlistDomains(Object rawValue) {
@@ -171,6 +218,42 @@ public class PlatformConfigurationService {
             throw invalidEmailDomainPolicy();
         }
         return candidate;
+    }
+
+    private void saveBoolean(String key, Object rawValue) {
+        if (!(rawValue instanceof Boolean enabled)) {
+            throw invalidSettingValue();
+        }
+        store(key, Boolean.toString(enabled));
+    }
+
+    private void saveCaptchaType(Object rawValue) {
+        if (!(rawValue instanceof String type) || !"turnstile".equals(type)) {
+            throw new ApiProblemException(
+                HttpStatus.BAD_REQUEST,
+                "CAPTCHA_PROVIDER_NOT_SUPPORTED",
+                "Only Cloudflare Turnstile is currently supported"
+            );
+        }
+        store(CAPTCHA_TYPE_KEY, type);
+    }
+
+    private void saveTurnstileKey(
+        String key,
+        Object rawValue,
+        boolean preserveWhenBlank
+    ) {
+        if (!(rawValue instanceof String value) || value.length() > 256) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isBlank()) {
+            if (!preserveWhenBlank) {
+                settings.deleteById(key);
+            }
+            return;
+        }
+        store(key, normalized);
     }
 
     private Optional<String> read(String key) {
@@ -221,6 +304,14 @@ public class PlatformConfigurationService {
         );
     }
 
+    private ApiProblemException invalidSettingValue() {
+        return new ApiProblemException(
+            HttpStatus.BAD_REQUEST,
+            "SETTING_VALUE_INVALID",
+            "The setting value is invalid"
+        );
+    }
+
     private ApiProblemException unsupportedSection() {
         return new ApiProblemException(
             HttpStatus.NOT_FOUND,
@@ -244,5 +335,12 @@ public class PlatformConfigurationService {
         public EmailDomainPolicy {
             domains = List.copyOf(domains);
         }
+    }
+
+    public record TurnstilePolicy(
+        boolean enabled,
+        String siteKey,
+        String secretKey
+    ) {
     }
 }

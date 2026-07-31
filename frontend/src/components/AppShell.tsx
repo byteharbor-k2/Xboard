@@ -3,12 +3,35 @@ import type { PropsWithChildren } from "react";
 import { logout } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
+import { useUserPreferences } from "../store/userPreferences";
 import { AppLink } from "./AppLink";
 import { FreedomBrand } from "./FreedomBrand";
+
+const copy = {
+  "zh-CN": {
+    overview: "账户概览",
+    profile: "账户资料",
+    plans: "套餐",
+    devices: "登录设备",
+    logout: "退出登录",
+    switchLanguage: "Switch to English"
+  },
+  "en-US": {
+    overview: "Overview",
+    profile: "Profile",
+    plans: "Plans",
+    devices: "Devices",
+    logout: "Sign out",
+    switchLanguage: "切换到中文"
+  }
+};
 
 export function AppShell({ children }: PropsWithChildren) {
   const viewer = useAuthStore((state) => state.viewer);
   const clearSession = useAuthStore((state) => state.clearSession);
+  const language = useUserPreferences((state) => state.language);
+  const setLanguage = useUserPreferences((state) => state.setLanguage);
+  const labels = copy[language];
 
   async function handleLogout() {
     try {
@@ -23,6 +46,16 @@ export function AppShell({ children }: PropsWithChildren) {
     <div className="app-frame">
       <aside className="sidebar">
         <FreedomBrand href="/account" />
+        <button
+          aria-label={labels.switchLanguage}
+          className="sidebar-language-switch"
+          onClick={() =>
+            setLanguage(language === "zh-CN" ? "en-US" : "zh-CN")
+          }
+          type="button"
+        >
+          {language === "zh-CN" ? "EN" : "中文"}
+        </button>
         <nav>
           <AppLink
             className={
@@ -32,7 +65,7 @@ export function AppShell({ children }: PropsWithChildren) {
             }
             href="/account"
           >
-            账户概览
+            {labels.overview}
           </AppLink>
           <AppLink
             className={
@@ -42,7 +75,7 @@ export function AppShell({ children }: PropsWithChildren) {
             }
             href="/account/profile"
           >
-            账户资料
+            {labels.profile}
           </AppLink>
           <AppLink
             className={
@@ -52,7 +85,7 @@ export function AppShell({ children }: PropsWithChildren) {
             }
             href="/plans"
           >
-            套餐
+            {labels.plans}
           </AppLink>
           <AppLink
             className={
@@ -62,14 +95,14 @@ export function AppShell({ children }: PropsWithChildren) {
             }
             href="/security/sessions"
           >
-            登录设备
+            {labels.devices}
           </AppLink>
         </nav>
         <div className="account">
           <strong>{viewer?.displayName}</strong>
           <span>{viewer?.email}</span>
           <button className="text-button" onClick={handleLogout}>
-            退出登录
+            {labels.logout}
           </button>
         </div>
       </aside>

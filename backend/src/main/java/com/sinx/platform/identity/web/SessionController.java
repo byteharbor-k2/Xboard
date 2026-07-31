@@ -200,7 +200,7 @@ public class SessionController {
         @NotBlank @Size(min = 12, max = 128) String password,
         @NotBlank @Size(max = 80) String displayName,
         @Size(max = 120) String deviceLabel,
-        @NotBlank @Size(min = 6, max = 6) String emailCode,
+        @Size(min = 6, max = 6) String emailCode,
         @Size(max = 2048) String turnstileToken
     ) {
     }

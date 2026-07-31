@@ -8,7 +8,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
-import com.sinx.platform.identity.security.RegistrationSecurityProperties;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.shared.web.ApiProblemException;
 
 @Service
@@ -18,10 +18,10 @@ public class TurnstileVerificationService {
         "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
     private final RestClient restClient;
-    private final RegistrationSecurityProperties properties;
+    private final PlatformConfigurationService configuration;
 
     public TurnstileVerificationService(
-        RegistrationSecurityProperties properties
+        PlatformConfigurationService configuration
     ) {
         SimpleClientHttpRequestFactory requestFactory =
             new SimpleClientHttpRequestFactory();
@@ -30,15 +30,16 @@ public class TurnstileVerificationService {
         this.restClient = RestClient.builder()
             .requestFactory(requestFactory)
             .build();
-        this.properties = properties;
+        this.configuration = configuration;
     }
 
     public void verify(String token, String remoteIp) {
-        if (!properties.turnstileEnabled()) {
+        PlatformConfigurationService.TurnstilePolicy policy =
+            configuration.turnstilePolicy();
+        if (!policy.enabled()) {
             return;
         }
-        if (properties.turnstileSecretKey() == null
-                || properties.turnstileSecretKey().isBlank()) {
+        if (policy.secretKey() == null || policy.secretKey().isBlank()) {
             throw new ApiProblemException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "TURNSTILE_NOT_CONFIGURED",
@@ -50,7 +51,7 @@ public class TurnstileVerificationService {
         }
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-        form.add("secret", properties.turnstileSecretKey());
+        form.add("secret", policy.secretKey());
         form.add("response", token);
         if (remoteIp != null && !remoteIp.isBlank()) {
             form.add("remoteip", remoteIp);
