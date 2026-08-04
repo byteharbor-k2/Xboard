@@ -80,7 +80,10 @@ export type BillingPeriod =
   | "YEARLY"
   | "TWO_YEARLY"
   | "THREE_YEARLY"
-  | "ONETIME";
+  | "ONETIME"
+  | "RESET_TRAFFIC";
+
+export type PlanType = "SUBSCRIPTION" | "TRAFFIC_PACKAGE";
 
 export type TrafficResetPolicy =
   | "FIRST_DAY_OF_MONTH"
@@ -102,14 +105,50 @@ export type PlanOffer = {
   name: string;
   description: string;
   tags: string[];
+  planType: PlanType;
   transferLimitBytes: string;
   speedLimitMbps: number | null;
   deviceLimit: number | null;
   resetPolicy: TrafficResetPolicy;
   renewable: boolean;
+  resettable: boolean;
+  purchaseLimitPerUser: number | null;
   capacityRemaining: number | null;
   prices: PlanPrice[];
 };
+
+export type ManagedPlanPrice = {
+  period: BillingPeriod;
+  amountMinor: number;
+  currency: string;
+};
+
+export type ManagedPlan = {
+  id: string;
+  name: string;
+  description: string;
+  tags: string[];
+  planType: PlanType;
+  transferLimitBytes: string;
+  speedLimitMbps: number | null;
+  deviceLimit: number | null;
+  resetPolicy: TrafficResetPolicy;
+  capacityLimit: number | null;
+  resettable: boolean;
+  purchaseLimitPerUser: number | null;
+  published: boolean;
+  sellable: boolean;
+  renewable: boolean;
+  sortOrder: number;
+  subscriberCount: number;
+  activeSubscriberCount: number;
+  prices: ManagedPlanPrice[];
+};
+
+export type PlanDraft = Omit<
+  ManagedPlan,
+  "id" | "subscriberCount" | "activeSubscriberCount"
+>;
 
 export type EntitlementState =
   | "ACTIVE"

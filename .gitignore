@@ -16,6 +16,7 @@ backend/.classpath
 backend/.project
 backend/.settings/
 backend/.factorypath
+backend/test_user.txt
 
 # React frontend
 frontend/node_modules/

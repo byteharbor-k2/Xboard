@@ -9,6 +9,7 @@ export default defineConfig({
       "/gateway": "http://127.0.0.1:8080",
       "/session": "http://127.0.0.1:8080",
       "/admin-session": "http://127.0.0.1:8080",
+      "/control": "http://127.0.0.1:8080",
       "/api": "http://127.0.0.1:8080"
     }
   },

@@ -118,6 +118,231 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void managesPlansThroughCustomControlPlaneAndFiltersPublicCatalog()
+        throws Exception {
+        String name = "Catalog " + UUID.randomUUID();
+        String planId = null;
+        var administrator = jwt().authorities(
+            new SimpleGrantedAuthority("ROLE_ADMIN"),
+            new SimpleGrantedAuthority("SCOPE_ADMIN")
+        );
+        try {
+            mockMvc.perform(get("/control/catalog/plans"))
+                .andExpect(status().isUnauthorized());
+
+            MvcResult created = mockMvc.perform(post("/control/catalog/plans")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "name":"%s",
+                          "description":"Managed catalog integration plan",
+                          "planType":"SUBSCRIPTION",
+                          "transferLimitBytes":"107374182400",
+                          "speedLimitMbps":200,
+                          "deviceLimit":5,
+                          "resetPolicy":"MONTHLY_FROM_ACTIVATION",
+                          "capacityLimit":20,
+                          "resettable":true,
+                          "purchaseLimitPerUser":null,
+                          "published":false,
+                          "sellable":true,
+                          "renewable":true,
+                          "sortOrder":10,
+                          "tags":["integration","featured"],
+                          "prices":[
+                            {
+                              "period":"MONTHLY",
+                              "amountMinor":1999,
+                              "currency":"cny"
+                            },
+                            {
+                              "period":"RESET_TRAFFIC",
+                              "amountMinor":699,
+                              "currency":"cny"
+                            }
+                          ]
+                        }
+                        """.formatted(name)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value(name))
+                .andExpect(jsonPath("$.planType").value("SUBSCRIPTION"))
+                .andExpect(jsonPath("$.resettable").value(true))
+                .andExpect(jsonPath("$.prices.length()").value(2))
+                .andExpect(jsonPath("$.prices[0].currency").value("CNY"))
+                .andReturn();
+            planId = JsonPath.read(
+                created.getResponse().getContentAsString(),
+                "$.id"
+            );
+
+            MvcResult hiddenCatalog = mockMvc.perform(post("/gateway")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"query":"{ offerCatalog { id name prices { period } } }"}
+                        """))
+                .andExpect(status().isOk())
+                .andReturn();
+            List<String> hiddenNames = JsonPath.read(
+                hiddenCatalog.getResponse().getContentAsString(),
+                "$.data.offerCatalog[*].name"
+            );
+            assertThat(hiddenNames).doesNotContain(name);
+
+            mockMvc.perform(put("/control/catalog/plans/{id}", planId)
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "name":"%s",
+                          "description":"Published integration plan",
+                          "planType":"SUBSCRIPTION",
+                          "transferLimitBytes":"107374182400",
+                          "speedLimitMbps":200,
+                          "deviceLimit":5,
+                          "resetPolicy":"MONTHLY_FROM_ACTIVATION",
+                          "capacityLimit":20,
+                          "resettable":true,
+                          "purchaseLimitPerUser":null,
+                          "published":true,
+                          "sellable":true,
+                          "renewable":true,
+                          "sortOrder":10,
+                          "tags":["integration"],
+                          "prices":[
+                            {
+                              "period":"MONTHLY",
+                              "amountMinor":2199,
+                              "currency":"CNY"
+                            },
+                            {
+                              "period":"RESET_TRAFFIC",
+                              "amountMinor":799,
+                              "currency":"CNY"
+                            }
+                          ]
+                        }
+                        """.formatted(name)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.published").value(true))
+                .andExpect(jsonPath("$.prices[0].amountMinor").value(2199));
+
+            MvcResult publicCatalog = mockMvc.perform(post("/gateway")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "query":"{ offerCatalog { id name transferLimitBytes prices { period amountMinor currency } } }"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andReturn();
+            List<String> publicNames = JsonPath.read(
+                publicCatalog.getResponse().getContentAsString(),
+                "$.data.offerCatalog[*].name"
+            );
+            assertThat(publicNames).contains(name);
+
+            mockMvc.perform(delete("/control/catalog/plans/{id}", planId)
+                    .with(administrator))
+                .andExpect(status().isNoContent());
+            planId = null;
+        } finally {
+            if (planId != null) {
+                jdbcTemplate.update(
+                    "DELETE FROM service_plans WHERE id = ?::uuid",
+                    planId
+                );
+            }
+        }
+    }
+
+    @Test
+    void managesNonExpiringTrafficPackagesWithResetAndPurchaseLimits()
+        throws Exception {
+        String name = "Traffic package " + UUID.randomUUID();
+        String planId = null;
+        var administrator = jwt().authorities(
+            new SimpleGrantedAuthority("ROLE_ADMIN"),
+            new SimpleGrantedAuthority("SCOPE_ADMIN")
+        );
+        try {
+            MvcResult created = mockMvc.perform(post("/control/catalog/plans")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "name":"%s",
+                          "description":"A non-expiring data package",
+                          "planType":"TRAFFIC_PACKAGE",
+                          "transferLimitBytes":"53687091200",
+                          "speedLimitMbps":100,
+                          "deviceLimit":3,
+                          "resetPolicy":"MONTHLY_FROM_ACTIVATION",
+                          "capacityLimit":100,
+                          "resettable":true,
+                          "purchaseLimitPerUser":2,
+                          "published":true,
+                          "sellable":true,
+                          "renewable":true,
+                          "sortOrder":20,
+                          "tags":["package"],
+                          "prices":[
+                            {
+                              "period":"ONETIME",
+                              "amountMinor":1500,
+                              "currency":"CNY"
+                            },
+                            {
+                              "period":"RESET_TRAFFIC",
+                              "amountMinor":500,
+                              "currency":"CNY"
+                            }
+                          ]
+                        }
+                        """.formatted(name)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.planType").value("TRAFFIC_PACKAGE"))
+                .andExpect(jsonPath("$.resetPolicy").value("NEVER"))
+                .andExpect(jsonPath("$.resettable").value(true))
+                .andExpect(jsonPath("$.purchaseLimitPerUser").value(2))
+                .andExpect(jsonPath("$.renewable").value(false))
+                .andExpect(jsonPath("$.prices.length()").value(2))
+                .andReturn();
+            planId = JsonPath.read(
+                created.getResponse().getContentAsString(),
+                "$.id"
+            );
+
+            MvcResult catalog = mockMvc.perform(post("/gateway")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "query":"{ offerCatalog { name planType resettable purchaseLimitPerUser prices { period } } }"
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andReturn();
+            List<String> names = JsonPath.read(
+                catalog.getResponse().getContentAsString(),
+                "$.data.offerCatalog[*].name"
+            );
+            assertThat(names).contains(name);
+
+            mockMvc.perform(delete("/control/catalog/plans/{id}", planId)
+                    .with(administrator))
+                .andExpect(status().isNoContent());
+            planId = null;
+        } finally {
+            if (planId != null) {
+                jdbcTemplate.update(
+                    "DELETE FROM service_plans WHERE id = ?::uuid",
+                    planId
+                );
+            }
+        }
+    }
+
+    @Test
     void exposesAdministratorConfiguredTermsUrlDuringRegistration()
         throws Exception {
         mockMvc.perform(post("/api/v2/admin/config/save")

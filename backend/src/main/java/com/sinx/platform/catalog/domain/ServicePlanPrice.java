@@ -60,6 +60,11 @@ public class ServicePlanPrice {
         return price;
     }
 
+    void update(long amountMinor, String currency) {
+        this.amountMinor = amountMinor;
+        this.currency = currency.toUpperCase(Locale.ROOT);
+    }
+
     public BillingPeriod getBillingPeriod() {
         return billingPeriod;
     }

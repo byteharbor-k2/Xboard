@@ -132,6 +132,19 @@ public class SecurityConfiguration {
                                 )
                     )
                 )
+                .requestMatchers("/control/catalog/**")
+                .access((authentication, context) ->
+                    new org.springframework.security.authorization.AuthorizationDecision(
+                        authentication.get().getAuthorities().stream()
+                            .anyMatch(authority ->
+                                "ROLE_ADMIN".equals(authority.getAuthority())
+                            )
+                            && authentication.get().getAuthorities().stream()
+                                .anyMatch(authority ->
+                                    "SCOPE_ADMIN".equals(authority.getAuthority())
+                                )
+                    )
+                )
                 .anyRequest().denyAll()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

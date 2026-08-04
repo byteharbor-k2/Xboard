@@ -7,7 +7,8 @@ public enum BillingPeriod {
     YEARLY(365, 12),
     TWO_YEARLY(730, 24),
     THREE_YEARLY(1095, 36),
-    ONETIME(null, null);
+    ONETIME(null, null),
+    RESET_TRAFFIC(null, null);
 
     private final Integer durationDays;
     private final Integer monthCount;

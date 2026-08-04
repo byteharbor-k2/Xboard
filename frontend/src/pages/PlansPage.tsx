@@ -18,11 +18,14 @@ const offerQuery = `
       name
       description
       tags
+      planType
       transferLimitBytes
       speedLimitMbps
       deviceLimit
       resetPolicy
       renewable
+      resettable
+      purchaseLimitPerUser
       capacityRemaining
       prices {
         period
@@ -50,6 +53,8 @@ const copy = {
     unlimitedDevices: "不限制",
     deviceUnit: "台",
     reset: "流量重置",
+    trafficPackage: "流量包",
+    subscription: "月订阅",
     remainingPrefix: "当前剩余",
     remainingSuffix: "个名额"
   },
@@ -68,6 +73,8 @@ const copy = {
     unlimitedDevices: "Unlimited",
     deviceUnit: "devices",
     reset: "Data reset",
+    trafficPackage: "Traffic package",
+    subscription: "Monthly subscription",
     remainingPrefix: "",
     remainingSuffix: "spots remaining"
   }
@@ -127,7 +134,22 @@ export function PlansPage() {
           <article className="plan-card" key={offer.id}>
             <header>
               <div className="plan-tags">
-                {offer.tags.map((tag) => (
+                <span
+                  className={`plan-type-badge ${
+                    offer.planType === "TRAFFIC_PACKAGE"
+                      ? "traffic-package"
+                      : "subscription"
+                  }`}
+                >
+                  {offer.planType === "TRAFFIC_PACKAGE"
+                    ? labels.trafficPackage
+                    : labels.subscription}
+                </span>
+                {offer.tags.filter((tag) => tag !== (
+                  offer.planType === "TRAFFIC_PACKAGE"
+                    ? labels.trafficPackage
+                    : labels.subscription
+                )).map((tag) => (
                   <span key={tag}>{tag}</span>
                 ))}
               </div>

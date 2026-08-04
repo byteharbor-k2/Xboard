@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 import { AppShell } from "../components/AppShell";
 import { useUserPreferences } from "../store/userPreferences";
 
@@ -11,15 +9,7 @@ const copy = {
     history: "工单历史",
     newTicket: "新的工单",
     subject: "主题",
-    subjectPlaceholder: "简要描述遇到的问题",
     priority: "工单级别",
-    low: "低",
-    medium: "中",
-    high: "高",
-    message: "问题描述",
-    messagePlaceholder: "请描述问题、发生时间和相关现象",
-    cancel: "取消",
-    submit: "等待后端接口",
     state: "工单状态",
     createdAt: "创建时间",
     lastReplyAt: "最后回复时间",
@@ -34,15 +24,7 @@ const copy = {
     history: "Ticket history",
     newTicket: "New ticket",
     subject: "Subject",
-    subjectPlaceholder: "Briefly describe the issue",
     priority: "Priority",
-    low: "Low",
-    medium: "Medium",
-    high: "High",
-    message: "Description",
-    messagePlaceholder: "Describe the issue, time, and relevant symptoms",
-    cancel: "Cancel",
-    submit: "Backend pending",
     state: "Status",
     createdAt: "Created",
     lastReplyAt: "Last reply",
@@ -56,7 +38,6 @@ const copy = {
 export function TicketsPage() {
   const language = useUserPreferences((state) => state.language);
   const labels = copy[language];
-  const [composing, setComposing] = useState(false);
 
   return (
     <AppShell>
@@ -68,53 +49,14 @@ export function TicketsPage() {
         </div>
         <button
           className="primary-button compact-button"
-          onClick={() => setComposing((current) => !current)}
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent("sinx:open-support"))
+          }
           type="button"
         >
           {labels.newTicket}
         </button>
       </header>
-      {composing && (
-        <section className="panel ticket-compose-panel">
-          <div className="ticket-compose-row">
-            <label>
-              {labels.subject}
-              <input placeholder={labels.subjectPlaceholder} />
-            </label>
-            <label>
-              {labels.priority}
-              <select defaultValue="LOW">
-                <option value="LOW">{labels.low}</option>
-                <option value="MEDIUM">{labels.medium}</option>
-                <option value="HIGH">{labels.high}</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            {labels.message}
-            <textarea
-              placeholder={labels.messagePlaceholder}
-              rows={6}
-            />
-          </label>
-          <div className="ticket-compose-actions">
-            <button
-              className="secondary-button compact-button"
-              onClick={() => setComposing(false)}
-              type="button"
-            >
-              {labels.cancel}
-            </button>
-            <button
-              className="primary-button compact-button"
-              disabled
-              type="button"
-            >
-              {labels.submit}
-            </button>
-          </div>
-        </section>
-      )}
       <section className="panel user-record-panel">
         <h2>{labels.history}</h2>
         <div className="user-table-wrap">

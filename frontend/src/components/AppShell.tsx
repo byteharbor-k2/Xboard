@@ -6,6 +6,7 @@ import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import { AppLink } from "./AppLink";
 import { FreedomBrand } from "./FreedomBrand";
+import { SupportWidget } from "./SupportWidget";
 
 const copy = {
   "zh-CN": {
@@ -18,6 +19,7 @@ const copy = {
     orders: "我的订单",
     invitations: "我的邀请",
     tickets: "我的工单",
+    traffic: "流量明细",
     devices: "安全设备",
     logout: "退出登录",
     switchLanguage: "Switch to English",
@@ -34,6 +36,7 @@ const copy = {
     orders: "My orders",
     invitations: "My invitations",
     tickets: "My tickets",
+    traffic: "Traffic details",
     devices: "Security devices",
     logout: "Sign out",
     switchLanguage: "切换到中文",
@@ -53,6 +56,7 @@ function NavigationIcon({
     | "orders"
     | "invitations"
     | "tickets"
+    | "traffic"
     | "devices";
 }) {
   const paths = {
@@ -98,6 +102,11 @@ function NavigationIcon({
         <path d="M8 9h8M8 13h5" />
       </>
     ),
+    traffic: (
+      <>
+        <path d="M5 19V11M12 19V5M19 19v-9" />
+      </>
+    ),
     devices: (
       <>
         <rect x="4" y="3.5" width="16" height="12" rx="2" />
@@ -140,6 +149,8 @@ export function AppShell({ children }: PropsWithChildren) {
             ? labels.invitations
             : currentPath === "/account/tickets"
               ? labels.tickets
+              : currentPath === "/account/traffic"
+                ? labels.traffic
         : currentPath === "/security/sessions"
           ? labels.devices
           : labels.dashboard;
@@ -264,6 +275,16 @@ export function AppShell({ children }: PropsWithChildren) {
               >
                 {labels.tickets}
               </AppLink>
+              <AppLink
+                className={
+                  currentPath === "/account/traffic"
+                    ? "active"
+                    : undefined
+                }
+                href="/account/traffic"
+              >
+                {labels.traffic}
+              </AppLink>
               </div>
             )}
           </div>
@@ -332,6 +353,7 @@ export function AppShell({ children }: PropsWithChildren) {
         </header>
         <main className="content user-content">{children}</main>
       </section>
+      <SupportWidget />
     </div>
   );
 }

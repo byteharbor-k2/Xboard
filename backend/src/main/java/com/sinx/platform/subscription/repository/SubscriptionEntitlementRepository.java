@@ -31,4 +31,11 @@ public interface SubscriptionEntitlementRepository
         @Param("planId") UUID planId,
         @Param("now") Instant now
     );
+
+    @Query("""
+        select count(entitlement)
+        from SubscriptionEntitlement entitlement
+        where entitlement.plan.id = :planId
+        """)
+    long countForPlan(@Param("planId") UUID planId);
 }

@@ -36,6 +36,10 @@ public class ServicePlan {
     @Column(nullable = false)
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_type", length = 32, nullable = false)
+    private PlanType planType;
+
     @Column(name = "transfer_limit_bytes", nullable = false)
     private long transferLimitBytes;
 
@@ -51,6 +55,12 @@ public class ServicePlan {
 
     @Column(name = "capacity_limit")
     private Integer capacityLimit;
+
+    @Column(nullable = false)
+    private boolean resettable;
+
+    @Column(name = "purchase_limit_per_user")
+    private Integer purchaseLimitPerUser;
 
     @Column(nullable = false)
     private boolean published;
@@ -98,11 +108,14 @@ public class ServicePlan {
         UUID id,
         String name,
         String description,
+        PlanType planType,
         long transferLimitBytes,
         Integer speedLimitMbps,
         Integer deviceLimit,
         TrafficResetPolicy resetPolicy,
         Integer capacityLimit,
+        boolean resettable,
+        Integer purchaseLimitPerUser,
         boolean published,
         boolean sellable,
         boolean renewable,
@@ -114,11 +127,14 @@ public class ServicePlan {
         plan.id = id;
         plan.name = name;
         plan.description = description;
+        plan.planType = planType;
         plan.transferLimitBytes = transferLimitBytes;
         plan.speedLimitMbps = speedLimitMbps;
         plan.deviceLimit = deviceLimit;
         plan.resetPolicy = resetPolicy;
         plan.capacityLimit = capacityLimit;
+        plan.resettable = resettable;
+        plan.purchaseLimitPerUser = purchaseLimitPerUser;
         plan.published = published;
         plan.sellable = sellable;
         plan.renewable = renewable;
@@ -134,13 +150,63 @@ public class ServicePlan {
         long amountMinor,
         String currency
     ) {
-        prices.removeIf(price -> price.getBillingPeriod() == billingPeriod);
-        prices.add(ServicePlanPrice.create(
-            this,
-            billingPeriod,
-            amountMinor,
-            currency
-        ));
+        ServicePlanPrice existing = prices.stream()
+            .filter(price -> price.getBillingPeriod() == billingPeriod)
+            .findFirst()
+            .orElse(null);
+        if (existing == null) {
+            prices.add(ServicePlanPrice.create(
+                this,
+                billingPeriod,
+                amountMinor,
+                currency
+            ));
+            return;
+        }
+        existing.update(amountMinor, currency);
+    }
+
+    public void update(
+        String name,
+        String description,
+        PlanType planType,
+        long transferLimitBytes,
+        Integer speedLimitMbps,
+        Integer deviceLimit,
+        TrafficResetPolicy resetPolicy,
+        Integer capacityLimit,
+        boolean resettable,
+        Integer purchaseLimitPerUser,
+        boolean published,
+        boolean sellable,
+        boolean renewable,
+        int sortOrder,
+        List<String> tags,
+        Instant now
+    ) {
+        this.name = name;
+        this.description = description;
+        this.planType = planType;
+        this.transferLimitBytes = transferLimitBytes;
+        this.speedLimitMbps = speedLimitMbps;
+        this.deviceLimit = deviceLimit;
+        this.resetPolicy = resetPolicy;
+        this.capacityLimit = capacityLimit;
+        this.resettable = resettable;
+        this.purchaseLimitPerUser = purchaseLimitPerUser;
+        this.published = published;
+        this.sellable = sellable;
+        this.renewable = renewable;
+        this.sortOrder = sortOrder;
+        this.tags.clear();
+        this.tags.addAll(tags);
+        this.updatedAt = now;
+    }
+
+    public void retainPrices(Set<BillingPeriod> billingPeriods) {
+        prices.removeIf(
+            price -> !billingPeriods.contains(price.getBillingPeriod())
+        );
     }
 
     public UUID getId() {
@@ -153,6 +219,10 @@ public class ServicePlan {
 
     public String getDescription() {
         return description;
+    }
+
+    public PlanType getPlanType() {
+        return planType;
     }
 
     public long getTransferLimitBytes() {
@@ -173,6 +243,14 @@ public class ServicePlan {
 
     public Integer getCapacityLimit() {
         return capacityLimit;
+    }
+
+    public boolean isResettable() {
+        return resettable;
+    }
+
+    public Integer getPurchaseLimitPerUser() {
+        return purchaseLimitPerUser;
     }
 
     public boolean isPublished() {

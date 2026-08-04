@@ -14,7 +14,8 @@ const periodLabels: Record<Locale, Record<BillingPeriod, string>> = {
     YEARLY: "年付",
     TWO_YEARLY: "两年付",
     THREE_YEARLY: "三年付",
-    ONETIME: "一次性"
+    ONETIME: "流量包",
+    RESET_TRAFFIC: "重置包"
   },
   "en-US": {
     MONTHLY: "Monthly",
@@ -23,7 +24,8 @@ const periodLabels: Record<Locale, Record<BillingPeriod, string>> = {
     YEARLY: "Yearly",
     TWO_YEARLY: "Two years",
     THREE_YEARLY: "Three years",
-    ONETIME: "One-time"
+    ONETIME: "Traffic package",
+    RESET_TRAFFIC: "Reset package"
   }
 };
 

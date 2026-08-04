@@ -9,6 +9,7 @@ import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
 import { AdminMfaPage } from "./pages/AdminMfaPage";
+import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -17,6 +18,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { TicketsPage } from "./pages/TicketsPage";
+import { TrafficDetailsPage } from "./pages/TrafficDetailsPage";
 import { AccountOverviewPage } from "./pages/AccountOverviewPage";
 import { AccountProfilePage } from "./pages/AccountProfilePage";
 import { InvitationsPage } from "./pages/InvitationsPage";
@@ -151,6 +153,13 @@ export function App() {
       </ProtectedRoute>
     );
   }
+  if (path === "/account/traffic") {
+    return (
+      <ProtectedRoute>
+        <TrafficDetailsPage />
+      </ProtectedRoute>
+    );
+  }
   if (path === "/security/sessions") {
     return (
       <ProtectedRoute>
@@ -180,6 +189,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <SystemSettingsPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/finance/plans") {
+    return (
+      <AdminProtectedRoute>
+        <AdminPlansPage />
       </AdminProtectedRoute>
     );
   }

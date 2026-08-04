@@ -8,7 +8,7 @@ import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 
-public record PlanOfferView(
+public record ManagedPlanView(
     UUID id,
     String name,
     String description,
@@ -18,14 +18,23 @@ public record PlanOfferView(
     Integer speedLimitMbps,
     Integer deviceLimit,
     TrafficResetPolicy resetPolicy,
-    boolean renewable,
+    Integer capacityLimit,
     boolean resettable,
     Integer purchaseLimitPerUser,
-    Integer capacityRemaining,
-    List<PlanPriceView> prices
+    boolean published,
+    boolean sellable,
+    boolean renewable,
+    int sortOrder,
+    long subscriberCount,
+    long activeSubscriberCount,
+    List<ManagedPlanPriceView> prices
 ) {
-    static PlanOfferView from(ServicePlan plan, Integer capacityRemaining) {
-        return new PlanOfferView(
+    static ManagedPlanView from(
+        ServicePlan plan,
+        long subscriberCount,
+        long activeSubscriberCount
+    ) {
+        return new ManagedPlanView(
             plan.getId(),
             plan.getName(),
             plan.getDescription(),
@@ -35,15 +44,20 @@ public record PlanOfferView(
             plan.getSpeedLimitMbps(),
             plan.getDeviceLimit(),
             plan.getResetPolicy(),
-            plan.isRenewable(),
+            plan.getCapacityLimit(),
             plan.isResettable(),
             plan.getPurchaseLimitPerUser(),
-            capacityRemaining,
+            plan.isPublished(),
+            plan.isSellable(),
+            plan.isRenewable(),
+            plan.getSortOrder(),
+            subscriberCount,
+            activeSubscriberCount,
             plan.getPrices().stream()
                 .sorted(Comparator.comparing(
                     price -> price.getBillingPeriod().ordinal()
                 ))
-                .map(PlanPriceView::from)
+                .map(ManagedPlanPriceView::from)
                 .toList()
         );
     }

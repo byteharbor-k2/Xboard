@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import { AppLink } from "../components/AppLink";
 import { AppShell } from "../components/AppShell";
 import {
+  AnnouncementCarousel,
+  type PortalAnnouncement
+} from "../components/AnnouncementCarousel";
+import {
   NetworkGlobe,
   type NetworkMapNode
 } from "../components/NetworkGlobe";
@@ -42,6 +46,9 @@ const copy = {
     kicker: "PRIVATE NETWORK",
     greeting: "欢迎回来",
     description: "订阅状态、用量和全球网络，一眼掌握。",
+    announcement: "公告",
+    previousAnnouncement: "上一篇公告",
+    nextAnnouncement: "下一篇公告",
     entitlementFailed: "订阅权益加载失败",
     subscription: "当前订阅",
     loading: "正在读取权益…",
@@ -72,6 +79,9 @@ const copy = {
     kicker: "PRIVATE NETWORK",
     greeting: "Welcome back",
     description: "Your subscription, usage, and global network at a glance.",
+    announcement: "Announcement",
+    previousAnnouncement: "Previous announcement",
+    nextAnnouncement: "Next announcement",
     entitlementFailed: "Subscription benefits could not be loaded",
     subscription: "Current subscription",
     loading: "Loading benefits…",
@@ -112,6 +122,51 @@ export function AccountOverviewPage() {
   const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
     networkPreviewNodes[0]
   );
+  const announcementPreview: PortalAnnouncement[] =
+    language === "zh-CN"
+      ? [
+          {
+            id: "welcome",
+            title: "欢迎使用 SinX Cloud",
+            summary: "服务更新、维护安排与重要通知会集中显示在这里。",
+            publishedAt: "2026-07-31"
+          },
+          {
+            id: "guides",
+            title: "使用文档中心已开放",
+            summary: "客户端安装与订阅导入说明可从左侧使用文档进入。",
+            publishedAt: "2026-07-31"
+          },
+          {
+            id: "network",
+            title: "全球网络状态",
+            summary: "节点可用性与服务覆盖信息将在仪表盘持续更新。",
+            publishedAt: "2026-07-31"
+          }
+        ]
+      : [
+          {
+            id: "welcome",
+            title: "Welcome to SinX Cloud",
+            summary:
+              "Service updates, maintenance windows, and important notices will appear here.",
+            publishedAt: "2026-07-31"
+          },
+          {
+            id: "guides",
+            title: "The guide center is now available",
+            summary:
+              "Open Guides from the sidebar for client and subscription instructions.",
+            publishedAt: "2026-07-31"
+          },
+          {
+            id: "network",
+            title: "Global network status",
+            summary:
+              "Node availability and service coverage will be updated on the dashboard.",
+            publishedAt: "2026-07-31"
+          }
+        ];
 
   useEffect(() => {
     let active = true;
@@ -169,6 +224,12 @@ export function AccountOverviewPage() {
         <h1>{labels.greeting}, {viewer.displayName}</h1>
         <p className="muted">{labels.description}</p>
       </header>
+      <AnnouncementCarousel
+        announcements={announcementPreview}
+        label={labels.announcement}
+        nextLabel={labels.nextAnnouncement}
+        previousLabel={labels.previousAnnouncement}
+      />
       {error && <p className="error-message">{error}</p>}
       <section className="user-dashboard-grid">
         <section className="subscription-overview dashboard-subscription-card">

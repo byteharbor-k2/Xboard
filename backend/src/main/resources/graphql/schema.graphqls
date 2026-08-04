@@ -39,11 +39,14 @@ type PlanOffer {
     name: String!
     description: String!
     tags: [String!]!
+    planType: PlanType!
     transferLimitBytes: String!
     speedLimitMbps: Int
     deviceLimit: Int
     resetPolicy: TrafficResetPolicy!
     renewable: Boolean!
+    resettable: Boolean!
+    purchaseLimitPerUser: Int
     capacityRemaining: Int
     prices: [PlanPrice!]!
 }
@@ -83,6 +86,12 @@ enum BillingPeriod {
     TWO_YEARLY
     THREE_YEARLY
     ONETIME
+    RESET_TRAFFIC
+}
+
+enum PlanType {
+    SUBSCRIPTION
+    TRAFFIC_PACKAGE
 }
 
 enum TrafficResetPolicy {
