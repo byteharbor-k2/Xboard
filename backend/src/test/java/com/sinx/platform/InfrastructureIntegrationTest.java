@@ -118,6 +118,156 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void managesMachinesAndSpeaksTheXboardNodeMachineProtocol()
+        throws Exception {
+        String name = "Machine " + UUID.randomUUID();
+        var administrator = jwt().authorities(
+            new SimpleGrantedAuthority("ROLE_ADMIN"),
+            new SimpleGrantedAuthority("SCOPE_ADMIN")
+        );
+
+        mockMvc.perform(get("/api/v2/admin/server/machine/fetch"))
+            .andExpect(status().isUnauthorized());
+
+        MvcResult created = mockMvc.perform(
+                post("/api/v2/admin/server/machine/save")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "name":"%s",
+                          "notes":"xboard-node integration",
+                          "is_active":true
+                        }
+                        """.formatted(name)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.id").isNumber())
+            .andExpect(jsonPath("$.data.token").isString())
+            .andExpect(jsonPath("$.data.install_command").value(
+                org.hamcrest.Matchers.containsString("--mode machine")
+            ))
+            .andReturn();
+
+        Number machineIdNumber = JsonPath.read(
+            created.getResponse().getContentAsString(),
+            "$.data.id"
+        );
+        long machineId = machineIdNumber.longValue();
+        String token = JsonPath.read(
+            created.getResponse().getContentAsString(),
+            "$.data.token"
+        );
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"wrong-token"}
+                    """.formatted(machineId)))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v2/server/handshake")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.websocket.enabled").value(false))
+            .andExpect(jsonPath("$.settings.push_interval").value(60));
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.nodes").isEmpty())
+            .andExpect(jsonPath("$.base_config.pull_interval").value(60));
+
+        mockMvc.perform(post("/api/v2/server/machine/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "machine_id":%d,
+                      "token":"%s",
+                      "cpu":12.5,
+                      "mem":{"total":1024,"used":512},
+                      "swap":{"total":256,"used":32},
+                      "disk":{"total":4096,"used":1024},
+                      "net":{"in_speed":123.5,"out_speed":456.5}
+                    }
+                    """.formatted(machineId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value(true));
+
+        mockMvc.perform(get("/api/v2/admin/server/machine/fetch")
+                .with(administrator))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.id == %d)].name"
+                .formatted(machineId)).value(name))
+            .andExpect(jsonPath("$.data[?(@.id == %d)].load_status.cpu"
+                .formatted(machineId)).value(12.5));
+
+        mockMvc.perform(get("/api/v2/admin/server/machine/history")
+                .param("machine_id", Long.toString(machineId))
+                .with(administrator))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].cpu").value(12.5))
+            .andExpect(jsonPath("$.data[0].net_out_speed").value(456.5));
+
+        MvcResult rotated = mockMvc.perform(
+                post("/api/v2/admin/server/machine/resetToken")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"id":%d}
+                        """.formatted(machineId)))
+            .andExpect(status().isOk())
+            .andReturn();
+        String rotatedToken = JsonPath.read(
+            rotated.getResponse().getContentAsString(),
+            "$.data.token"
+        );
+        assertThat(rotatedToken).isNotEqualTo(token);
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, token)))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v2/admin/server/machine/save")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "id":%d,
+                      "name":"%s",
+                      "notes":"disabled for test",
+                      "is_active":false
+                    }
+                    """.formatted(machineId, name)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value(true));
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, rotatedToken)))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/v2/admin/server/machine/drop")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"id":%d}
+                    """.formatted(machineId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value(true));
+    }
+
+    @Test
     void managesPlansThroughCustomControlPlaneAndFiltersPublicCatalog()
         throws Exception {
         String name = "Catalog " + UUID.randomUUID();

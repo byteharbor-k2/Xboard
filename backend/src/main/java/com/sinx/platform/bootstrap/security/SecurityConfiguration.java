@@ -87,7 +87,10 @@ public class SecurityConfiguration {
                     "/admin-session/enrollment",
                     "/admin-session/enrollment/confirm",
                     "/admin-session/refresh",
-                    "/admin-session/current"
+                    "/admin-session/current",
+                    "/api/v2/server/handshake",
+                    "/api/v2/server/machine/nodes",
+                    "/api/v2/server/machine/status"
                 ).permitAll()
                 .requestMatchers(
                     "/session/password",

@@ -2087,6 +2087,91 @@ button:disabled {
   font-weight: 750;
 }
 
+.machine-table td:first-child strong,
+.machine-table td:first-child small {
+  display: block;
+}
+
+.machine-table td:first-child small {
+  color: #8a94a8;
+  margin-top: 0.35rem;
+}
+
+.machine-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 240px;
+  padding: 0;
+  border: 0;
+}
+
+.machine-actions button {
+  padding: 5px 8px;
+  border: 1px solid #dde4ef;
+  border-radius: 7px;
+  color: #3154cc;
+  background: #fff;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.machine-actions button.danger {
+  color: #dc4c5b;
+}
+
+.machine-modal {
+  width: min(620px, calc(100vw - 2rem));
+}
+
+.machine-history-modal {
+  width: min(850px, calc(100vw - 2rem));
+}
+
+.machine-form,
+.machine-credential {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+}
+
+.machine-form label,
+.machine-credential label {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.machine-form input,
+.machine-form textarea {
+  border: 1px solid #dfe5ef;
+  border-radius: 10px;
+  font: inherit;
+  padding: 0.75rem 0.85rem;
+}
+
+.machine-form textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.machine-form .machine-check {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+}
+
+.machine-credential code {
+  background: #0c1c34;
+  border-radius: 10px;
+  color: #d8f8ff;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  padding: 0.9rem;
+  user-select: all;
+}
+
 .admin-pagination {
   display: flex;
   gap: 14px;
