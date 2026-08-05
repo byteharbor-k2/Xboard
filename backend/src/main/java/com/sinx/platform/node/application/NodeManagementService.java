@@ -1,0 +1,298 @@
+package com.sinx.platform.node.application;
+
+import java.math.BigDecimal;
+import java.security.SecureRandom;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.Base64;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import com.sinx.platform.node.domain.NodeMachine;
+import com.sinx.platform.node.domain.ProxyNode;
+import com.sinx.platform.node.repository.NodeMachineRepository;
+import com.sinx.platform.node.repository.ProxyNodeRepository;
+import com.sinx.platform.shared.web.ApiProblemException;
+
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
+@Service
+@Transactional(readOnly = true)
+public class NodeManagementService {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
+    public static final Set<String> SUPPORTED_PROTOCOLS = Set.of(
+        "hysteria", "vless", "trojan", "vmess", "tuic", "shadowsocks",
+        "anytls", "socks", "naive", "http", "mieru"
+    );
+
+    private final ProxyNodeRepository nodes;
+    private final NodeMachineRepository machines;
+    private final ObjectMapper objectMapper;
+    private final Clock clock;
+
+    public NodeManagementService(
+        ProxyNodeRepository nodes,
+        NodeMachineRepository machines,
+        ObjectMapper objectMapper,
+        Clock clock
+    ) {
+        this.nodes = nodes;
+        this.machines = machines;
+        this.objectMapper = objectMapper;
+        this.clock = clock;
+    }
+
+    public List<NodeView> list() {
+        return nodes.findAllByOrderBySortOrderAscIdAsc().stream().map(this::view).toList();
+    }
+
+    public List<NodeView> forMachine(long machineId, boolean enabledOnly) {
+        List<ProxyNode> result = enabledOnly
+            ? nodes.findByMachineIdAndEnabledTrueOrderBySortOrderAscIdAsc(machineId)
+            : nodes.findByMachineIdOrderBySortOrderAscIdAsc(machineId);
+        return result.stream().map(this::view).toList();
+    }
+
+    @Transactional
+    public NodeView save(NodeDraft draft) {
+        ProxyNode node = draft.id() == null
+            ? ProxyNode.create(clock.instant())
+            : requireNode(draft.id());
+        configure(node, draft, draft.id() == null ? nextSort() : node.getSortOrder());
+        return view(nodes.save(node));
+    }
+
+    @Transactional
+    public void quickUpdate(long id, Boolean show, Boolean enabled, Long machineId, boolean updateMachine) {
+        ProxyNode node = requireNode(id);
+        node.quickUpdate(show, enabled, machine(machineId), updateMachine, clock.instant());
+    }
+
+    @Transactional
+    public void delete(long id) {
+        nodes.delete(requireNode(id));
+    }
+
+    @Transactional
+    public NodeView copy(long id) {
+        ProxyNode source = requireNode(id);
+        NodeDraft draft = new NodeDraft(
+            null, source.getType(), null, source.getParentId(),
+            source.getMachine() == null ? null : source.getMachine().getId(),
+            jsonList(source.getGroupIds()), jsonList(source.getRouteIds()),
+            source.getName() + " copy", source.getRate(), source.isRateTimeEnable(),
+            jsonValue(source.getRateTimeRanges()), source.getTransferEnable(),
+            jsonStringList(source.getTags()), source.getHost(), source.getPort(),
+            source.getServerPort(), jsonMap(source.getProtocolSettings()),
+            jsonValue(source.getCustomOutbounds()), jsonValue(source.getCustomRoutes()),
+            nullableJsonValue(source.getCertConfig()), false, source.isEnabled(), null
+        );
+        return save(draft);
+    }
+
+    @Transactional
+    public void sort(List<SortItem> items) {
+        Instant now = clock.instant();
+        for (SortItem item : items) {
+            requireNode(item.id()).changeSort(item.order(), now);
+        }
+    }
+
+    @Transactional
+    public void batchDelete(List<Long> ids) {
+        ids.stream().map(this::requireNode).forEach(nodes::delete);
+    }
+
+    @Transactional
+    public void batchUpdate(List<Long> ids, Boolean show, Boolean enabled, Long machineId, boolean updateMachine) {
+        ids.forEach(id -> quickUpdate(id, show, enabled, machineId, updateMachine));
+    }
+
+    @Transactional
+    public void resetTraffic(List<Long> ids) {
+        Instant now = clock.instant();
+        ids.stream().map(this::requireNode).forEach(node -> node.resetTraffic(now));
+    }
+
+    public ProxyNode requireNode(long id) {
+        return nodes.findById(id).orElseThrow(() -> new ApiProblemException(
+            HttpStatus.NOT_FOUND, "NODE_NOT_FOUND", "Node does not exist"
+        ));
+    }
+
+    private void configure(ProxyNode node, NodeDraft draft, int defaultSort) {
+        String type = draft.type() == null ? "" : draft.type().trim().toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_PROTOCOLS.contains(type)) {
+            throw invalid("Unsupported node protocol");
+        }
+        if (draft.name() == null || draft.name().isBlank() || draft.name().trim().length() > 255) {
+            throw invalid("Node name is required and must not exceed 255 characters");
+        }
+        if (draft.serverPort() == null || draft.serverPort() < 1 || draft.serverPort() > 65535) {
+            throw invalid("Server port must be between 1 and 65535");
+        }
+        if (draft.port() != null && (draft.port() < 1 || draft.port() > 65535)) {
+            throw invalid("Public port must be between 1 and 65535");
+        }
+        NodeMachine machine = machine(draft.machineId());
+        Map<String, Object> protocolSettings = draft.protocolSettings() == null
+            ? new java.util.LinkedHashMap<>()
+            : new java.util.LinkedHashMap<>(draft.protocolSettings());
+        addServerKeyWhenRequired(type, protocolSettings);
+        node.configure(
+            type, blankToNull(draft.code()), draft.parentId(), machine,
+            json(draft.groupIds() == null ? List.of() : deduplicate(draft.groupIds())),
+            json(draft.routeIds() == null ? List.of() : deduplicate(draft.routeIds())),
+            draft.name().trim(), draft.rate() == null ? BigDecimal.ONE : draft.rate(),
+            Boolean.TRUE.equals(draft.rateTimeEnable()),
+            json(draft.rateTimeRanges() == null ? List.of() : draft.rateTimeRanges()),
+            draft.transferEnable() == null ? 0 : Math.max(draft.transferEnable(), 0),
+            json(draft.tags() == null ? List.of() : draft.tags()), blankToNull(draft.host()),
+            draft.port(), draft.serverPort(),
+            json(protocolSettings),
+            json(draft.customOutbounds() == null ? List.of() : draft.customOutbounds()),
+            json(draft.customRoutes() == null ? List.of() : draft.customRoutes()),
+            draft.certConfig() == null ? null : json(draft.certConfig()),
+            draft.show() == null || draft.show(), draft.enabled() == null || draft.enabled(),
+            draft.sort() == null ? defaultSort : draft.sort(), clock.instant()
+        );
+    }
+
+    private NodeMachine machine(Long id) {
+        if (id == null) return null;
+        return machines.findById(id).orElseThrow(() -> new ApiProblemException(
+            HttpStatus.UNPROCESSABLE_CONTENT, "MACHINE_NOT_FOUND", "Bound machine does not exist"
+        ));
+    }
+
+    private int nextSort() {
+        return nodes.findAllByOrderBySortOrderAscIdAsc().stream()
+            .mapToInt(ProxyNode::getSortOrder).max().orElse(-1) + 1;
+    }
+
+    private void addServerKeyWhenRequired(String type, Map<String, Object> settings) {
+        if (!"shadowsocks".equals(type) || settings.containsKey("server_key")) return;
+        String cipher = String.valueOf(settings.getOrDefault("cipher", ""));
+        int length = switch (cipher) {
+            case "2022-blake3-aes-128-gcm" -> 16;
+            case "2022-blake3-aes-256-gcm" -> 32;
+            default -> 0;
+        };
+        if (length > 0) {
+            byte[] key = new byte[length];
+            RANDOM.nextBytes(key);
+            settings.put("server_key", Base64.getEncoder().encodeToString(key));
+        }
+    }
+
+    private NodeView view(ProxyNode node) {
+        return new NodeView(
+            node.getId(), node.getType(), node.getCode(), node.getParentId(),
+            node.getMachine() == null ? null : node.getMachine().getId(),
+            jsonList(node.getGroupIds()), jsonList(node.getRouteIds()), node.getName(),
+            node.getRate(), node.isRateTimeEnable(), jsonValue(node.getRateTimeRanges()),
+            node.getTransferEnable(), node.getUploadBytes(), node.getDownloadBytes(),
+            jsonStringList(node.getTags()), node.getHost(), node.getPort(), node.getServerPort(),
+            jsonMap(node.getProtocolSettings()), jsonValue(node.getCustomOutbounds()),
+            jsonValue(node.getCustomRoutes()), nullableJsonValue(node.getCertConfig()),
+            node.isShow(), node.isEnabled(), node.getSortOrder(), node.getOnlineUsers(),
+            node.getOnlineConnections(), nullableJsonValue(node.getLoadStatus()),
+            nullableJsonValue(node.getMetrics()), epoch(node.getLastCheckAt()),
+            epoch(node.getLastPushAt()), node.getCreatedAt().getEpochSecond(),
+            node.getUpdatedAt().getEpochSecond()
+        );
+    }
+
+    private String json(Object value) {
+        try { return objectMapper.writeValueAsString(value); }
+        catch (JacksonException exception) { throw invalid("Node configuration contains invalid JSON data"); }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Long> jsonList(String value) {
+        try { return objectMapper.readValue(value, List.class).stream().map(item -> Long.valueOf(item.toString())).toList(); }
+        catch (Exception exception) { return List.of(); }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> jsonMap(String value) {
+        try { return objectMapper.readValue(value, Map.class); }
+        catch (Exception exception) { return Map.of(); }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> jsonStringList(String value) {
+        try { return objectMapper.readValue(value, List.class).stream().map(Object::toString).toList(); }
+        catch (Exception exception) { return List.of(); }
+    }
+
+    private Object jsonValue(String value) {
+        try { return objectMapper.readValue(value, Object.class); }
+        catch (Exception exception) { return List.of(); }
+    }
+
+    private Object nullableJsonValue(String value) {
+        return value == null ? null : jsonValue(value);
+    }
+
+    private List<Long> deduplicate(List<Long> values) {
+        return List.copyOf(new LinkedHashSet<>(values));
+    }
+
+    private Long epoch(Instant value) { return value == null ? null : value.getEpochSecond(); }
+    private String blankToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+    private ApiProblemException invalid(String detail) {
+        return new ApiProblemException(HttpStatus.UNPROCESSABLE_CONTENT, "INVALID_NODE", detail);
+    }
+
+    public record NodeDraft(
+        Long id, String type, String code, Long parentId, Long machineId,
+        List<Long> groupIds, List<Long> routeIds, String name, BigDecimal rate,
+        Boolean rateTimeEnable, Object rateTimeRanges, Long transferEnable,
+        List<String> tags, String host, Integer port, Integer serverPort,
+        Map<String, Object> protocolSettings, Object customOutbounds,
+        Object customRoutes, Object certConfig, Boolean show, Boolean enabled,
+        Integer sort
+    ) {}
+
+    public record SortItem(long id, int order) {}
+
+    public record NodeView(
+        long id, String type, String code,
+        @JsonProperty("parent_id") Long parentId,
+        @JsonProperty("machine_id") Long machineId,
+        @JsonProperty("group_ids") List<Long> groupIds,
+        @JsonProperty("route_ids") List<Long> routeIds,
+        String name, BigDecimal rate,
+        @JsonProperty("rate_time_enable") boolean rateTimeEnable,
+        @JsonProperty("rate_time_ranges") Object rateTimeRanges,
+        @JsonProperty("transfer_enable") long transferEnable,
+        @JsonProperty("u") long uploadBytes,
+        @JsonProperty("d") long downloadBytes,
+        List<String> tags, String host, Integer port,
+        @JsonProperty("server_port") int serverPort,
+        @JsonProperty("protocol_settings") Map<String, Object> protocolSettings,
+        @JsonProperty("custom_outbounds") Object customOutbounds,
+        @JsonProperty("custom_routes") Object customRoutes,
+        @JsonProperty("cert_config") Object certConfig,
+        boolean show, boolean enabled, int sort, int onlineUsers,
+        @JsonProperty("online_conn") int onlineConnections,
+        @JsonProperty("load_status") Object loadStatus, Object metrics,
+        @JsonProperty("last_check_at") Long lastCheckAt,
+        @JsonProperty("last_push_at") Long lastPushAt,
+        @JsonProperty("created_at") long createdAt,
+        @JsonProperty("updated_at") long updatedAt
+    ) {}
+}

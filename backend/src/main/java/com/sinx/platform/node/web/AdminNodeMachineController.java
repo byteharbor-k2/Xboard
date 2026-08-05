@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sinx.platform.node.application.NodeMachineService;
+import com.sinx.platform.node.application.NodeManagementService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -23,9 +24,11 @@ public class AdminNodeMachineController {
         "https://raw.githubusercontent.com/cedar2025/xboard-node/dev/install.sh";
 
     private final NodeMachineService machines;
+    private final NodeManagementService nodes;
 
-    public AdminNodeMachineController(NodeMachineService machines) {
+    public AdminNodeMachineController(NodeMachineService machines, NodeManagementService nodes) {
         this.machines = machines;
+        this.nodes = nodes;
     }
 
     @GetMapping("/fetch")
@@ -91,11 +94,11 @@ public class AdminNodeMachineController {
     }
 
     @GetMapping("/nodes")
-    XboardResponse<List<Object>> nodes(
+    XboardResponse<List<NodeManagementService.NodeView>> nodes(
         @RequestParam(name = "machine_id") long machineId
     ) {
         machines.token(machineId);
-        return XboardResponse.of(List.of());
+        return XboardResponse.of(nodes.forMachine(machineId, false));
     }
 
     @GetMapping("/history")

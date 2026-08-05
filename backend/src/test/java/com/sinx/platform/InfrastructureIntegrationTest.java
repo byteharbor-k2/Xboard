@@ -268,6 +268,164 @@ class InfrastructureIntegrationTest {
     }
 
     @Test
+    void managesNodesAndSpeaksTheXboardNodePerNodeProtocol() throws Exception {
+        var administrator = jwt().authorities(
+            new SimpleGrantedAuthority("ROLE_ADMIN"),
+            new SimpleGrantedAuthority("SCOPE_ADMIN")
+        );
+        MvcResult machineResult = mockMvc.perform(post("/api/v2/admin/server/machine/save")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Node host %s","is_active":true}
+                    """.formatted(UUID.randomUUID())))
+            .andExpect(status().isOk())
+            .andReturn();
+        long machineId = ((Number) JsonPath.read(
+            machineResult.getResponse().getContentAsString(), "$.data.id"
+        )).longValue();
+        String token = JsonPath.read(machineResult.getResponse().getContentAsString(), "$.data.token");
+
+        MvcResult otherMachineResult = mockMvc.perform(post("/api/v2/admin/server/machine/save")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Other host %s","is_active":true}
+                    """.formatted(UUID.randomUUID())))
+            .andExpect(status().isOk())
+            .andReturn();
+        long otherMachineId = ((Number) JsonPath.read(
+            otherMachineResult.getResponse().getContentAsString(), "$.data.id"
+        )).longValue();
+        String otherToken = JsonPath.read(otherMachineResult.getResponse().getContentAsString(), "$.data.token");
+
+        MvcResult nodeResult = mockMvc.perform(post("/api/v2/admin/server/manage/save")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "type":"shadowsocks",
+                      "name":"SS integration",
+                      "machine_id":%d,
+                      "host":"node.example.test",
+                      "port":8443,
+                      "server_port":8443,
+                      "rate":1.5,
+                      "transfer_enable":1099511627776,
+                      "protocol_settings":{
+                        "network":"tcp",
+                        "cipher":"2022-blake3-aes-128-gcm",
+                        "server_key":"integration-key"
+                      },
+                      "show":true,
+                      "enabled":true
+                    }
+                    """.formatted(machineId)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.type").value("shadowsocks"))
+            .andExpect(jsonPath("$.data.machine_id").value(machineId))
+            .andReturn();
+        long nodeId = ((Number) JsonPath.read(
+            nodeResult.getResponse().getContentAsString(), "$.data.id"
+        )).longValue();
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.nodes[0].id").value(nodeId))
+            .andExpect(jsonPath("$.nodes[0].type").value("shadowsocks"));
+
+        mockMvc.perform(get("/api/v2/server/config")
+                .param("machine_id", Long.toString(otherMachineId))
+                .param("node_id", Long.toString(nodeId))
+                .param("token", otherToken))
+            .andExpect(status().isForbidden());
+
+        MvcResult config = mockMvc.perform(get("/api/v2/server/config")
+                .param("machine_id", Long.toString(machineId))
+                .param("node_id", Long.toString(nodeId))
+                .param("token", token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.protocol").value("shadowsocks"))
+            .andExpect(jsonPath("$.listen_ip").value("0.0.0.0"))
+            .andExpect(jsonPath("$.server_port").value(8443))
+            .andExpect(jsonPath("$.cipher").value("2022-blake3-aes-128-gcm"))
+            .andExpect(jsonPath("$.base_config.pull_interval").value(60))
+            .andReturn();
+        String configEtag = config.getResponse().getHeader("ETag");
+        assertThat(configEtag).isNotBlank();
+
+        mockMvc.perform(get("/api/v2/server/config")
+                .param("machine_id", Long.toString(machineId))
+                .param("node_id", Long.toString(nodeId))
+                .param("token", token)
+                .header("If-None-Match", configEtag))
+            .andExpect(status().isNotModified());
+
+        MvcResult users = mockMvc.perform(get("/api/v2/server/user")
+                .param("machine_id", Long.toString(machineId))
+                .param("node_id", Long.toString(nodeId))
+                .param("token", token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.users").isEmpty())
+            .andReturn();
+        assertThat(users.getResponse().getHeader("ETag")).isNotBlank();
+
+        mockMvc.perform(post("/api/v2/server/report")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "machine_id":%d,
+                      "node_id":%d,
+                      "token":"%s",
+                      "traffic":{"101":[1024,2048]},
+                      "alive":{"101":["198.51.100.10"]},
+                      "online":{"101":2},
+                      "status":{"cpu":15.5,"mem":{"total":1024,"used":256}},
+                      "metrics":{"active_connections":2}
+                    }
+                    """.formatted(machineId, nodeId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").value(true));
+
+        mockMvc.perform(get("/api/v2/admin/server/manage/getNodes").with(administrator))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[?(@.id == %d)].u".formatted(nodeId)).value(1024))
+            .andExpect(jsonPath("$.data[?(@.id == %d)].d".formatted(nodeId)).value(2048))
+            .andExpect(jsonPath("$.data[?(@.id == %d)].online_conn".formatted(nodeId)).value(2));
+
+        mockMvc.perform(post("/api/v2/admin/server/manage/update")
+                .with(administrator)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"id":%d,"enabled":false}
+                    """.formatted(nodeId)))
+            .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/v2/server/machine/nodes")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"machine_id":%d,"token":"%s"}
+                    """.formatted(machineId, token)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.nodes").isEmpty());
+
+        mockMvc.perform(post("/api/v2/admin/server/manage/drop")
+                .with(administrator).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":%d}".formatted(nodeId)))
+            .andExpect(status().isOk());
+        for (long id : List.of(machineId, otherMachineId)) {
+            mockMvc.perform(post("/api/v2/admin/server/machine/drop")
+                    .with(administrator).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"id\":%d}".formatted(id)))
+                .andExpect(status().isOk());
+        }
+    }
+
+    @Test
     void managesPlansThroughCustomControlPlaneAndFiltersPublicCatalog()
         throws Exception {
         String name = "Catalog " + UUID.randomUUID();

@@ -11,6 +11,7 @@ import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
 import { AdminMfaPage } from "./pages/AdminMfaPage";
 import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminMachinesPage } from "./pages/AdminMachinesPage";
+import { AdminNodesPage } from "./pages/AdminNodesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -204,6 +205,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminMachinesPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/nodes") {
+    return (
+      <AdminProtectedRoute>
+        <AdminNodesPage />
       </AdminProtectedRoute>
     );
   }

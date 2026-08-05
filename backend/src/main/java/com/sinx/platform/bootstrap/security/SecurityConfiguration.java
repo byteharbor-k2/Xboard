@@ -90,7 +90,10 @@ public class SecurityConfiguration {
                     "/admin-session/current",
                     "/api/v2/server/handshake",
                     "/api/v2/server/machine/nodes",
-                    "/api/v2/server/machine/status"
+                    "/api/v2/server/machine/status",
+                    "/api/v2/server/config",
+                    "/api/v2/server/user",
+                    "/api/v2/server/report"
                 ).permitAll()
                 .requestMatchers(
                     "/session/password",

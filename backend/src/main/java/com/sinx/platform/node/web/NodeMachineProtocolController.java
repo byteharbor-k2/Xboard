@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sinx.platform.node.application.NodeMachineService;
+import com.sinx.platform.node.application.NodeManagementService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
@@ -23,9 +24,11 @@ import jakarta.validation.constraints.PositiveOrZero;
 public class NodeMachineProtocolController {
 
     private final NodeMachineService machines;
+    private final NodeManagementService nodes;
 
-    public NodeMachineProtocolController(NodeMachineService machines) {
+    public NodeMachineProtocolController(NodeMachineService machines, NodeManagementService nodes) {
         this.machines = machines;
+        this.nodes = nodes;
     }
 
     @PostMapping("/handshake")
@@ -40,7 +43,12 @@ public class NodeMachineProtocolController {
     @PostMapping("/machine/nodes")
     MachineNodesResponse nodes(@Valid @RequestBody MachineCredentials request) {
         machines.authenticate(request.machineId(), request.token());
-        return new MachineNodesResponse(List.of(), new PollSettings(60, 60));
+        return new MachineNodesResponse(
+            nodes.forMachine(request.machineId(), true).stream()
+                .map(node -> new MachineNode(node.id(), node.type(), node.name()))
+                .toList(),
+            new PollSettings(60, 60)
+        );
     }
 
     @PostMapping("/machine/status")

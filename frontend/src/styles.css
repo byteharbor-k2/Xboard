@@ -2129,6 +2129,70 @@ button:disabled {
   width: min(850px, calc(100vw - 2rem));
 }
 
+.admin-node-modal {
+  width: min(920px, 94vw);
+}
+
+.admin-node-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  padding: 24px 28px;
+  overflow-y: auto;
+}
+
+.admin-node-form label:not(.machine-check) {
+  display: grid;
+  gap: 8px;
+  color: #34425b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.admin-node-form input,
+.admin-node-form select,
+.admin-node-form textarea {
+  width: 100%;
+  border: 1px solid #dbe3ef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 11px 13px;
+  color: #101827;
+  font: inherit;
+}
+
+.admin-node-json {
+  grid-column: 1 / -1;
+}
+
+.admin-node-json textarea {
+  min-height: 190px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 500;
+}
+
+.admin-node-json small {
+  color: #7a879d;
+  font-weight: 500;
+}
+
+.admin-node-states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.admin-node-states button {
+  border: 0;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .admin-node-form { grid-template-columns: 1fr; }
+  .admin-node-json { grid-column: auto; }
+}
+
 .machine-form,
 .machine-credential {
   display: grid;

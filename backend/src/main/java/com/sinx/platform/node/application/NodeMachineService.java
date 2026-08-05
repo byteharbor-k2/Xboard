@@ -19,6 +19,7 @@ import com.sinx.platform.node.domain.NodeMachine;
 import com.sinx.platform.node.domain.NodeMachineLoadHistory;
 import com.sinx.platform.node.repository.NodeMachineLoadHistoryRepository;
 import com.sinx.platform.node.repository.NodeMachineRepository;
+import com.sinx.platform.node.repository.ProxyNodeRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 
 @Service
@@ -29,17 +30,20 @@ public class NodeMachineService {
 
     private final NodeMachineRepository machines;
     private final NodeMachineLoadHistoryRepository history;
+    private final ProxyNodeRepository nodes;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
     public NodeMachineService(
         NodeMachineRepository machines,
         NodeMachineLoadHistoryRepository history,
+        ProxyNodeRepository nodes,
         ObjectMapper objectMapper,
         Clock clock
     ) {
         this.machines = machines;
         this.history = history;
+        this.nodes = nodes;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -215,7 +219,7 @@ public class NodeMachineService {
                 ? null
                 : machine.getLastSeenAt().getEpochSecond(),
             load,
-            0,
+            nodes.countByMachineId(machine.getId()),
             machine.getCreatedAt(),
             machine.getUpdatedAt()
         );
