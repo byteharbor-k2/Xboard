@@ -136,6 +136,7 @@ export type ManagedPlan = {
   capacityLimit: number | null;
   resettable: boolean;
   purchaseLimitPerUser: number | null;
+  serverGroupId: number | null;
   published: boolean;
   sellable: boolean;
   renewable: boolean;

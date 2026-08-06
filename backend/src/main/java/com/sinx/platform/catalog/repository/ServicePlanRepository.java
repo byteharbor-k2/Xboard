@@ -12,4 +12,6 @@ public interface ServicePlanRepository
 
     List<ServicePlan>
         findAllByPublishedTrueAndSellableTrueOrderBySortOrderAscNameAsc();
+
+    long countByServerGroupId(Long serverGroupId);
 }

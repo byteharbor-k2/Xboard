@@ -21,4 +21,6 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @EntityGraph(attributePaths = "roles")
     @Query("select user from UserAccount user where user.id = :id")
     Optional<UserAccount> findWithRolesById(@Param("id") UUID id);
+
+    long countByServerGroupId(Long serverGroupId);
 }

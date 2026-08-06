@@ -74,6 +74,9 @@ public class ServicePlan {
     @Column(name = "sort_order", nullable = false)
     private int sortOrder;
 
+    @Column(name = "server_group_id")
+    private Long serverGroupId;
+
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
         name = "service_plan_tags",
@@ -267,6 +270,15 @@ public class ServicePlan {
 
     public int getSortOrder() {
         return sortOrder;
+    }
+
+    public Long getServerGroupId() {
+        return serverGroupId;
+    }
+
+    public void assignServerGroup(Long serverGroupId, Instant now) {
+        this.serverGroupId = serverGroupId;
+        this.updatedAt = now;
     }
 
     public List<String> getTags() {

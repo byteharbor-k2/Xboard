@@ -47,6 +47,12 @@ public class UserAccount {
     @Column(name = "inviter_user_id")
     private UUID inviterUserId;
 
+    @Column(name = "server_group_id")
+    private Long serverGroupId;
+
+    @Column(name = "node_user_id", insertable = false, updatable = false)
+    private Long nodeUserId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -149,5 +155,22 @@ public class UserAccount {
 
     public UUID getInviterUserId() {
         return inviterUserId;
+    }
+
+    public Long getServerGroupId() {
+        return serverGroupId;
+    }
+
+    public Long getNodeUserId() {
+        return nodeUserId;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void assignServerGroup(Long serverGroupId, Instant now) {
+        this.serverGroupId = serverGroupId;
+        this.updatedAt = now;
     }
 }

@@ -195,10 +195,20 @@ public class ProxyNode {
         this.updatedAt = now;
     }
 
+    public void replaceGroupIds(String groupIds, Instant now) {
+        this.groupIds = groupIds;
+        this.updatedAt = now;
+    }
+
+    public void replaceRouteIds(String routeIds, Instant now) {
+        this.routeIds = routeIds;
+        this.updatedAt = now;
+    }
+
     public void recordReport(long upload, long download, int onlineUsers, int onlineConnections,
                              String loadStatus, String metrics, Instant now) {
-        this.uploadBytes += Math.max(upload, 0);
-        this.downloadBytes += Math.max(download, 0);
+        this.uploadBytes = saturatedAdd(this.uploadBytes, Math.max(upload, 0));
+        this.downloadBytes = saturatedAdd(this.downloadBytes, Math.max(download, 0));
         this.onlineUsers = Math.max(onlineUsers, 0);
         this.onlineConnections = Math.max(onlineConnections, 0);
         this.loadStatus = loadStatus;
@@ -206,6 +216,10 @@ public class ProxyNode {
         this.lastCheckAt = now;
         this.lastPushAt = now;
         this.updatedAt = now;
+    }
+
+    private long saturatedAdd(long left, long right) {
+        return Long.MAX_VALUE - left < right ? Long.MAX_VALUE : left + right;
     }
 
     public Long getId() { return id; }

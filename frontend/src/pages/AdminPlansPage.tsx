@@ -7,6 +7,7 @@ import {
   listManagedPlans,
   updateManagedPlan
 } from "../admin/planManagementApi";
+import { listNodeGroups } from "../admin/groupManagementApi";
 import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
 import { useAdminAuthStore } from "../store/adminAuth";
@@ -73,6 +74,8 @@ const copy = {
     packageTransferGb: "流量包额度（GB）",
     speed: "限速（Mbps）",
     devices: "设备数",
+    serverGroup: "服务器分组",
+    serverGroupPlaceholder: "选择该套餐可使用的节点权限组",
     capacity: "可售容量",
     emptyUnlimited: "留空表示不限",
     resetPolicy: "流量重置规则",
@@ -136,6 +139,8 @@ const copy = {
     packageTransferGb: "Package data (GB)",
     speed: "Speed limit (Mbps)",
     devices: "Device limit",
+    serverGroup: "Server group",
+    serverGroupPlaceholder: "Choose the node group available to this plan",
     capacity: "Sales capacity",
     emptyUnlimited: "Leave blank for unlimited",
     resetPolicy: "Traffic reset policy",
@@ -208,6 +213,7 @@ type FormState = {
   transferGb: string;
   speedLimitMbps: string;
   deviceLimit: string;
+  serverGroupId: string;
   capacityLimit: string;
   resettable: boolean;
   purchaseLimitPerUser: string;
@@ -234,6 +240,7 @@ function emptyForm(): FormState {
     transferGb: "100",
     speedLimitMbps: "",
     deviceLimit: "",
+    serverGroupId: "",
     capacityLimit: "",
     resettable: false,
     purchaseLimitPerUser: "",
@@ -260,6 +267,7 @@ function formFromPlan(plan: ManagedPlan): FormState {
     transferGb: (BigInt(plan.transferLimitBytes) / GIB).toString(),
     speedLimitMbps: plan.speedLimitMbps?.toString() ?? "",
     deviceLimit: plan.deviceLimit?.toString() ?? "",
+    serverGroupId: plan.serverGroupId?.toString() ?? "",
     capacityLimit: plan.capacityLimit?.toString() ?? "",
     resettable: plan.resettable,
     purchaseLimitPerUser: plan.purchaseLimitPerUser?.toString() ?? "",
@@ -306,6 +314,7 @@ function toDraft(form: FormState): PlanDraft {
     ).toString(),
     speedLimitMbps: optionalInteger(form.speedLimitMbps),
     deviceLimit: optionalInteger(form.deviceLimit),
+    serverGroupId: optionalInteger(form.serverGroupId),
     capacityLimit: optionalInteger(form.capacityLimit),
     resetPolicy: form.planType === "TRAFFIC_PACKAGE"
       ? "NEVER"
@@ -342,6 +351,12 @@ export function AdminPlansPage() {
   const plansQuery = useQuery({
     queryKey: ["admin", "plans"],
     queryFn: () => listManagedPlans(accessToken!),
+    enabled: Boolean(accessToken)
+  });
+
+  const groupsQuery = useQuery({
+    queryKey: ["admin", "node-groups"],
+    queryFn: () => listNodeGroups(accessToken!),
     enabled: Boolean(accessToken)
   });
 
@@ -644,6 +659,20 @@ export function AdminPlansPage() {
                         updateForm("deviceLimit", event.target.value)
                       }
                     />
+                  </label>
+                  <label>
+                    <span>{text.serverGroup}</span>
+                    <select
+                      value={form.serverGroupId}
+                      onChange={(event) =>
+                        updateForm("serverGroupId", event.target.value)
+                      }
+                    >
+                      <option value="">{text.serverGroupPlaceholder}</option>
+                      {(groupsQuery.data ?? []).map((group) => (
+                        <option key={group.id} value={group.id}>{group.name}</option>
+                      ))}
+                    </select>
                   </label>
                   <label>
                     <span>{text.capacity}</span>

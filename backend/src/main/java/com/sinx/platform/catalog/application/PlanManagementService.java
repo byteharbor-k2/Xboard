@@ -18,6 +18,7 @@ import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.node.repository.NodeAccessGroupRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
@@ -29,15 +30,18 @@ public class PlanManagementService {
 
     private final ServicePlanRepository planRepository;
     private final SubscriptionEntitlementRepository entitlementRepository;
+    private final NodeAccessGroupRepository groupRepository;
     private final Clock clock;
 
     public PlanManagementService(
         ServicePlanRepository planRepository,
         SubscriptionEntitlementRepository entitlementRepository,
+        NodeAccessGroupRepository groupRepository,
         Clock clock
     ) {
         this.planRepository = planRepository;
         this.entitlementRepository = entitlementRepository;
+        this.groupRepository = groupRepository;
         this.clock = clock;
     }
 
@@ -76,6 +80,7 @@ public class PlanManagementService {
             values.tags(),
             now
         );
+        plan.assignServerGroup(values.serverGroupId(), now);
         syncPrices(plan, values.prices());
         ServicePlan saved = planRepository.save(plan);
         return ManagedPlanView.from(saved, 0, 0);
@@ -85,6 +90,7 @@ public class PlanManagementService {
     public ManagedPlanView update(UUID id, PlanDraft draft) {
         ValidatedDraft values = validate(draft);
         ServicePlan plan = find(id);
+        Instant now = Instant.now(clock);
         plan.update(
             values.name(),
             values.description(),
@@ -101,8 +107,9 @@ public class PlanManagementService {
             values.renewable(),
             values.sortOrder(),
             values.tags(),
-            Instant.now(clock)
+            now
         );
+        plan.assignServerGroup(values.serverGroupId(), now);
         syncPrices(plan, values.prices());
         return ManagedPlanView.from(
             plan,
@@ -185,6 +192,9 @@ public class PlanManagementService {
         if (draft.resetPolicy() == null) {
             throw invalid("Traffic reset policy is required");
         }
+        if (draft.serverGroupId() != null && !groupRepository.existsById(draft.serverGroupId())) {
+            throw invalid("The selected server group does not exist");
+        }
         List<String> tags = normalizeTags(draft.tags());
         List<PriceDraft> prices = draft.prices() == null
             ? List.of()
@@ -215,7 +225,8 @@ public class PlanManagementService {
             renewable,
             draft.sortOrder(),
             tags,
-            prices
+            prices,
+            draft.serverGroupId()
         );
     }
 
@@ -337,7 +348,8 @@ public class PlanManagementService {
         boolean renewable,
         int sortOrder,
         List<String> tags,
-        List<PriceDraft> prices
+        List<PriceDraft> prices,
+        Long serverGroupId
     ) {
     }
 
@@ -364,7 +376,8 @@ public class PlanManagementService {
         boolean renewable,
         int sortOrder,
         List<String> tags,
-        List<PriceDraft> prices
+        List<PriceDraft> prices,
+        Long serverGroupId
     ) {
     }
 }
