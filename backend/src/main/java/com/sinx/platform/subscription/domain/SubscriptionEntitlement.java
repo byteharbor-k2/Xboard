@@ -118,6 +118,15 @@ public class SubscriptionEntitlement {
         updatedAt = now;
     }
 
+    public void addUsage(long uploadedDelta, long downloadedDelta, Instant now) {
+        if (uploadedDelta < 0 || downloadedDelta < 0) {
+            throw new IllegalArgumentException("Traffic usage delta cannot be negative");
+        }
+        uploadedBytes = saturatedAdd(uploadedBytes, uploadedDelta);
+        downloadedBytes = saturatedAdd(downloadedBytes, downloadedDelta);
+        updatedAt = now;
+    }
+
     public EntitlementState stateAt(Instant now) {
         if (canceledAt != null) {
             return EntitlementState.CANCELED;
@@ -132,7 +141,7 @@ public class SubscriptionEntitlement {
     }
 
     public long usedBytes() {
-        return Math.addExact(uploadedBytes, downloadedBytes);
+        return saturatedAdd(uploadedBytes, downloadedBytes);
     }
 
     public long remainingBytes() {
@@ -185,5 +194,29 @@ public class SubscriptionEntitlement {
 
     public Instant getNextResetAt() {
         return nextResetAt;
+    }
+
+    public UserAccount getUser() {
+        return user;
+    }
+
+    /**
+     * An administrator may explicitly override a user's node group. Otherwise
+     * the entitlement follows the group currently assigned to its plan.
+     */
+    public Long getEffectiveServerGroupId() {
+        Long explicitGroupId = user.getServerGroupId();
+        return explicitGroupId != null ? explicitGroupId : plan.getServerGroupId();
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    private long saturatedAdd(long left, long right) {
+        if (Long.MAX_VALUE - left < right) {
+            return Long.MAX_VALUE;
+        }
+        return left + right;
     }
 }

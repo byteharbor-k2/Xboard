@@ -59,8 +59,8 @@ public class NodeMachineProtocolController {
             new NodeMachineService.MachineStatus(
                 request.cpu(),
                 request.mem().toService(),
-                request.swap().toService(),
-                request.disk().toService(),
+                request.swap() == null ? null : request.swap().toService(),
+                request.disk() == null ? null : request.disk().toService(),
                 request.net() == null ? null : request.net().toService()
             )
         );

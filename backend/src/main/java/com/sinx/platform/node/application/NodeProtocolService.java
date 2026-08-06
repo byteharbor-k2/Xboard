@@ -5,17 +5,28 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.node.domain.NodeMachine;
+import com.sinx.platform.node.domain.NodeRouteRule;
 import com.sinx.platform.node.domain.ProxyNode;
+import com.sinx.platform.node.repository.NodeRouteRuleRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
+import com.sinx.platform.identity.domain.UserAccount;
+import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.shared.web.ApiProblemException;
+import com.sinx.platform.subscription.domain.EntitlementState;
+import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
+import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -26,13 +37,23 @@ public class NodeProtocolService {
 
     private final NodeMachineService machines;
     private final ProxyNodeRepository nodes;
+    private final NodeRouteRuleRepository routes;
+    private final SubscriptionEntitlementRepository entitlements;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
-    public NodeProtocolService(NodeMachineService machines, ProxyNodeRepository nodes,
-                               ObjectMapper objectMapper, Clock clock) {
+    public NodeProtocolService(
+        NodeMachineService machines,
+        ProxyNodeRepository nodes,
+        NodeRouteRuleRepository routes,
+        SubscriptionEntitlementRepository entitlements,
+        ObjectMapper objectMapper,
+        Clock clock
+    ) {
         this.machines = machines;
         this.nodes = nodes;
+        this.routes = routes;
+        this.entitlements = entitlements;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -66,11 +87,11 @@ public class NodeProtocolService {
         });
         applyProtocolMapping(config, node, settings);
         config.put("base_config", Map.of("push_interval", 60, "pull_interval", 60));
-        config.put("routes", List.of());
+        config.put("routes", routePayload(node));
         putJson(config, "custom_outbounds", node.getCustomOutbounds(), true);
         putJson(config, "custom_routes", node.getCustomRoutes(), true);
-        putJson(config, "cert_config", node.getCertConfig(), false);
-        return new ConfigPayload(config, etag(node.getUpdatedAt().toEpochMilli() + ":config"));
+        putCertificateConfig(config, node.getCertConfig());
+        return new ConfigPayload(config, etag(config));
     }
 
     private void applyProtocolMapping(Map<String, Object> config, ProxyNode node, Map<String, Object> settings) {
@@ -143,23 +164,49 @@ public class NodeProtocolService {
 
     public UsersPayload users(long machineId, long nodeId, String token) {
         ProxyNode node = authenticate(machineId, nodeId, token).node();
-        // Permission-group membership is populated in phase 3. An empty list is
-        // safer than granting access before the Xboard group semantics exist.
-        List<Map<String, Object>> users = List.of();
-        return new UsersPayload(users, etag(node.getUpdatedAt().toEpochMilli() + ":users"));
+        Set<Long> groupIds = new HashSet<>(jsonLongList(node.getGroupIds()));
+        if (groupIds.isEmpty()) {
+            return new UsersPayload(List.of(), etag(List.of()));
+        }
+        var now = clock.instant();
+        List<Map<String, Object>> users = entitlements.findAllWithUserAndPlan().stream()
+            .filter(entitlement -> entitlement.stateAt(now) == EntitlementState.ACTIVE)
+            .filter(entitlement -> eligible(entitlement, groupIds))
+            .sorted(Comparator.comparing(entitlement -> entitlement.getUser().getNodeUserId()))
+            .map(this::userPayload)
+            .toList();
+        return new UsersPayload(users, etag(users));
     }
 
     @Transactional
     public void report(long machineId, long nodeId, String token, Map<String, Object> payload) {
         ProxyNode node = authenticate(machineId, nodeId, token).node();
+        Set<Long> groupIds = new HashSet<>(jsonLongList(node.getGroupIds()));
+        var now = clock.instant();
         long upload = 0;
         long download = 0;
         Object trafficValue = payload.get("traffic");
         if (trafficValue instanceof Map<?, ?> traffic) {
-            for (Object value : traffic.values()) {
+            for (Map.Entry<?, ?> entry : traffic.entrySet()) {
+                Long nodeUserId = positiveLong(entry.getKey());
+                Object value = entry.getValue();
                 if (value instanceof List<?> pair && pair.size() >= 2) {
-                    upload += number(pair.get(0));
-                    download += number(pair.get(1));
+                    long uploadedDelta = number(pair.get(0));
+                    long downloadedDelta = number(pair.get(1));
+                    if (nodeUserId == null || (uploadedDelta == 0 && downloadedDelta == 0)) continue;
+                    // Node counters describe everything the node actually handled. User
+                    // entitlement counters are intentionally stricter and are only charged
+                    // when the reported user is still eligible for this node.
+                    upload = saturatedAdd(upload, uploadedDelta);
+                    download = saturatedAdd(download, downloadedDelta);
+                    SubscriptionEntitlement entitlement = entitlements.findForTrafficReport(nodeUserId)
+                        .orElse(null);
+                    if (entitlement == null
+                        || entitlement.stateAt(now) != EntitlementState.ACTIVE
+                        || !eligible(entitlement, groupIds)) {
+                        continue;
+                    }
+                    entitlement.addUsage(uploadedDelta, downloadedDelta, now);
                 }
             }
         }
@@ -170,8 +217,58 @@ public class NodeProtocolService {
         }
         node.recordReport(
             upload, download, onlineUsers, onlineConnections,
-            jsonNullable(payload.get("status")), jsonNullable(payload.get("metrics")), clock.instant()
+            jsonNullable(payload.get("status")), jsonNullable(payload.get("metrics")), now
         );
+    }
+
+    private List<Map<String, Object>> routePayload(ProxyNode node) {
+        List<Long> routeIds = jsonLongList(node.getRouteIds());
+        if (routeIds.isEmpty()) return List.of();
+        Map<Long, NodeRouteRule> byId = new HashMap<>();
+        routes.findAllById(routeIds).forEach(route -> byId.put(route.getId(), route));
+        return routeIds.stream().distinct().map(byId::get).filter(java.util.Objects::nonNull)
+            .map(route -> {
+                Map<String, Object> value = new LinkedHashMap<>();
+                value.put("id", route.getId());
+                value.put("match", jsonStringList(route.getMatchRules()));
+                value.put("action", route.getAction());
+                if (route.getActionValue() != null && !route.getActionValue().isBlank()) {
+                    value.put("action_value", route.getActionValue());
+                }
+                return value;
+            }).toList();
+    }
+
+    private Map<String, Object> userPayload(SubscriptionEntitlement entitlement) {
+        UserAccount user = entitlement.getUser();
+        Map<String, Object> value = new LinkedHashMap<>();
+        value.put("id", user.getNodeUserId());
+        value.put("uuid", user.getId().toString());
+        value.put("speed_limit", entitlement.getSpeedLimitMbps() == null ? 0 : entitlement.getSpeedLimitMbps());
+        value.put("device_limit", entitlement.getDeviceLimit() == null ? 0 : entitlement.getDeviceLimit());
+        return value;
+    }
+
+    private boolean eligible(SubscriptionEntitlement entitlement, Set<Long> groupIds) {
+        UserAccount user = entitlement.getUser();
+        Long effectiveGroupId = entitlement.getEffectiveServerGroupId();
+        return user.getStatus() == UserStatus.ACTIVE
+            && user.getNodeUserId() != null
+            && effectiveGroupId != null
+            && groupIds.contains(effectiveGroupId);
+    }
+
+    private void putCertificateConfig(Map<String, Object> target, String encoded) {
+        if (encoded == null) return;
+        Object decoded = jsonValue(encoded);
+        if (!(decoded instanceof Map<?, ?> raw)) return;
+        Map<String, Object> cert = new LinkedHashMap<>();
+        raw.forEach((key, value) -> cert.put(String.valueOf(key), value));
+        if (!cert.containsKey("cert_mode") && cert.containsKey("mode")) {
+            cert.put("cert_mode", cert.remove("mode"));
+        }
+        if ("none".equals(cert.get("cert_mode"))) return;
+        target.put("cert_config", cert);
     }
 
     private void putJson(Map<String, Object> target, String key, String value, boolean includeEmpty) {
@@ -191,6 +288,18 @@ public class NodeProtocolService {
         catch (Exception exception) { return null; }
     }
 
+    private List<Long> jsonLongList(String value) {
+        Object decoded = jsonValue(value);
+        if (!(decoded instanceof List<?> values)) return List.of();
+        return values.stream().map(this::positiveLong).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private List<String> jsonStringList(String value) {
+        Object decoded = jsonValue(value);
+        if (!(decoded instanceof List<?> values)) return List.of();
+        return values.stream().filter(java.util.Objects::nonNull).map(Object::toString).toList();
+    }
+
     private String jsonNullable(Object value) {
         if (value == null) return null;
         try { return objectMapper.writeValueAsString(value); }
@@ -199,9 +308,25 @@ public class NodeProtocolService {
 
     private long number(Object value) { return value instanceof Number number ? Math.max(number.longValue(), 0) : 0; }
 
-    private String etag(String seed) {
+    private Long positiveLong(Object value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(seed.getBytes(StandardCharsets.UTF_8));
+            long parsed = value instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(value));
+            return parsed > 0 ? parsed : null;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private long saturatedAdd(long left, long right) {
+        return Long.MAX_VALUE - left < right ? Long.MAX_VALUE : left + right;
+    }
+
+    private String etag(Object payload) {
+        try {
+            byte[] source = payload instanceof String string
+                ? string.getBytes(StandardCharsets.UTF_8)
+                : objectMapper.writeValueAsBytes(payload);
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(source);
             return "\"" + HexFormat.of().formatHex(digest) + "\"";
         } catch (Exception exception) {
             throw new IllegalStateException("Could not calculate node ETag", exception);

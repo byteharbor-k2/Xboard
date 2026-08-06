@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +27,13 @@ public class AdminNodeController {
     @GetMapping("/getNodes")
     XboardResponse<List<NodeManagementService.NodeView>> getNodes() {
         return XboardResponse.of(nodes.list());
+    }
+
+    @GetMapping("/generateEchKey")
+    XboardResponse<NodeManagementService.EchKeyPair> generateEchKey(
+        @RequestParam(name = "public_name", defaultValue = "ech.example.com") String publicName
+    ) {
+        return XboardResponse.of(nodes.generateEchKey(publicName));
     }
 
     @PostMapping("/save")
@@ -71,7 +79,13 @@ public class AdminNodeController {
 
     @PostMapping("/batchUpdate")
     XboardResponse<Boolean> batchUpdate(@RequestBody BatchUpdateRequest request) {
-        nodes.batchUpdate(request.ids(), request.show(), request.enabled(), request.machineId(), request.updateMachine());
+        nodes.batchUpdate(
+            request.ids(),
+            request.show(),
+            request.enabled(),
+            request.machineId(),
+            Boolean.TRUE.equals(request.updateMachine())
+        );
         return XboardResponse.of(true);
     }
 
@@ -96,7 +110,7 @@ public class AdminNodeController {
     record BatchUpdateRequest(
         List<Long> ids, Boolean show, Boolean enabled,
         @JsonProperty("machine_id") Long machineId,
-        @JsonProperty("update_machine") boolean updateMachine
+        @JsonProperty("update_machine") Boolean updateMachine
     ) {}
 
     record SaveNodeRequest(

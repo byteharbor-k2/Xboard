@@ -4,6 +4,8 @@ import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,6 +16,8 @@ import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ApiProblemException.class)
     ProblemDetail handleApiProblem(
@@ -50,6 +54,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
+        LOGGER.error("Unhandled request failure for {} {}", request.getMethod(), request.getRequestURI(), exception);
         return baseProblem(
             HttpStatus.INTERNAL_SERVER_ERROR,
             "INTERNAL_ERROR",

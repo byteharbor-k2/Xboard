@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.sinx.platform.node.application.NodeProtocolService;
+import com.sinx.platform.shared.web.ApiProblemException;
 
 @RestController
 @RequestMapping("/api/v2/server")
@@ -56,14 +57,44 @@ public class NodeProtocolController {
 
     @PostMapping("/report")
     Map<String, Object> report(@RequestBody Map<String, Object> request) {
-        long machineId = ((Number) request.get("machine_id")).longValue();
-        long nodeId = ((Number) request.get("node_id")).longValue();
-        String token = String.valueOf(request.get("token"));
+        long machineId = requiredPositiveLong(request, "machine_id");
+        long nodeId = requiredPositiveLong(request, "node_id");
+        String token = requiredToken(request);
         Map<String, Object> payload = new LinkedHashMap<>(request);
         payload.remove("machine_id");
         payload.remove("node_id");
         payload.remove("token");
         protocol.report(machineId, nodeId, token, payload);
         return Map.of("data", true);
+    }
+
+    private long requiredPositiveLong(Map<String, Object> request, String key) {
+        Object value = request.get(key);
+        long parsed;
+        try {
+            parsed = value instanceof Number number
+                ? number.longValue()
+                : Long.parseLong(String.valueOf(value));
+        } catch (RuntimeException exception) {
+            throw invalidReport(key + " must be a positive integer");
+        }
+        if (parsed <= 0) throw invalidReport(key + " must be a positive integer");
+        return parsed;
+    }
+
+    private String requiredToken(Map<String, Object> request) {
+        Object value = request.get("token");
+        if (!(value instanceof String token) || token.isBlank()) {
+            throw invalidReport("token is required");
+        }
+        return token;
+    }
+
+    private ApiProblemException invalidReport(String detail) {
+        return new ApiProblemException(
+            HttpStatus.UNPROCESSABLE_CONTENT,
+            "INVALID_NODE_REPORT",
+            detail
+        );
     }
 }

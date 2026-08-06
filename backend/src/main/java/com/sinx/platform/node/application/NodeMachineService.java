@@ -17,6 +17,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import com.sinx.platform.node.domain.NodeMachine;
 import com.sinx.platform.node.domain.NodeMachineLoadHistory;
+import com.sinx.platform.node.domain.ProxyNode;
 import com.sinx.platform.node.repository.NodeMachineLoadHistoryRepository;
 import com.sinx.platform.node.repository.NodeMachineRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
@@ -97,7 +98,20 @@ public class NodeMachineService {
 
     @Transactional
     public void delete(long id) {
-        machines.delete(machine(id));
+        NodeMachine machine = machine(id);
+        List<ProxyNode> assignedNodes =
+            nodes.findByMachineIdOrderBySortOrderAscIdAsc(id);
+        if (!assignedNodes.isEmpty()) {
+            Instant now = clock.instant();
+            assignedNodes.forEach(node ->
+                node.quickUpdate(null, null, null, true, now)
+            );
+            nodes.saveAll(assignedNodes);
+            // Keep the operation independent of database-specific ON DELETE
+            // behavior and guarantee the foreign keys are cleared first.
+            nodes.flush();
+        }
+        machines.delete(machine);
     }
 
     public List<LoadHistoryView> history(
