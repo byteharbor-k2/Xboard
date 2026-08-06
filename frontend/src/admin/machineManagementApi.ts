@@ -46,6 +46,18 @@ export type MachineLoadHistory = {
   recorded_at: number;
 };
 
+export type MachineNode = {
+  id: number;
+  type: string;
+  name: string;
+  machine_id: number | null;
+  host: string | null;
+  port: number | null;
+  server_port: number;
+  enabled: boolean;
+  show: boolean;
+};
+
 async function request<T>(
   path: string,
   accessToken: string,
@@ -127,9 +139,59 @@ export function getMachineInstallCommand(accessToken: string, id: number) {
   );
 }
 
-export function getMachineHistory(accessToken: string, id: number) {
+export function getMachineHistory(
+  accessToken: string,
+  id: number,
+  rangeHours = 24,
+  limit = 1_440
+) {
   return dataRequest<MachineLoadHistory[]>(
-    `/api/v2/admin/server/machine/history?machine_id=${id}&limit=60`,
+    `/api/v2/admin/server/machine/history?machine_id=${id}&range_hours=${rangeHours}&limit=${limit}`,
     accessToken
+  );
+}
+
+export function getMachineNodes(accessToken: string, id: number) {
+  return dataRequest<MachineNode[]>(
+    `/api/v2/admin/server/machine/nodes?machine_id=${id}`,
+    accessToken
+  );
+}
+
+export function listMachineAssignableNodes(accessToken: string) {
+  return dataRequest<MachineNode[]>(
+    "/api/v2/admin/server/manage/getNodes",
+    accessToken
+  );
+}
+
+export function updateMachineNode(
+  accessToken: string,
+  id: number,
+  values: { enabled?: boolean; machine_id?: number | null }
+) {
+  return dataRequest<boolean>(
+    "/api/v2/admin/server/manage/update",
+    accessToken,
+    { method: "POST", body: JSON.stringify({ id, ...values }) }
+  );
+}
+
+export function bindMachineNodes(
+  accessToken: string,
+  machineId: number,
+  ids: number[]
+) {
+  return dataRequest<boolean>(
+    "/api/v2/admin/server/manage/batchUpdate",
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        ids,
+        machine_id: machineId,
+        update_machine: true
+      })
+    }
   );
 }

@@ -2,8 +2,8 @@ import { ApiError } from "../lib/http";
 import type { ProblemDetails } from "../types";
 
 export const NODE_PROTOCOLS = [
-  "shadowsocks", "vmess", "vless", "trojan", "hysteria", "tuic",
-  "anytls", "socks", "naive", "http", "mieru"
+  "shadowsocks", "vmess", "trojan", "hysteria", "vless", "tuic",
+  "socks", "naive", "http", "mieru", "anytls"
 ] as const;
 
 export type NodeProtocol = (typeof NODE_PROTOCOLS)[number];
@@ -42,12 +42,16 @@ export type ManagedNode = {
 export type NodeDraft = {
   id?: number;
   type: NodeProtocol;
+  code: string | null;
+  parent_id: number | null;
   name: string;
   machine_id: number | null;
   host: string;
   port: number | null;
   server_port: number;
   rate: number;
+  rate_time_enable: boolean;
+  rate_time_ranges: RateTimeRange[];
   transfer_enable: number;
   show: boolean;
   enabled: boolean;
@@ -57,7 +61,27 @@ export type NodeDraft = {
   tags: string[];
   custom_outbounds: unknown[];
   custom_routes: unknown[];
+  cert_config: Record<string, unknown> | null;
+  sort?: number;
 };
+
+export type RateTimeRange = {
+  start: string;
+  end: string;
+  rate: number;
+};
+
+export type NodeSortItem = { id: number; order: number };
+
+export type NodeBatchUpdate = {
+  ids: number[];
+  show?: boolean;
+  enabled?: boolean;
+  machine_id?: number | null;
+  update_machine?: boolean;
+};
+
+export type EchKeyPair = { key: string; config: string };
 
 async function request<T>(path: string, accessToken: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
@@ -114,4 +138,35 @@ export function resetNodeTraffic(token: string, id: number) {
   return dataRequest<boolean>("/api/v2/admin/server/manage/resetTraffic", token, {
     method: "POST", body: JSON.stringify({ id })
   });
+}
+
+export function sortNodes(token: string, items: NodeSortItem[]) {
+  return dataRequest<boolean>("/api/v2/admin/server/manage/sort", token, {
+    method: "POST", body: JSON.stringify(items)
+  });
+}
+
+export function batchDeleteNodes(token: string, ids: number[]) {
+  return dataRequest<boolean>("/api/v2/admin/server/manage/batchDelete", token, {
+    method: "POST", body: JSON.stringify({ ids })
+  });
+}
+
+export function batchUpdateNodes(token: string, values: NodeBatchUpdate) {
+  return dataRequest<boolean>("/api/v2/admin/server/manage/batchUpdate", token, {
+    method: "POST", body: JSON.stringify(values)
+  });
+}
+
+export function batchResetNodeTraffic(token: string, ids: number[]) {
+  return dataRequest<boolean>("/api/v2/admin/server/manage/batchResetTraffic", token, {
+    method: "POST", body: JSON.stringify({ ids })
+  });
+}
+
+export function generateEchKey(token: string, publicName: string) {
+  return dataRequest<EchKeyPair>(
+    `/api/v2/admin/server/manage/generateEchKey?public_name=${encodeURIComponent(publicName)}`,
+    token
+  );
 }
