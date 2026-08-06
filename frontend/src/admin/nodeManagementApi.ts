@@ -37,6 +37,11 @@ export type ManagedNode = {
   onlineUsers: number;
   online_conn: number;
   last_check_at: number | null;
+  load_status?: Record<string, unknown> | null;
+  metrics?: Record<string, unknown> | null;
+  last_push_at?: number | null;
+  created_at?: number;
+  updated_at?: number;
 };
 
 export type NodeDraft = {

@@ -62,9 +62,35 @@ function makeDraft(type: NodeProtocol = "shadowsocks"): NodeDraft {
   return {
     type, code: null, parent_id: null, name: "", machine_id: null, host: "", port: 443,
     server_port: 443, rate: 1, rate_time_enable: false, rate_time_ranges: [],
-    transfer_enable: 0, show: true, enabled: true, protocol_settings: defaults(type),
+    transfer_enable: 0, show: true, enabled: true, protocol_settings: { listen_ip: "0.0.0.0", ...defaults(type) },
     group_ids: [], route_ids: [], tags: [], custom_outbounds: [], custom_routes: [],
     cert_config: null
+  };
+}
+
+type NodeColumn = "id" | "visibility" | "node" | "deployment" | "address" | "runtime" | "online" | "rate" | "groups" | "traffic";
+
+function formatNodeTime(value: number | null | undefined, language: "zh-CN" | "en-US") {
+  if (!value) return language === "zh-CN" ? "暂无" : "Never";
+  return new Date(value * 1000).toLocaleString(language);
+}
+
+function numericValue(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = readPath(source, key, Number.NaN);
+    const number = Number(value);
+    if (Number.isFinite(number)) return number;
+  }
+  return null;
+}
+
+function runtimeSummary(node: ManagedNode) {
+  const source = { ...asObject(node.metrics), ...asObject(node.load_status) };
+  return {
+    cpu: numericValue(source, ["cpu", "cpu_usage", "cpu_percent"]),
+    memory: numericValue(source, ["memory", "memory_usage", "mem.percent", "mem.usage"]),
+    connections: numericValue(source, ["connections", "online_conn", "connection_count"]),
+    raw: source
   };
 }
 
@@ -153,6 +179,12 @@ export function AdminNodesPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [machineFilter, setMachineFilter] = useState(requestedMachineId ? String(requestedMachineId) : "");
   const [groupFilter, setGroupFilter] = useState("");
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
+  const [columns, setColumns] = useState<Record<NodeColumn, boolean>>({
+    id: true, visibility: true, node: true, deployment: true, address: true,
+    runtime: true, online: true, rate: true, groups: true, traffic: true
+  });
   const [selected, setSelected] = useState<number[]>([]);
   const [batchAction, setBatchAction] = useState("");
   const [sorting, setSorting] = useState(false);
@@ -160,6 +192,12 @@ export function AdminNodesPage() {
   const [dragging, setDragging] = useState<number | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [runtimeNode, setRuntimeNode] = useState<ManagedNode>();
+  const [portsSynced, setPortsSynced] = useState(true);
+  const [groupComposerOpen, setGroupComposerOpen] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [copiedAddressId, setCopiedAddressId] = useState<number>();
 
   const nodesQuery = useQuery({ queryKey: ["admin", "nodes"], queryFn: () => listNodes(token) });
   const machinesQuery = useQuery({ queryKey: ["admin", "machines"], queryFn: () => listMachines(token) });
@@ -178,6 +216,7 @@ export function AdminNodesPage() {
     const next = { ...makeDraft(), machine_id: requestedMachineId };
     setDraft(next);
     resetEditors(next);
+    setPortsSynced(true);
     setEditing(null);
     setError("");
   }, [requestedCreate, requestedMachineId]);
@@ -193,6 +232,11 @@ export function AdminNodesPage() {
       (!groupFilter || node.group_ids.includes(Number(groupFilter)))
     );
   }, [nodesQuery.data, order, sorting, search, typeFilter, machineFilter, groupFilter]);
+  const pageCount = Math.max(1, Math.ceil(nodes.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visibleNodes = sorting ? nodes : nodes.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => setPage(1), [search, typeFilter, machineFilter, groupFilter, pageSize]);
 
   function resetEditors(next: NodeDraft) {
     setProtocolJson(JSON.stringify(next.protocol_settings, null, 2));
@@ -203,7 +247,7 @@ export function AdminNodesPage() {
 
   function openCreate() {
     const next = makeDraft();
-    setDraft(next); resetEditors(next); setEditing(null); setError("");
+    setDraft(next); resetEditors(next); setPortsSynced(true); setGroupComposerOpen(false); setGroupName(""); setEditing(null); setError("");
   }
 
   function openEdit(node: ManagedNode) {
@@ -219,11 +263,11 @@ export function AdminNodesPage() {
       cert_config: node.cert_config ? structuredClone(node.cert_config) : null,
       show: node.show, enabled: node.enabled, sort: node.sort
     };
-    setDraft(next); resetEditors(next); setEditing(node); setError("");
+    setDraft(next); resetEditors(next); setPortsSynced(node.port === node.server_port); setGroupComposerOpen(false); setGroupName(""); setEditing(node); setError("");
   }
 
   function changeType(type: NodeProtocol) {
-    const settings = defaults(type);
+    const settings = { listen_ip: String(readPath(draft.protocol_settings, "listen_ip", "0.0.0.0")), ...defaults(type) };
     setDraft((current) => ({ ...current, type, protocol_settings: settings, parent_id: null }));
     setProtocolJson(JSON.stringify(settings, null, 2));
   }
@@ -314,17 +358,37 @@ export function AdminNodesPage() {
   }
 
   async function quickAddGroup() {
-    const name = window.prompt(tx("请输入权限组名称", "Enter access group name"))?.trim();
+    const name = groupName.trim();
     if (!name) return;
     if (!validGroupName.test(name)) {
       setError(tx("权限组名称必须为 2–50 个字符，且只能包含中文、英文、数字、下划线或连字符。", "Use 2–50 Chinese or English letters, digits, underscores, or hyphens."));
       return;
     }
-    setError("");
+    setError(""); setGroupSaving(true);
     try {
       await saveNodeGroup(token, { name });
-      await client.invalidateQueries({ queryKey: ["admin", "node-groups"] });
+      const groups = await client.fetchQuery({ queryKey: ["admin", "node-groups"], queryFn: () => listNodeGroups(token) });
+      const created = groups.find((group) => group.name === name);
+      if (created) setDraft((current) => ({ ...current, group_ids: Array.from(new Set([...current.group_ids, created.id])) }));
+      setGroupName(""); setGroupComposerOpen(false);
     } catch (caught) { setError(caught instanceof ApiError ? caught.message : tx("权限组创建失败", "Could not create access group")); }
+    finally { setGroupSaving(false); }
+  }
+
+  function resetFilters() {
+    setSearch(""); setTypeFilter(""); setMachineFilter(""); setGroupFilter(""); setPage(1);
+  }
+
+  async function copyAddress(node: ManagedNode) {
+    const value = `${node.host ?? ""}:${node.port ?? node.server_port}`;
+    try { await navigator.clipboard.writeText(value); }
+    catch {
+      const input = document.createElement("textarea");
+      input.value = value; input.style.position = "fixed"; input.style.opacity = "0";
+      document.body.appendChild(input); input.select(); document.execCommand("copy"); input.remove();
+    }
+    setCopiedAddressId(node.id);
+    window.setTimeout(() => setCopiedAddressId((current) => current === node.id ? undefined : current), 1_500);
   }
 
   function dropOn(target: number) {
@@ -356,7 +420,7 @@ export function AdminNodesPage() {
     });
   }
 
-  const allVisibleSelected = nodes.length > 0 && nodes.every((node) => selected.includes(node.id));
+  const allVisibleSelected = visibleNodes.length > 0 && visibleNodes.every((node) => selected.includes(node.id));
 
   return <AdminShell>
     <header className="admin-page-heading admin-page-heading-action"><div><p>{tx("节点管理", "Infrastructure")}</p><h1>{tx("节点管理", "Nodes")}</h1>
@@ -368,6 +432,12 @@ export function AdminNodesPage() {
       <select aria-label={tx("协议筛选", "Protocol filter")} onChange={(event) => setTypeFilter(event.target.value)} value={typeFilter}><option value="">{tx("全部类型", "All types")}</option>{NODE_PROTOCOLS.map((type) => <option key={type} value={type}>{protocolNames[type]}</option>)}</select>
       <select aria-label={tx("服务器筛选", "Machine filter")} onChange={(event) => setMachineFilter(event.target.value)} value={machineFilter}><option value="">{tx("全部服务器", "All machines")}</option>{machinesQuery.data?.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}</select>
       <select aria-label={tx("权限组筛选", "Group filter")} onChange={(event) => setGroupFilter(event.target.value)} value={groupFilter}><option value="">{tx("全部权限组", "All groups")}</option>{groupsQuery.data?.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select>
+      <button disabled={!search && !typeFilter && !machineFilter && !groupFilter} onClick={resetFilters} type="button">{tx("重置", "Reset")}</button>
+      <details className="node-column-menu"><summary>{tx("列显示", "Columns")}</summary><div>{([
+        ["id", tx("节点 ID", "Node ID")], ["visibility", tx("显隐", "Visibility")], ["node", tx("节点", "Node")],
+        ["deployment", tx("部署方式", "Deployment")], ["address", tx("地址", "Address")], ["runtime", tx("运行指标", "Runtime")],
+        ["online", tx("在线人数", "Online")], ["rate", tx("倍率", "Rate")], ["groups", tx("权限组", "Groups")], ["traffic", tx("流量使用", "Traffic")]
+      ] as [NodeColumn, string][]).map(([key, label]) => <label key={key}><input checked={columns[key]} onChange={(event) => setColumns({ ...columns, [key]: event.target.checked })} type="checkbox" />{label}</label>)}</div></details>
       <div className="node-toolbar-spacer" />
       {sorting ? <><button onClick={() => { setSorting(false); setOrder(nodesQuery.data?.map((node) => node.id) ?? []); }} type="button">{tx("取消排序", "Cancel")}</button><button className="primary" onClick={() => void saveOrder()} type="button">{tx("保存排序", "Save order")}</button></> : <button onClick={() => setSorting(true)} type="button">↕ {tx("编辑排序", "Sort")}</button>}
     </section>
@@ -385,23 +455,27 @@ export function AdminNodesPage() {
 
     <section className="admin-card admin-table-wrap node-table-card">
       {nodesQuery.isPending ? <p className="admin-table-empty">{tx("正在加载节点…", "Loading nodes...")}</p> : !nodes.length ? <p className="admin-table-empty">{tx("没有符合条件的节点。", "No matching nodes.")}</p> :
-        <table className="admin-table node-table"><thead><tr><th><input aria-label={tx("全选", "Select all")} checked={allVisibleSelected} onChange={(event) => setSelected(event.target.checked ? Array.from(new Set([...selected, ...nodes.map((node) => node.id)])) : selected.filter((id) => !nodes.some((node) => node.id === id)))} type="checkbox" /></th>
-          {sorting && <th>{tx("排序", "Order")}</th>}<th>{tx("节点 ID", "Node ID")}</th><th>{tx("显隐", "Visibility")}</th><th>{tx("节点", "Node")}</th><th>{tx("部署方式", "Deployment")}</th><th>{tx("地址", "Address")}</th><th>{tx("在线人数", "Online")}</th><th>{tx("倍率", "Rate")}</th><th>{tx("权限组", "Groups")}</th><th>{tx("流量使用", "Traffic")}</th><th>{tx("操作", "Actions")}</th></tr></thead>
-          <tbody>{nodes.map((node) => <tr draggable={sorting} key={node.id} onDragOver={(event) => sorting && event.preventDefault()} onDragStart={() => setDragging(node.id)} onDrop={() => dropOn(node.id)}>
+        <table className="admin-table node-table"><thead><tr><th><input aria-label={tx("全选", "Select all")} checked={allVisibleSelected} onChange={(event) => setSelected(event.target.checked ? Array.from(new Set([...selected, ...visibleNodes.map((node) => node.id)])) : selected.filter((id) => !visibleNodes.some((node) => node.id === id)))} type="checkbox" /></th>
+          {sorting && <th>{tx("排序", "Order")}</th>}{columns.id && <th>{tx("节点 ID", "Node ID")}</th>}{columns.visibility && <th>{tx("显隐", "Visibility")}</th>}{columns.node && <th>{tx("节点", "Node")}</th>}{columns.deployment && <th>{tx("部署方式", "Deployment")}</th>}{columns.address && <th>{tx("地址", "Address")}</th>}{columns.runtime && <th>{tx("运行指标", "Runtime")}</th>}{columns.online && <th>{tx("在线人数", "Online")}</th>}{columns.rate && <th>{tx("倍率", "Rate")}</th>}{columns.groups && <th>{tx("权限组", "Groups")}</th>}{columns.traffic && <th>{tx("流量使用", "Traffic")}</th>}<th>{tx("操作", "Actions")}</th></tr></thead>
+          <tbody>{visibleNodes.map((node) => { const runtime = runtimeSummary(node); return <tr draggable={sorting} key={node.id} onDragOver={(event) => sorting && event.preventDefault()} onDragStart={() => setDragging(node.id)} onDrop={() => dropOn(node.id)}>
             <td><input aria-label={`${tx("选择", "Select")} ${node.name}`} checked={selected.includes(node.id)} onChange={(event) => setSelected(event.target.checked ? [...selected, node.id] : selected.filter((id) => id !== node.id))} type="checkbox" /></td>
             {sorting && <td><span className="node-drag-handle" title={tx("拖动排序", "Drag to sort")}>⠿</span></td>}
-            <td><code>#{node.id}</code></td><td><button className={node.show ? "node-icon-toggle on" : "node-icon-toggle"} onClick={() => void action(() => updateNode(token, node.id, { show: !node.show }))} title={node.show ? tx("点击隐藏", "Hide") : tx("点击显示", "Show")} type="button">{node.show ? "◉" : "○"}</button></td>
-            <td><strong>{node.name}</strong><small>{protocolNames[node.type]}{node.parent_id ? ` · ${tx("子节点", "Child")} #${node.parent_id}` : ""}</small></td>
-            <td>{machinesQuery.data?.find((machine) => machine.id === node.machine_id)?.name ?? tx("未绑定", "Unbound")}<small><span className={node.enabled ? "node-dot ok" : "node-dot"} />{node.enabled ? tx("运行中", "Enabled") : tx("已停用", "Disabled")}</small></td>
-            <td>{node.host || "—"}<small>{node.port ?? node.server_port} / {tx("内", "internal")} {node.server_port}</small></td>
-            <td>{node.onlineUsers}<small>{node.online_conn} {tx("连接", "connections")}</small></td><td>{Number(node.rate).toFixed(2)}x</td>
-            <td><div className="node-chip-list">{node.group_ids.length ? node.group_ids.map((id) => <span key={id}>{groupsQuery.data?.find((group) => group.id === id)?.name ?? `#${id}`}</span>) : <em>—</em>}</div></td>
-            <td>↑ {formatBytes(node.u)}<small>↓ {formatBytes(node.d)}</small></td>
+            {columns.id && <td><code>#{node.id}</code></td>}{columns.visibility && <td><button className={node.show ? "node-icon-toggle on" : "node-icon-toggle"} onClick={() => void action(() => updateNode(token, node.id, { show: !node.show }))} title={node.show ? tx("点击隐藏", "Hide") : tx("点击显示", "Show")} type="button">{node.show ? "◉" : "○"}</button></td>}
+            {columns.node && <td><strong>{node.name}</strong><small>{protocolNames[node.type]}{node.parent_id ? ` · ${tx("子节点", "Child")} #${node.parent_id}` : ""}</small></td>}
+            {columns.deployment && <td><select aria-label={`${tx("部署服务器", "Deployment machine")} ${node.name}`} className="node-inline-select" onChange={(event) => void action(() => updateNode(token, node.id, { machine_id: event.target.value ? Number(event.target.value) : null }))} value={node.machine_id ?? ""}><option value="">{tx("未绑定", "Unbound")}</option>{machinesQuery.data?.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}</select><label className="node-switch"><input aria-label={`${tx("启用节点", "Enable node")} ${node.name}`} checked={node.enabled} onChange={() => void action(() => updateNode(token, node.id, { enabled: !node.enabled }))} type="checkbox" /><span /><small>{node.enabled ? tx("运行中", "Enabled") : tx("已停用", "Disabled")}</small></label></td>}
+            {columns.address && <td><div className="node-address-cell"><span>{node.host || "—"}<small>{node.port ?? node.server_port} / {tx("内", "internal")} {node.server_port}</small></span><button aria-label={tx("复制地址", "Copy address")} onClick={() => void copyAddress(node)} title={copiedAddressId === node.id ? tx("已复制", "Copied") : tx("复制地址", "Copy address")} type="button">{copiedAddressId === node.id ? "✓" : "⧉"}</button></div></td>}
+            {columns.runtime && <td><button className="node-runtime-button" onClick={() => setRuntimeNode(node)} type="button"><strong>{runtime.cpu === null ? tx("暂无上报", "No report") : `CPU ${runtime.cpu.toFixed(1)}%`}</strong><small>{tx("最后推送", "Last push")}: {formatNodeTime(node.last_push_at ?? node.last_check_at, language)}</small></button></td>}
+            {columns.online && <td>{node.onlineUsers}<small>{node.online_conn} {tx("连接", "connections")}</small></td>}{columns.rate && <td>{Number(node.rate).toFixed(2)}x</td>}
+            {columns.groups && <td><div className="node-chip-list">{node.group_ids.length ? node.group_ids.map((id) => <span key={id}>{groupsQuery.data?.find((group) => group.id === id)?.name ?? `#${id}`}</span>) : <em>—</em>}</div></td>}
+            {columns.traffic && <td>↑ {formatBytes(node.u)}<small>↓ {formatBytes(node.d)}</small></td>}
             <td><div className="node-row-actions"><button onClick={() => openEdit(node)} type="button">{tx("编辑", "Edit")}</button><button onClick={() => void action(() => copyNode(token, node.id))} type="button">{tx("复制", "Copy")}</button>
               <button onClick={() => requestNodeAction(node, "reset")} type="button">{tx("重置", "Reset")}</button>
               <button className="danger" onClick={() => requestNodeAction(node, "delete")} type="button">{tx("删除", "Delete")}</button></div></td>
-          </tr>)}</tbody></table>}
+          </tr>; })}</tbody></table>}
+      {!sorting && nodes.length > 0 && <div className="admin-pagination node-pagination"><span>{tx(`共 ${nodes.length} 项`, `${nodes.length} items`)}</span><label>{tx("每页显示", "Per page")}<select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>{[10, 20, 50, 100].map((size) => <option key={size} value={size}>{size}</option>)}</select></label><span>{tx(`第 ${currentPage} / ${pageCount} 页`, `Page ${currentPage} of ${pageCount}`)}</span><div><button aria-label={tx("首页", "First")} disabled={currentPage === 1} onClick={() => setPage(1)} type="button">«</button><button aria-label={tx("上一页", "Previous")} disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} type="button">‹</button><button aria-label={tx("下一页", "Next")} disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} type="button">›</button><button aria-label={tx("末页", "Last")} disabled={currentPage === pageCount} onClick={() => setPage(pageCount)} type="button">»</button></div></div>}
     </section>
+
+    {runtimeNode && <div className="admin-modal-backdrop" role="presentation"><section className="admin-modal node-runtime-modal"><header><div><small>{tx("运行指标", "Runtime metrics")}</small><h2>#{runtimeNode.id} {runtimeNode.name}</h2></div><button aria-label={tx("关闭", "Close")} onClick={() => setRuntimeNode(undefined)} type="button">×</button></header><div className="node-runtime-body">{(() => { const runtime = runtimeSummary(runtimeNode); return <><div className="node-runtime-grid"><article><span>CPU</span><strong>{runtime.cpu === null ? "—" : `${runtime.cpu.toFixed(1)}%`}</strong></article><article><span>{tx("内存", "Memory")}</span><strong>{runtime.memory === null ? "—" : `${runtime.memory.toFixed(1)}%`}</strong></article><article><span>{tx("连接数", "Connections")}</span><strong>{runtime.connections ?? runtimeNode.online_conn}</strong></article><article><span>{tx("最后推送", "Last push")}</span><strong>{formatNodeTime(runtimeNode.last_push_at ?? runtimeNode.last_check_at, language)}</strong></article></div><details className="node-advanced-json" open><summary>{tx("完整上报数据", "Complete report")}</summary><pre>{JSON.stringify({ load_status: runtimeNode.load_status ?? null, metrics: runtimeNode.metrics ?? null }, null, 2)}</pre></details></>; })()}</div><footer><button className="primary" onClick={() => setRuntimeNode(undefined)} type="button">{tx("关闭", "Close")}</button></footer></section></div>}
 
     {editing !== undefined && <div className="admin-modal-backdrop" role="presentation"><form className="admin-modal node-editor-modal" onSubmit={(event) => void submit(event)}>
       <header><div><small>{tx("节点管理", "Node management")}</small><h2>{editing ? tx("编辑节点", "Edit node") : tx("添加节点", "Add node")}</h2></div><button aria-label={tx("关闭", "Close")} onClick={() => setEditing(undefined)} type="button">×</button></header>
@@ -419,10 +493,11 @@ export function AdminNodesPage() {
           <InputField label={tx("服务器", "Machine")}><select value={draft.machine_id ?? ""} onChange={(event) => setDraft({ ...draft, machine_id: event.target.value ? Number(event.target.value) : null })}><option value="">{tx("未绑定（手动部署）", "Unbound (manual)")}</option>{machinesQuery.data?.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}</select></InputField>
           <InputField label={tx("父节点", "Parent node")}><select value={draft.parent_id ?? ""} onChange={(event) => setDraft({ ...draft, parent_id: event.target.value ? Number(event.target.value) : null })}><option value="">{tx("无父节点", "No parent")}</option>{nodesQuery.data?.filter((node) => node.id !== draft.id && node.type === draft.type && node.parent_id == null).map((node) => <option key={node.id} value={node.id}>#{node.id} {node.name}</option>)}</select></InputField>
           <InputField label={tx("公网域名 / IP", "Public host / IP")}><input required value={draft.host} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></InputField>
-          <InputField label={tx("公网端口", "Public port")}><input max="65535" min="1" required type="number" value={draft.port ?? ""} onChange={(event) => setDraft({ ...draft, port: event.target.value ? Number(event.target.value) : null })} /></InputField>
-          <InputField label={tx("服务监听端口", "Server listen port")}><input max="65535" min="1" required type="number" value={draft.server_port} onChange={(event) => setDraft({ ...draft, server_port: Number(event.target.value) })} /></InputField>
+          <InputField label={tx("公网端口", "Public port")}><input max="65535" min="1" required type="number" value={draft.port ?? ""} onChange={(event) => { const port = event.target.value ? Number(event.target.value) : null; setDraft({ ...draft, port, ...(portsSynced && port ? { server_port: port } : {}) }); }} /></InputField>
+          <InputField label={tx("监听地址", "Listen address")} hint={tx("xboard-node 默认监听全部网卡", "xboard-node listens on all interfaces by default")}><input value={String(readPath(draft.protocol_settings, "listen_ip", "0.0.0.0"))} onChange={(event) => changeProtocol("listen_ip", event.target.value)} /></InputField>
+          <InputField label={tx("服务监听端口", "Server listen port")}><div className="node-input-action"><input max="65535" min="1" required type="number" value={draft.server_port} onChange={(event) => { setPortsSynced(false); setDraft({ ...draft, server_port: Number(event.target.value) }); }} /><button onClick={() => { const port = draft.port ?? draft.server_port; setDraft({ ...draft, server_port: port }); setPortsSynced(true); }} type="button">{portsSynced ? tx("已同步", "Synced") : tx("同步端口", "Sync port")}</button></div></InputField>
         </div>
-        <div className="node-access-grid"><fieldset><legend>{tx("权限组", "Access groups")} <button className="node-legend-action" onClick={() => void quickAddGroup()} type="button">+ {tx("添加分组", "Add group")}</button></legend>{groupsQuery.data?.map((group) => <label key={group.id}><input checked={draft.group_ids.includes(group.id)} onChange={(event) => setDraft({ ...draft, group_ids: event.target.checked ? [...draft.group_ids, group.id] : draft.group_ids.filter((id) => id !== group.id) })} type="checkbox" />{group.name}<small>{group.users_count} {tx("用户", "users")}</small></label>)}{!groupsQuery.data?.length && <p>{tx("暂无权限组", "No groups")}</p>}</fieldset>
+        <div className="node-access-grid"><fieldset><legend>{tx("权限组", "Access groups")} <button className="node-legend-action" onClick={() => setGroupComposerOpen((open) => !open)} type="button">+ {tx("添加分组", "Add group")}</button></legend>{groupComposerOpen && <div className="node-group-composer"><input autoFocus maxLength={50} placeholder={tx("权限组名称", "Group name")} value={groupName} onChange={(event) => setGroupName(event.target.value)} /><button disabled={groupSaving || !groupName.trim()} onClick={() => void quickAddGroup()} type="button">{groupSaving ? tx("创建中…", "Creating...") : tx("创建", "Create")}</button><button onClick={() => { setGroupComposerOpen(false); setGroupName(""); }} type="button">{tx("取消", "Cancel")}</button></div>}{groupsQuery.data?.map((group) => <label key={group.id}><input checked={draft.group_ids.includes(group.id)} onChange={(event) => setDraft({ ...draft, group_ids: event.target.checked ? [...draft.group_ids, group.id] : draft.group_ids.filter((id) => id !== group.id) })} type="checkbox" />{group.name}<small>{group.users_count} {tx("用户", "users")}</small></label>)}{!groupsQuery.data?.length && <p>{tx("暂无权限组", "No groups")}</p>}</fieldset>
           <fieldset><legend>{tx("路由规则（按顺序）", "Route rules (ordered)")}</legend>
             {draft.route_ids.map((routeId, index) => {
               const route = routesQuery.data?.find((item) => item.id === routeId);
@@ -516,7 +591,7 @@ function ProtocolFields({ type, settings, json, onChange, tx, token }: ProtocolF
   }
 
   return <div className="node-protocol-fields">
-    {type === "shadowsocks" && <><InputField label={tx("加密算法", "Cipher")}><select value={textValue("cipher")} onChange={(event) => onChange("cipher", event.target.value)}>{cipherOptions.map((cipher) => <option key={cipher}>{cipher}</option>)}</select></InputField>
+    {type === "shadowsocks" && <><InputField label={tx("加密算法", "Cipher")} hint={tx("可选择预设或输入 xboard-node 支持的自定义算法", "Choose a preset or enter any cipher supported by xboard-node")}><input list="node-cipher-options" value={textValue("cipher")} onChange={(event) => onChange("cipher", event.target.value)} /><datalist id="node-cipher-options">{cipherOptions.map((cipher) => <option key={cipher} value={cipher} />)}</datalist></InputField>
       <InputField label={tx("插件", "Plugin")}><select value={textValue("plugin")} onChange={(event) => onChange("plugin", event.target.value)}><option value="">{tx("无", "None")}</option><option value="obfs-local">simple-obfs</option><option value="v2ray-plugin">v2ray-plugin</option><option value="gost-plugin">gost-plugin</option><option value="shadow-tls">ShadowTLS</option><option value="restls">Restls</option><option value="kcptun">kcptun</option></select></InputField>
       <InputField label={tx("插件选项", "Plugin options")} wide><input placeholder="key=value;host=example.com" value={textValue("plugin_opts")} onChange={(event) => onChange("plugin_opts", event.target.value)} /></InputField>
       <InputField label={tx("混淆", "Obfuscation")}><select value={textValue("obfs")} onChange={(event) => onChange("obfs", event.target.value)}><option value="">{tx("无", "None")}</option><option value="http">HTTP</option></select></InputField>
@@ -550,6 +625,7 @@ function ProtocolFields({ type, settings, json, onChange, tx, token }: ProtocolF
       <Toggle checked={boolValue(`${tlsObjectPath}.allow_insecure`)} label={tx("允许不安全证书", "Allow insecure certificate")} onChange={(checked) => onChange(`${tlsObjectPath}.allow_insecure`, checked)} />
       <Toggle checked={boolValue(`${tlsObjectPath}.ech.enabled`)} label={tx("启用 ECH", "Enable ECH")} onChange={(checked) => onChange(`${tlsObjectPath}.ech.enabled`, checked)} />
       {boolValue(`${tlsObjectPath}.ech.enabled`) && <><InputField label={tx("ECH 查询服务器名称", "ECH query server name")}><input value={textValue(`${tlsObjectPath}.ech.query_server_name`)} onChange={(event) => onChange(`${tlsObjectPath}.ech.query_server_name`, event.target.value)} /></InputField><button className="node-inline-button" disabled={echBusy} onClick={() => void makeEch()} type="button">{echBusy ? tx("生成中…", "Generating...") : tx("生成 ECH 密钥", "Generate ECH keys")}</button>
+        <InputField label="ECH Config Path"><input value={textValue(`${tlsObjectPath}.ech.config_path`)} onChange={(event) => onChange(`${tlsObjectPath}.ech.config_path`, event.target.value)} /></InputField><InputField label="ECH Key Path"><input value={textValue(`${tlsObjectPath}.ech.key_path`)} onChange={(event) => onChange(`${tlsObjectPath}.ech.key_path`, event.target.value)} /></InputField>
         <InputField label="ECH Config" wide><textarea value={textValue(`${tlsObjectPath}.ech.config`)} onChange={(event) => onChange(`${tlsObjectPath}.ech.config`, event.target.value)} /></InputField><InputField label="ECH Key" wide><textarea value={textValue(`${tlsObjectPath}.ech.key`)} onChange={(event) => onChange(`${tlsObjectPath}.ech.key`, event.target.value)} /></InputField>{echError && <p className="admin-operation-error">{echError}</p>}</>}
     </div>}
 

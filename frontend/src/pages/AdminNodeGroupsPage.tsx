@@ -26,7 +26,8 @@ const copy = {
     nameHint: "名称为 2–50 个字符，仅支持中文、英文、数字、下划线和连字符。", cancel: "取消", create: "创建权限组",
     save: "保存修改", saving: "保存中…", removeConfirm: "确定删除这个权限组吗？已被套餐、用户或节点使用时将无法删除。",
     operationFailed: "操作失败", required: "请输入权限组名称。", invalidName: "名称必须为 2–50 个字符，且只能包含中文、英文、数字、下划线或连字符。", selected: "共 {count} 项", perPage: "每页显示",
-    page: "第 {page} / {pages} 页", first: "首页", previous: "上一页", next: "下一页", last: "末页"
+    page: "第 {page} / {pages} 页", first: "首页", previous: "上一页", next: "下一页", last: "末页", reset: "重置筛选",
+    riskTitle: "删除权限组", deleteNow: "确认删除", deleting: "删除中…"
   },
   "en-US": {
     eyebrow: "Nodes", title: "Access groups", description: "Create, edit, and remove node access groups.",
@@ -37,7 +38,8 @@ const copy = {
     nameHint: "Use 2–50 Chinese or English letters, digits, underscores, or hyphens.", cancel: "Cancel", create: "Create group",
     save: "Save changes", saving: "Saving…", removeConfirm: "Delete this group? Groups assigned to plans, users, or nodes cannot be deleted.",
     operationFailed: "Operation failed", required: "Enter a group name.", invalidName: "Use 2–50 Chinese or English letters, digits, underscores, or hyphens.", selected: "{count} items", perPage: "Per page",
-    page: "Page {page} of {pages}", first: "First", previous: "Previous", next: "Next", last: "Last"
+    page: "Page {page} of {pages}", first: "First", previous: "Previous", next: "Next", last: "Last", reset: "Reset filters",
+    riskTitle: "Delete access group", deleteNow: "Delete group", deleting: "Deleting…"
   }
 };
 
@@ -60,6 +62,8 @@ export function AdminNodeGroupsPage() {
   const [editing, setEditing] = useState<ManagedNodeGroup | null | undefined>();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<ManagedNodeGroup>();
+  const [deleting, setDeleting] = useState(false);
 
   const groupsQuery = useQuery({
     queryKey: ["admin", "node-groups"],
@@ -125,14 +129,15 @@ export function AdminNodeGroupsPage() {
   }
 
   async function remove(group: ManagedNodeGroup) {
-    if (!window.confirm(text.removeConfirm)) return;
-    setError("");
+    setError(""); setDeleting(true);
     try {
       await deleteNodeGroup(token, group.id);
       await client.invalidateQueries({ queryKey: ["admin", "node-groups"] });
+      setPendingDelete(undefined);
     } catch (caught) {
       setError(errorMessage(caught, text.operationFailed));
     }
+    finally { setDeleting(false); }
   }
 
   const loadError = groupsQuery.error ? errorMessage(groupsQuery.error, text.operationFailed) : "";
@@ -148,6 +153,7 @@ export function AdminNodeGroupsPage() {
         <input aria-label={text.search} placeholder={text.search} value={search}
           onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           style={{ width: "min(380px, 100%)", padding: "10px 13px", border: "1px solid #dfe5ee", borderRadius: 9, font: "inherit" }} />
+        <button disabled={!search} onClick={() => { setSearch(""); setSortKey("id"); setSortDirection("desc"); setPage(1); }} style={{ padding: "0 13px", border: "1px solid #dfe5ee", borderRadius: 9, background: "#fff", color: "#3154cc", font: "inherit", opacity: search ? 1 : .45 }} type="button">{text.reset}</button>
       </div>
       <div className="admin-table-wrap">
         {groupsQuery.isPending ? <p className="admin-table-empty">{text.loading}</p> : !groupsQuery.data?.length ? <p className="admin-table-empty">{text.empty}</p> : !visibleGroups.length ? <p className="admin-table-empty">{text.noResult}</p> :
@@ -160,7 +166,7 @@ export function AdminNodeGroupsPage() {
           </tr></thead><tbody>{visibleGroups.map((group) => <tr key={group.id}>
             <td>{group.id}</td><td><strong>{group.name}</strong></td><td>{group.users_count}</td><td>{group.server_count}</td>
             <td><div className="machine-actions"><button onClick={() => openEdit(group)} type="button">{text.edit}</button>
-              <button className="danger" onClick={() => void remove(group)} type="button">{text.remove}</button></div></td>
+              <button className="danger" onClick={() => setPendingDelete(group)} type="button">{text.remove}</button></div></td>
           </tr>)}</tbody></table>}
       </div>
       <div className="admin-pagination">
@@ -187,5 +193,6 @@ export function AdminNodeGroupsPage() {
           <button className="primary" disabled={saveMutation.isPending} type="submit">{saveMutation.isPending ? text.saving : editing ? text.save : text.create}</button></footer>
       </form>
     </div>}
+    {pendingDelete && <div className="admin-modal-backdrop" role="presentation"><section aria-label={text.riskTitle} className="admin-modal machine-modal"><header><h2>{text.riskTitle}</h2><button aria-label={text.cancel} onClick={() => setPendingDelete(undefined)} type="button">×</button></header><div className="machine-form"><p style={{ margin: 0, color: "#6d3740" }}>{text.removeConfirm}</p><strong>{pendingDelete.name}</strong>{error && <p className="admin-operation-error">{error}</p>}</div><footer><button disabled={deleting} onClick={() => setPendingDelete(undefined)} type="button">{text.cancel}</button><button className="primary" disabled={deleting} onClick={() => void remove(pendingDelete)} style={{ background: "#d94f5e", borderColor: "#d94f5e" }} type="button">{deleting ? text.deleting : text.deleteNow}</button></footer></section></div>}
   </AdminShell>;
 }

@@ -29,7 +29,8 @@ const copy = {
     removeConfirm: "确定删除这条路由吗？节点中的关联会同时清除。", operationFailed: "操作失败", remarksRequired: "请输入备注。",
     matchRequired: "请至少输入一条匹配规则。", outboundRequired: "转发动作必须填写 Outbound Tag。", unsupported: "该路由动作未在当前项目启用，不能从此页面编辑。",
     block: "禁止访问", direct: "直连", proxy: "转发", rules: "匹配 {count} 条规则", selected: "共 {count} 项", perPage: "每页显示",
-    page: "第 {page} / {pages} 页", first: "首页", previous: "上一页", next: "下一页", last: "末页"
+    page: "第 {page} / {pages} 页", first: "首页", previous: "上一页", next: "下一页", last: "末页", reset: "重置筛选",
+    riskTitle: "删除路由", deleteNow: "确认删除", deleting: "删除中…"
   },
   "en-US": {
     eyebrow: "Nodes", title: "Routes", description: "Create, edit, and remove routing rules.",
@@ -41,7 +42,8 @@ const copy = {
     removeConfirm: "Delete this route? Node references to it will also be removed.", operationFailed: "Operation failed", remarksRequired: "Enter remarks.",
     matchRequired: "Enter at least one match rule.", outboundRequired: "Proxy routes require an outbound tag.", unsupported: "This route action is not enabled in this project and cannot be edited here.",
     block: "Block", direct: "Direct", proxy: "Proxy", rules: "{count} matching rules", selected: "{count} items", perPage: "Per page",
-    page: "Page {page} of {pages}", first: "First", previous: "Previous", next: "Next", last: "Last"
+    page: "Page {page} of {pages}", first: "First", previous: "Previous", next: "Next", last: "Last", reset: "Reset filters",
+    riskTitle: "Delete route", deleteNow: "Delete route", deleting: "Deleting…"
   }
 };
 
@@ -75,6 +77,8 @@ export function AdminNodeRoutesPage() {
   const [editing, setEditing] = useState<ManagedNodeRoute | null | undefined>();
   const [form, setForm] = useState<RouteForm>(emptyForm);
   const [error, setError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<ManagedNodeRoute>();
+  const [deleting, setDeleting] = useState(false);
 
   const routesQuery = useQuery({
     queryKey: ["admin", "node-routes"],
@@ -153,14 +157,15 @@ export function AdminNodeRoutesPage() {
   }
 
   async function remove(route: ManagedNodeRoute) {
-    if (!window.confirm(text.removeConfirm)) return;
-    setError("");
+    setError(""); setDeleting(true);
     try {
       await deleteNodeRoute(token, route.id);
       await client.invalidateQueries({ queryKey: ["admin", "node-routes"] });
+      setPendingDelete(undefined);
     } catch (caught) {
       setError(errorMessage(caught, text.operationFailed));
     }
+    finally { setDeleting(false); }
   }
 
   const loadError = routesQuery.error ? errorMessage(routesQuery.error, text.operationFailed) : "";
@@ -176,6 +181,7 @@ export function AdminNodeRoutesPage() {
         <input aria-label={text.search} placeholder={text.search} value={search}
           onChange={(event) => { setSearch(event.target.value); setPage(1); }}
           style={{ width: "min(380px, 100%)", padding: "10px 13px", border: "1px solid #dfe5ee", borderRadius: 9, font: "inherit" }} />
+        <button disabled={!search} onClick={() => { setSearch(""); setSortKey("id"); setSortDirection("asc"); setPage(1); }} style={{ padding: "0 13px", border: "1px solid #dfe5ee", borderRadius: 9, background: "#fff", color: "#3154cc", font: "inherit", opacity: search ? 1 : .45 }} type="button">{text.reset}</button>
       </div>
       <div className="admin-table-wrap">
         {routesQuery.isPending ? <p className="admin-table-empty">{text.loading}</p> : !routesQuery.data?.length ? <p className="admin-table-empty">{text.empty}</p> : !visibleRoutes.length ? <p className="admin-table-empty">{text.noResult}</p> :
@@ -187,10 +193,10 @@ export function AdminNodeRoutesPage() {
             <th>{text.operations}</th>
           </tr></thead><tbody>{visibleRoutes.map((route) => <tr key={route.id}>
             <td>{route.id}</td><td><strong>{route.remarks}</strong></td>
-            <td>{route.action_value || "—"}</td>
-            <td>{actionLabel(route.action)}</td>
+            <td>{route.action === "proxy" ? `${text.proxy} (${route.action_value || "—"})` : actionLabel(route.action)}</td>
+            <td>{text.rules.replace("{count}", String(route.match.length))}</td>
             <td><div className="machine-actions"><button onClick={() => openEdit(route)} type="button">{text.edit}</button>
-              <button className="danger" onClick={() => void remove(route)} type="button">{text.remove}</button></div></td>
+              <button className="danger" onClick={() => setPendingDelete(route)} type="button">{text.remove}</button></div></td>
           </tr>)}</tbody></table>}
       </div>
       <div className="admin-pagination">
@@ -223,5 +229,6 @@ export function AdminNodeRoutesPage() {
           <button className="primary" disabled={saveMutation.isPending} type="submit">{saveMutation.isPending ? text.saving : text.confirm}</button></footer>
       </form>
     </div>}
+    {pendingDelete && <div className="admin-modal-backdrop" role="presentation"><section aria-label={text.riskTitle} className="admin-modal machine-modal"><header><h2>{text.riskTitle}</h2><button aria-label={text.cancel} onClick={() => setPendingDelete(undefined)} type="button">×</button></header><div className="machine-form"><p style={{ margin: 0, color: "#6d3740" }}>{text.removeConfirm}</p><strong>{pendingDelete.remarks}</strong>{error && <p className="admin-operation-error">{error}</p>}</div><footer><button disabled={deleting} onClick={() => setPendingDelete(undefined)} type="button">{text.cancel}</button><button className="primary" disabled={deleting} onClick={() => void remove(pendingDelete)} style={{ background: "#d94f5e", borderColor: "#d94f5e" }} type="button">{deleting ? text.deleting : text.deleteNow}</button></footer></section></div>}
   </AdminShell>;
 }
