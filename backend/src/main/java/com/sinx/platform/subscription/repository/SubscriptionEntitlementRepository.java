@@ -45,6 +45,9 @@ public interface SubscriptionEntitlementRepository
             entitlement.expiresAt is null
             or entitlement.expiresAt > :now
           )
+          and entitlement.uploadedBytes < entitlement.transferLimitBytes
+          and entitlement.downloadedBytes
+              < entitlement.transferLimitBytes - entitlement.uploadedBytes
         """)
     long countActiveForPlan(
         @Param("planId") UUID planId,

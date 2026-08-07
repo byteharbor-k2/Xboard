@@ -5,10 +5,12 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Sort;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
 import com.sinx.platform.node.repository.NodeAccessGroupRepository;
+import com.sinx.platform.node.application.NodeAccessGroupsChangedEvent;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
@@ -31,17 +34,20 @@ public class PlanManagementService {
     private final ServicePlanRepository planRepository;
     private final SubscriptionEntitlementRepository entitlementRepository;
     private final NodeAccessGroupRepository groupRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     public PlanManagementService(
         ServicePlanRepository planRepository,
         SubscriptionEntitlementRepository entitlementRepository,
         NodeAccessGroupRepository groupRepository,
+        ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
         this.planRepository = planRepository;
         this.entitlementRepository = entitlementRepository;
         this.groupRepository = groupRepository;
+        this.eventPublisher = eventPublisher;
         this.clock = clock;
     }
 
@@ -90,6 +96,7 @@ public class PlanManagementService {
     public ManagedPlanView update(UUID id, PlanDraft draft) {
         ValidatedDraft values = validate(draft);
         ServicePlan plan = find(id);
+        Long previousServerGroupId = plan.getServerGroupId();
         Instant now = Instant.now(clock);
         plan.update(
             values.name(),
@@ -111,6 +118,15 @@ public class PlanManagementService {
         );
         plan.assignServerGroup(values.serverGroupId(), now);
         syncPrices(plan, values.prices());
+        if (!Objects.equals(previousServerGroupId, values.serverGroupId())) {
+            eventPublisher.publishEvent(NodeAccessGroupsChangedEvent.of(
+                java.util.Arrays.asList(
+                    previousServerGroupId,
+                    values.serverGroupId()
+                ),
+                "plan server group changed"
+            ));
+        }
         return ManagedPlanView.from(
             plan,
             entitlementRepository.countForPlan(id),

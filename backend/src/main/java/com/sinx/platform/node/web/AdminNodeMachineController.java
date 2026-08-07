@@ -11,8 +11,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.node.application.NodeMachineService;
 import com.sinx.platform.node.application.NodeManagementService;
+import com.sinx.platform.node.websocket.NodeWebSocketChangeNotifier;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -25,10 +27,19 @@ public class AdminNodeMachineController {
 
     private final NodeMachineService machines;
     private final NodeManagementService nodes;
+    private final PlatformConfigurationService configuration;
+    private final NodeWebSocketChangeNotifier notifier;
 
-    public AdminNodeMachineController(NodeMachineService machines, NodeManagementService nodes) {
+    public AdminNodeMachineController(
+        NodeMachineService machines,
+        NodeManagementService nodes,
+        PlatformConfigurationService configuration,
+        NodeWebSocketChangeNotifier notifier
+    ) {
         this.machines = machines;
         this.nodes = nodes;
+        this.configuration = configuration;
+        this.notifier = notifier;
     }
 
     @GetMapping("/fetch")
@@ -50,6 +61,9 @@ public class AdminNodeMachineController {
                 request.notes(),
                 request.active()
             );
+            if (Boolean.FALSE.equals(request.active())) {
+                notifier.machineRevoked(request.id());
+            }
             return XboardResponse.of(true);
         }
         NodeMachineService.CreatedMachine created = machines.create(
@@ -68,7 +82,9 @@ public class AdminNodeMachineController {
     XboardResponse<Map<String, String>> resetToken(
         @RequestBody MachineIdRequest request
     ) {
-        return XboardResponse.of(Map.of("token", machines.rotateToken(request.id())));
+        String token = machines.rotateToken(request.id());
+        notifier.machineRevoked(request.id());
+        return XboardResponse.of(Map.of("token", token));
     }
 
     @GetMapping("/getToken")
@@ -90,6 +106,7 @@ public class AdminNodeMachineController {
     @PostMapping("/drop")
     XboardResponse<Boolean> drop(@RequestBody MachineIdRequest request) {
         machines.delete(request.id());
+        notifier.machineDeleted(request.id());
         return XboardResponse.of(true);
     }
 
@@ -117,14 +134,33 @@ public class AdminNodeMachineController {
         long machineId,
         String token
     ) {
+        String panelUrl = configuration.appUrl()
+            .map(this::withoutTrailingSlash)
+            .orElseGet(() -> requestOrigin(request));
+        return "curl -fsSL " + INSTALLER_URL
+            + " | sudo bash -s -- --mode machine --panel " + shellQuote(panelUrl)
+            + " --token " + shellQuote(token) + " --machine-id " + machineId;
+    }
+
+    private String requestOrigin(HttpServletRequest request) {
         String panelUrl = request.getScheme() + "://" + request.getServerName();
         if (!(("http".equals(request.getScheme()) && request.getServerPort() == 80)
             || ("https".equals(request.getScheme()) && request.getServerPort() == 443))) {
             panelUrl += ":" + request.getServerPort();
         }
-        return "curl -fsSL " + INSTALLER_URL
-            + " | sudo bash -s -- --mode machine --panel '" + panelUrl
-            + "' --token '" + token + "' --machine-id " + machineId;
+        return panelUrl;
+    }
+
+    private String withoutTrailingSlash(String value) {
+        String result = value;
+        while (result.endsWith("/")) {
+            result = result.substring(0, result.length() - 1);
+        }
+        return result;
+    }
+
+    private String shellQuote(String value) {
+        return "'" + value.replace("'", "'\"'\"'") + "'";
     }
 
     record SaveMachineRequest(

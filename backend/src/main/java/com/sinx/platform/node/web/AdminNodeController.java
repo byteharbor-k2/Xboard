@@ -13,15 +13,21 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sinx.platform.node.application.NodeManagementService;
+import com.sinx.platform.node.websocket.NodeWebSocketChangeNotifier;
 
 @RestController
 @RequestMapping("/api/v2/admin/server/manage")
 public class AdminNodeController {
 
     private final NodeManagementService nodes;
+    private final NodeWebSocketChangeNotifier notifier;
 
-    public AdminNodeController(NodeManagementService nodes) {
+    public AdminNodeController(
+        NodeManagementService nodes,
+        NodeWebSocketChangeNotifier notifier
+    ) {
         this.nodes = nodes;
+        this.notifier = notifier;
     }
 
     @GetMapping("/getNodes")
@@ -38,12 +44,22 @@ public class AdminNodeController {
 
     @PostMapping("/save")
     XboardResponse<NodeManagementService.NodeView> save(@RequestBody SaveNodeRequest request) {
-        return XboardResponse.of(nodes.save(request.toDraft()));
+        NodeManagementService.NodeView before = request.id() == null
+            ? null
+            : nodes.get(request.id());
+        NodeManagementService.NodeView saved = nodes.save(request.toDraft());
+        if (before == null) {
+            notifier.nodeCreated(saved);
+        } else {
+            notifier.nodesUpdated(List.of(before), List.of(saved));
+        }
+        return XboardResponse.of(saved);
     }
 
     @PostMapping("/update")
     XboardResponse<Boolean> update(@RequestBody Map<String, Object> request) {
         long id = ((Number) request.get("id")).longValue();
+        NodeManagementService.NodeView before = nodes.get(id);
         nodes.quickUpdate(
             id,
             bool(request.get("show")),
@@ -51,18 +67,23 @@ public class AdminNodeController {
             longValue(request.get("machine_id")),
             request.containsKey("machine_id")
         );
+        notifier.nodesUpdated(List.of(before), List.of(nodes.get(id)));
         return XboardResponse.of(true);
     }
 
     @PostMapping("/drop")
     XboardResponse<Boolean> drop(@RequestBody IdRequest request) {
+        NodeManagementService.NodeView before = nodes.get(request.id());
         nodes.delete(request.id());
+        notifier.nodesDeleted(List.of(before));
         return XboardResponse.of(true);
     }
 
     @PostMapping("/copy")
     XboardResponse<NodeManagementService.NodeView> copy(@RequestBody IdRequest request) {
-        return XboardResponse.of(nodes.copy(request.id()));
+        NodeManagementService.NodeView copied = nodes.copy(request.id());
+        notifier.nodeCreated(copied);
+        return XboardResponse.of(copied);
     }
 
     @PostMapping("/sort")
@@ -73,12 +94,19 @@ public class AdminNodeController {
 
     @PostMapping("/batchDelete")
     XboardResponse<Boolean> batchDelete(@RequestBody IdsRequest request) {
+        List<NodeManagementService.NodeView> before = request.ids().stream()
+            .map(nodes::get)
+            .toList();
         nodes.batchDelete(request.ids());
+        notifier.nodesDeleted(before);
         return XboardResponse.of(true);
     }
 
     @PostMapping("/batchUpdate")
     XboardResponse<Boolean> batchUpdate(@RequestBody BatchUpdateRequest request) {
+        List<NodeManagementService.NodeView> before = request.ids().stream()
+            .map(nodes::get)
+            .toList();
         nodes.batchUpdate(
             request.ids(),
             request.show(),
@@ -86,6 +114,10 @@ public class AdminNodeController {
             request.machineId(),
             Boolean.TRUE.equals(request.updateMachine())
         );
+        List<NodeManagementService.NodeView> after = request.ids().stream()
+            .map(nodes::get)
+            .toList();
+        notifier.nodesUpdated(before, after);
         return XboardResponse.of(true);
     }
 

@@ -8,9 +8,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.node.application.NodeMachineService;
 import com.sinx.platform.node.application.NodeManagementService;
+import com.sinx.platform.node.application.NodeProtocolService;
+import com.sinx.platform.node.websocket.NodeWebSocketEndpointInfo;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -25,29 +29,64 @@ public class NodeMachineProtocolController {
 
     private final NodeMachineService machines;
     private final NodeManagementService nodes;
+    private final NodeProtocolService protocol;
+    private final NodeWebSocketEndpointInfo webSocket;
+    private final PlatformConfigurationService configuration;
 
-    public NodeMachineProtocolController(NodeMachineService machines, NodeManagementService nodes) {
+    public NodeMachineProtocolController(
+        NodeMachineService machines,
+        NodeManagementService nodes,
+        NodeProtocolService protocol,
+        NodeWebSocketEndpointInfo webSocket,
+        PlatformConfigurationService configuration
+    ) {
         this.machines = machines;
         this.nodes = nodes;
+        this.protocol = protocol;
+        this.webSocket = webSocket;
+        this.configuration = configuration;
     }
 
     @PostMapping("/handshake")
-    HandshakeResponse handshake(@Valid @RequestBody MachineCredentials request) {
-        machines.authenticate(request.machineId(), request.token());
+    HandshakeResponse handshake(
+        @Valid @RequestBody HandshakeCredentials request,
+        HttpServletRequest servletRequest
+    ) {
+        if (request.machineId() == null) {
+            if (request.nodeId() == null) {
+                protocol.authenticateLegacyToken(request.token());
+            } else {
+                protocol.authenticateLegacy(request.nodeId(), request.token());
+            }
+        } else if (request.nodeId() != null) {
+            protocol.authenticate(
+                request.machineId(),
+                request.nodeId(),
+                request.token()
+            );
+        } else {
+            machines.authenticate(request.machineId(), request.token());
+        }
+        NodeWebSocketEndpointInfo.Endpoint endpoint = webSocket.endpoint(servletRequest);
         return new HandshakeResponse(
-            new WebSocketSettings(false, null),
-            new PollSettings(60, 60)
+            new WebSocketSettings(endpoint.enabled(), endpoint.url()),
+            new PollSettings(endpoint.pushIntervalSeconds(), endpoint.pullIntervalSeconds())
         );
     }
 
     @PostMapping("/machine/nodes")
     MachineNodesResponse nodes(@Valid @RequestBody MachineCredentials request) {
         machines.authenticate(request.machineId(), request.token());
+        PlatformConfigurationService.NodeCommunicationSettings communication =
+            configuration.nodeCommunicationSettings();
         return new MachineNodesResponse(
             nodes.forMachine(request.machineId(), true).stream()
                 .map(node -> new MachineNode(node.id(), node.type(), node.name()))
                 .toList(),
-            new PollSettings(60, 60)
+            new PollSettings(
+                communication.pushIntervalSeconds(),
+                communication.pullIntervalSeconds()
+            )
         );
     }
 
@@ -69,6 +108,13 @@ public class NodeMachineProtocolController {
 
     record MachineCredentials(
         @JsonProperty("machine_id") @NotNull @Positive Long machineId,
+        @NotBlank String token
+    ) {
+    }
+
+    record HandshakeCredentials(
+        @JsonProperty("machine_id") @Positive Long machineId,
+        @JsonProperty("node_id") @Positive Long nodeId,
         @NotBlank String token
     ) {
     }

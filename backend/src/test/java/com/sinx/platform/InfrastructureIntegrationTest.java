@@ -171,7 +171,8 @@ class InfrastructureIntegrationTest {
                     {"machine_id":%d,"token":"%s"}
                     """.formatted(machineId, token)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.websocket.enabled").value(false))
+            .andExpect(jsonPath("$.websocket.enabled").value(true))
+            .andExpect(jsonPath("$.websocket.ws_url").value("ws://localhost/ws"))
             .andExpect(jsonPath("$.settings.push_interval").value(60));
 
         mockMvc.perform(post("/api/v2/server/machine/nodes")
