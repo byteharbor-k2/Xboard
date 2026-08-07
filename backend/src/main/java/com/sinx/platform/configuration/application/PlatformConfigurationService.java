@@ -25,6 +25,7 @@ import com.sinx.platform.shared.web.ApiProblemException;
 @Transactional(readOnly = true)
 public class PlatformConfigurationService {
 
+    private static final String APP_URL_KEY = "site.app_url";
     private static final String TERMS_URL_KEY = "site.tos_url";
     private static final String EMAIL_ALLOWLIST_ENABLED_KEY =
         "safe.email_whitelist_enable";
@@ -54,6 +55,14 @@ public class PlatformConfigurationService {
         "email.email_from_address";
     private static final String EMAIL_REMINDERS_KEY =
         "email.remind_mail_enable";
+    private static final String SERVER_TOKEN_KEY = "server.server_token";
+    private static final String SERVER_PULL_INTERVAL_KEY =
+        "server.server_pull_interval";
+    private static final String SERVER_PUSH_INTERVAL_KEY =
+        "server.server_push_interval";
+    private static final String SERVER_WS_ENABLED_KEY =
+        "server.server_ws_enable";
+    private static final String SERVER_WS_URL_KEY = "server.server_ws_url";
     private static final Pattern DOMAIN_PATTERN = Pattern.compile(
         "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
             + "(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
@@ -72,7 +81,10 @@ public class PlatformConfigurationService {
 
     public Map<String, Object> sectionSettings(String section) {
         return switch (section) {
-            case "site" -> Map.of("tos_url", termsUrl().orElse(""));
+            case "site" -> Map.of(
+                "app_url", appUrl().orElse(""),
+                "tos_url", termsUrl().orElse("")
+            );
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
                 TurnstilePolicy turnstile = turnstilePolicy();
@@ -125,6 +137,16 @@ public class PlatformConfigurationService {
                     mail.remindersEnabled()
                 );
             }
+            case "server" -> {
+                NodeCommunicationSettings node = nodeCommunicationSettings();
+                yield Map.of(
+                    "server_token", node.legacyToken() == null ? "" : node.legacyToken(),
+                    "server_pull_interval", node.pullIntervalSeconds(),
+                    "server_push_interval", node.pushIntervalSeconds(),
+                    "server_ws_enable", node.webSocketEnabled(),
+                    "server_ws_url", node.webSocketUrl() == null ? "" : node.webSocketUrl()
+                );
+            }
             default -> throw unsupportedSection();
         };
     }
@@ -141,6 +163,7 @@ public class PlatformConfigurationService {
             .iterator()
             .next();
         switch (section + "." + entry.getKey()) {
+            case APP_URL_KEY -> saveAppUrl(entry.getValue());
             case TERMS_URL_KEY -> saveTermsUrl(entry.getValue());
             case EMAIL_ALLOWLIST_ENABLED_KEY ->
                 saveEmailAllowlistEnabled(entry.getValue());
@@ -191,12 +214,24 @@ public class PlatformConfigurationService {
                 saveMailFromAddress(entry.getValue());
             case EMAIL_REMINDERS_KEY ->
                 saveBoolean(EMAIL_REMINDERS_KEY, entry.getValue());
+            case SERVER_TOKEN_KEY -> saveServerToken(entry.getValue());
+            case SERVER_PULL_INTERVAL_KEY ->
+                saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue(), 5, 3600);
+            case SERVER_PUSH_INTERVAL_KEY ->
+                saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue(), 5, 3600);
+            case SERVER_WS_ENABLED_KEY ->
+                saveBoolean(SERVER_WS_ENABLED_KEY, entry.getValue());
+            case SERVER_WS_URL_KEY -> saveWebSocketUrl(entry.getValue());
             default -> throw unsupportedSetting();
         }
     }
 
     public Optional<String> termsUrl() {
         return read(TERMS_URL_KEY).filter(value -> !value.isBlank());
+    }
+
+    public Optional<String> appUrl() {
+        return read(APP_URL_KEY).filter(value -> !value.isBlank());
     }
 
     public EmailDomainPolicy emailDomainPolicy() {
@@ -259,6 +294,16 @@ public class PlatformConfigurationService {
         );
     }
 
+    public NodeCommunicationSettings nodeCommunicationSettings() {
+        return new NodeCommunicationSettings(
+            read(SERVER_TOKEN_KEY).filter(value -> !value.isBlank()).orElse(null),
+            readInteger(SERVER_PULL_INTERVAL_KEY, 60),
+            readInteger(SERVER_PUSH_INTERVAL_KEY, 60),
+            readBoolean(SERVER_WS_ENABLED_KEY, true),
+            read(SERVER_WS_URL_KEY).filter(value -> !value.isBlank()).orElse(null)
+        );
+    }
+
     public void assertEmailDomainAllowed(String email) {
         EmailDomainPolicy policy = emailDomainPolicy();
         if (!policy.enabled()) {
@@ -288,6 +333,22 @@ public class PlatformConfigurationService {
         }
         validateTermsUrl(normalized);
         store(TERMS_URL_KEY, normalized);
+    }
+
+    private void saveAppUrl(Object rawValue) {
+        if (!(rawValue instanceof String value)) {
+            throw invalidAppUrl();
+        }
+        String normalized = value.trim();
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.isEmpty()) {
+            settings.deleteById(APP_URL_KEY);
+            return;
+        }
+        validateAppUrl(normalized);
+        store(APP_URL_KEY, normalized);
     }
 
     private void saveEmailAllowlistEnabled(Object rawValue) {
@@ -436,6 +497,46 @@ public class PlatformConfigurationService {
         store(EMAIL_FROM_ADDRESS_KEY, normalized);
     }
 
+    private void saveWebSocketUrl(Object rawValue) {
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isBlank()) {
+            settings.deleteById(SERVER_WS_URL_KEY);
+            return;
+        }
+        if (normalized.length() > 2048) {
+            throw invalidSettingValue();
+        }
+        try {
+            URI uri = URI.create(normalized);
+            if (!("ws".equalsIgnoreCase(uri.getScheme())
+                || "wss".equalsIgnoreCase(uri.getScheme()))
+                || uri.getHost() == null) {
+                throw invalidSettingValue();
+            }
+        } catch (IllegalArgumentException exception) {
+            throw invalidSettingValue();
+        }
+        store(SERVER_WS_URL_KEY, normalized);
+    }
+
+    private void saveServerToken(Object rawValue) {
+        if (!(rawValue instanceof String value) || value.length() > 256) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isBlank()) {
+            settings.deleteById(SERVER_TOKEN_KEY);
+            return;
+        }
+        if (normalized.length() < 16) {
+            throw invalidSettingValue();
+        }
+        store(SERVER_TOKEN_KEY, normalized);
+    }
+
     private void saveOptionalString(
         String key,
         Object rawValue,
@@ -495,11 +596,42 @@ public class PlatformConfigurationService {
         }
     }
 
+    private void validateAppUrl(String value) {
+        if (value.length() > 2048) {
+            throw invalidAppUrl();
+        }
+        try {
+            URI uri = URI.create(value);
+            String scheme = uri.getScheme();
+            if (
+                scheme == null
+                    || (!scheme.equalsIgnoreCase("https")
+                        && !scheme.equalsIgnoreCase("http"))
+                    || uri.getHost() == null
+                    || uri.getUserInfo() != null
+                    || uri.getQuery() != null
+                    || uri.getFragment() != null
+            ) {
+                throw invalidAppUrl();
+            }
+        } catch (IllegalArgumentException exception) {
+            throw invalidAppUrl();
+        }
+    }
+
     private ApiProblemException invalidTermsUrl() {
         return new ApiProblemException(
             HttpStatus.BAD_REQUEST,
             "TERMS_URL_INVALID",
             "The terms of service URL must be a valid HTTP or HTTPS URL"
+        );
+    }
+
+    private ApiProblemException invalidAppUrl() {
+        return new ApiProblemException(
+            HttpStatus.BAD_REQUEST,
+            "APP_URL_INVALID",
+            "The application URL must be a valid HTTP or HTTPS base URL"
         );
     }
 
@@ -573,5 +705,14 @@ public class PlatformConfigurationService {
                 && fromAddress != null
                 && (username == null || password != null);
         }
+    }
+
+    public record NodeCommunicationSettings(
+        String legacyToken,
+        int pullIntervalSeconds,
+        int pushIntervalSeconds,
+        boolean webSocketEnabled,
+        String webSocketUrl
+    ) {
     }
 }

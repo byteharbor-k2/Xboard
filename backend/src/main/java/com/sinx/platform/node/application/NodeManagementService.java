@@ -16,6 +16,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.Base64;
+import java.util.regex.Pattern;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -39,6 +40,9 @@ import tools.jackson.databind.ObjectMapper;
 public class NodeManagementService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Pattern RATE_TIME = Pattern.compile(
+        "^(?:[01]\\d|2[0-3]):[0-5]\\d$"
+    );
 
     public static final Set<String> SUPPORTED_PROTOCOLS = Set.of(
         "hysteria", "vless", "trojan", "vmess", "tuic", "shadowsocks",
@@ -70,6 +74,10 @@ public class NodeManagementService {
 
     public List<NodeView> list() {
         return nodes.findAllByOrderBySortOrderAscIdAsc().stream().map(this::view).toList();
+    }
+
+    public NodeView get(long id) {
+        return view(requireNode(id));
     }
 
     public List<NodeView> forMachine(long machineId, boolean enabledOnly) {
@@ -208,12 +216,24 @@ public class NodeManagementService {
         if (draft.name() == null || draft.name().isBlank() || draft.name().trim().length() > 255) {
             throw invalid("Node name is required and must not exceed 255 characters");
         }
+        NodeProtocolSettingsValidator.validateAddress(draft.host(), "Node host");
         if (draft.serverPort() == null || draft.serverPort() < 1 || draft.serverPort() > 65535) {
             throw invalid("Server port must be between 1 and 65535");
         }
-        if (draft.port() != null && (draft.port() < 1 || draft.port() > 65535)) {
+        if (draft.port() == null || draft.port() < 1 || draft.port() > 65535) {
             throw invalid("Public port must be between 1 and 65535");
         }
+        if (draft.rate() == null || draft.rate().signum() < 0) {
+            throw invalid("Node rate is required and must not be negative");
+        }
+        if (draft.transferEnable() != null && draft.transferEnable() < 0) {
+            throw invalid("Node traffic limit must not be negative");
+        }
+        validateRateTimeRanges(draft.rateTimeRanges());
+        validateStringList(draft.tags(), "Node tags");
+        validateArray(draft.customOutbounds(), "custom_outbounds");
+        validateArray(draft.customRoutes(), "custom_routes");
+        validateObject(draft.certConfig(), "cert_config");
         NodeMachine machine = machine(draft.machineId());
         validateReferences(draft, type);
         Map<String, Object> protocolSettings = draft.protocolSettings() == null
@@ -225,10 +245,10 @@ public class NodeManagementService {
             type, blankToNull(draft.code()), draft.parentId(), machine,
             json(draft.groupIds() == null ? List.of() : deduplicate(draft.groupIds())),
             json(draft.routeIds() == null ? List.of() : deduplicate(draft.routeIds())),
-            draft.name().trim(), draft.rate() == null ? BigDecimal.ONE : draft.rate(),
+            draft.name().trim(), draft.rate(),
             Boolean.TRUE.equals(draft.rateTimeEnable()),
             json(draft.rateTimeRanges() == null ? List.of() : draft.rateTimeRanges()),
-            draft.transferEnable() == null ? 0 : Math.max(draft.transferEnable(), 0),
+            draft.transferEnable() == null ? 0 : draft.transferEnable(),
             json(draft.tags() == null ? List.of() : draft.tags()), blankToNull(draft.host()),
             draft.port(), draft.serverPort(),
             json(protocolSettings),
@@ -270,33 +290,55 @@ public class NodeManagementService {
     }
 
     private void validateProtocolSettings(String type, Map<String, Object> settings) {
-        switch (type) {
-            case "shadowsocks" -> requireText(settings, "cipher", "Shadowsocks cipher is required");
-            case "vmess", "vless" -> {
-                requireNumber(settings, "tls", "TLS mode is required");
-                requireText(settings, "network", "Transport protocol is required");
+        NodeProtocolSettingsValidator.validate(type, settings);
+    }
+
+    private void validateRateTimeRanges(Object rawValue) {
+        if (rawValue == null) return;
+        if (!(rawValue instanceof List<?> values)) {
+            throw invalid("rate_time_ranges must be an array");
+        }
+        for (Object value : values) {
+            if (!(value instanceof Map<?, ?> range)) {
+                throw invalid("Each rate time range must be an object");
             }
-            case "trojan" -> requireText(settings, "network", "Transport protocol is required");
-            case "hysteria" -> requireNumber(settings, "version", "Hysteria version is required");
-            case "mieru" -> {
-                String transport = requireText(settings, "transport", "Mieru transport is required");
-                if (!Set.of("TCP", "UDP").contains(transport.toUpperCase(Locale.ROOT))) {
-                    throw invalid("Mieru transport must be TCP or UDP");
-                }
-                requireText(settings, "traffic_pattern", "Mieru traffic pattern is required");
+            validateRateTime(range.get("start"), "start");
+            validateRateTime(range.get("end"), "end");
+            Object rate = range.get("rate");
+            if (!(rate instanceof Number number) || !Double.isFinite(number.doubleValue())
+                || number.doubleValue() < 0) {
+                throw invalid("Each rate time range must contain a non-negative numeric rate");
             }
-            default -> { }
         }
     }
 
-    private String requireText(Map<String, Object> settings, String key, String message) {
-        Object value = settings.get(key);
-        if (!(value instanceof String text) || text.isBlank()) throw invalid(message);
-        return text.trim();
+    private void validateRateTime(Object rawValue, String field) {
+        if (!(rawValue instanceof String value)) {
+            throw invalid("Each rate time range must contain a valid " + field + " time");
+        }
+        if (!RATE_TIME.matcher(value).matches()) {
+            throw invalid("Each rate time range must use HH:mm for " + field);
+        }
     }
 
-    private void requireNumber(Map<String, Object> settings, String key, String message) {
-        if (!(settings.get(key) instanceof Number)) throw invalid(message);
+    private void validateStringList(List<String> values, String field) {
+        if (values == null) return;
+        if (values.size() > 100 || values.stream().anyMatch(value ->
+            value == null || value.isBlank() || value.length() > 255)) {
+            throw invalid(field + " must contain at most 100 non-empty strings");
+        }
+    }
+
+    private void validateArray(Object value, String field) {
+        if (value != null && !(value instanceof List<?>)) {
+            throw invalid(field + " must be an array");
+        }
+    }
+
+    private void validateObject(Object value, String field) {
+        if (value != null && !(value instanceof Map<?, ?>)) {
+            throw invalid(field + " must be an object");
+        }
     }
 
     private byte[] littleEndian(BigInteger value, int length) {

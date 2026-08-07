@@ -54,6 +54,8 @@ logging:
     level: "%5p [requestId:%X{requestId:-}]"
 
 sinx:
+  node:
+    billing-time-zone: ${NODE_BILLING_TIME_ZONE:Asia/Shanghai}
   security:
     issuer: ${SECURITY_ISSUER:sinx-platform}
     access-token-ttl: ${ACCESS_TOKEN_TTL:10m}

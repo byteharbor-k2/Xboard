@@ -1,10 +1,12 @@
 package com.sinx.platform.node.application;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -13,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +24,7 @@ import com.sinx.platform.node.domain.NodeRouteRule;
 import com.sinx.platform.node.domain.ProxyNode;
 import com.sinx.platform.node.repository.NodeRouteRuleRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.shared.web.ApiProblemException;
@@ -39,6 +43,10 @@ public class NodeProtocolService {
     private final ProxyNodeRepository nodes;
     private final NodeRouteRuleRepository routes;
     private final SubscriptionEntitlementRepository entitlements;
+    private final NodeTrafficRateCalculator trafficRates;
+    private final NodeDeviceStateService deviceStates;
+    private final PlatformConfigurationService configuration;
+    private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -47,6 +55,10 @@ public class NodeProtocolService {
         ProxyNodeRepository nodes,
         NodeRouteRuleRepository routes,
         SubscriptionEntitlementRepository entitlements,
+        NodeTrafficRateCalculator trafficRates,
+        NodeDeviceStateService deviceStates,
+        PlatformConfigurationService configuration,
+        ApplicationEventPublisher eventPublisher,
         ObjectMapper objectMapper,
         Clock clock
     ) {
@@ -54,6 +66,10 @@ public class NodeProtocolService {
         this.nodes = nodes;
         this.routes = routes;
         this.entitlements = entitlements;
+        this.trafficRates = trafficRates;
+        this.deviceStates = deviceStates;
+        this.configuration = configuration;
+        this.eventPublisher = eventPublisher;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -68,13 +84,40 @@ public class NodeProtocolService {
         return new AuthenticatedNode(machine, node);
     }
 
+    public void authenticateLegacyToken(String token) {
+        String expected = configuration.nodeCommunicationSettings().legacyToken();
+        if (token == null || token.isBlank() || expected == null || expected.isBlank()
+            || !MessageDigest.isEqual(
+                expected.getBytes(StandardCharsets.UTF_8),
+                token.getBytes(StandardCharsets.UTF_8)
+            )) {
+            throw forbidden("Invalid legacy server token");
+        }
+    }
+
+    public AuthenticatedNode authenticateLegacy(long nodeId, String token) {
+        authenticateLegacyToken(token);
+        ProxyNode node = nodes.findFirstByCode(Long.toString(nodeId))
+            .or(() -> nodes.findById(nodeId))
+            .orElseThrow(() -> forbidden("Node not found"));
+        return new AuthenticatedNode(null, node);
+    }
+
     public ConfigPayload config(long machineId, long nodeId, String token) {
         ProxyNode node = authenticate(machineId, nodeId, token).node();
+        return config(node);
+    }
+
+    public ConfigPayload configLegacy(long nodeId, String token) {
+        return config(authenticateLegacy(nodeId, token).node());
+    }
+
+    private ConfigPayload config(ProxyNode node) {
         Map<String, Object> settings = jsonMap(node.getProtocolSettings());
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("node_id", node.getId());
         config.put("protocol", node.getType());
-        config.put("listen_ip", "0.0.0.0");
+        config.put("listen_ip", settings.getOrDefault("listen_ip", "0.0.0.0"));
         config.put("server_port", node.getServerPort());
         config.put("network", settings.getOrDefault("network", "tcp"));
         Object networkSettings = settings.containsKey("networkSettings")
@@ -86,7 +129,12 @@ public class NodeProtocolService {
             }
         });
         applyProtocolMapping(config, node, settings);
-        config.put("base_config", Map.of("push_interval", 60, "pull_interval", 60));
+        PlatformConfigurationService.NodeCommunicationSettings communication =
+            configuration.nodeCommunicationSettings();
+        config.put("base_config", Map.of(
+            "push_interval", communication.pushIntervalSeconds(),
+            "pull_interval", communication.pullIntervalSeconds()
+        ));
         config.put("routes", routePayload(node));
         putJson(config, "custom_outbounds", node.getCustomOutbounds(), true);
         putJson(config, "custom_routes", node.getCustomRoutes(), true);
@@ -164,6 +212,32 @@ public class NodeProtocolService {
 
     public UsersPayload users(long machineId, long nodeId, String token) {
         ProxyNode node = authenticate(machineId, nodeId, token).node();
+        return users(node);
+    }
+
+    public UsersPayload usersLegacy(long nodeId, String token) {
+        return users(authenticateLegacy(nodeId, token).node());
+    }
+
+    public Map<Long, Integer> aliveListLegacy(long nodeId, String token) {
+        ProxyNode node = authenticateLegacy(nodeId, token).node();
+        Set<Long> limitedUserIds = new java.util.LinkedHashSet<>();
+        for (Map<String, Object> user : users(node).users()) {
+            if (number(user.get("device_limit")) <= 0) continue;
+            Long nodeUserId = positiveLong(user.get("id"));
+            if (nodeUserId != null) limitedUserIds.add(nodeUserId);
+        }
+        Map<Long, Integer> counts = new LinkedHashMap<>();
+        deviceStates.snapshotForUsers(limitedUserIds, clock.instant())
+            .forEach((userId, addresses) -> {
+                if (addresses != null && !addresses.isEmpty()) {
+                    counts.put(userId, addresses.size());
+                }
+            });
+        return counts;
+    }
+
+    private UsersPayload users(ProxyNode node) {
         Set<Long> groupIds = new HashSet<>(jsonLongList(node.getGroupIds()));
         if (groupIds.isEmpty()) {
             return new UsersPayload(List.of(), etag(List.of()));
@@ -181,12 +255,25 @@ public class NodeProtocolService {
     @Transactional
     public void report(long machineId, long nodeId, String token, Map<String, Object> payload) {
         ProxyNode node = authenticate(machineId, nodeId, token).node();
+        report(node, payload);
+    }
+
+    @Transactional
+    public void reportLegacy(long nodeId, String token, Map<String, Object> payload) {
+        report(authenticateLegacy(nodeId, token).node(), payload);
+    }
+
+    private void report(ProxyNode node, Map<String, Object> payload) {
         Set<Long> groupIds = new HashSet<>(jsonLongList(node.getGroupIds()));
+        Set<Long> exhaustedGroupIds = new LinkedHashSet<>();
         var now = clock.instant();
+        BigDecimal currentRate = trafficRates.currentRate(node, now);
         long upload = 0;
         long download = 0;
+        int reportedUsers = node.getOnlineUsers();
         Object trafficValue = payload.get("traffic");
         if (trafficValue instanceof Map<?, ?> traffic) {
+            reportedUsers = 0;
             for (Map.Entry<?, ?> entry : traffic.entrySet()) {
                 Long nodeUserId = positiveLong(entry.getKey());
                 Object value = entry.getValue();
@@ -194,6 +281,7 @@ public class NodeProtocolService {
                     long uploadedDelta = number(pair.get(0));
                     long downloadedDelta = number(pair.get(1));
                     if (nodeUserId == null || (uploadedDelta == 0 && downloadedDelta == 0)) continue;
+                    reportedUsers++;
                     // Node counters describe everything the node actually handled. User
                     // entitlement counters are intentionally stricter and are only charged
                     // when the reported user is still eligible for this node.
@@ -206,19 +294,57 @@ public class NodeProtocolService {
                         || !eligible(entitlement, groupIds)) {
                         continue;
                     }
-                    entitlement.addUsage(uploadedDelta, downloadedDelta, now);
+                    entitlement.addUsage(
+                        trafficRates.charge(uploadedDelta, currentRate),
+                        trafficRates.charge(downloadedDelta, currentRate),
+                        now
+                    );
+                    if (entitlement.stateAt(now) == EntitlementState.EXHAUSTED) {
+                        exhaustedGroupIds.add(
+                            entitlement.getEffectiveServerGroupId()
+                        );
+                    }
                 }
             }
         }
-        int onlineUsers = payload.get("alive") instanceof Map<?, ?> alive ? alive.size() : 0;
-        int onlineConnections = 0;
+        if (payload.containsKey("alive") && payload.get("alive") instanceof Map<?, ?> alive) {
+            deviceStates.replaceSnapshot(node.getId(), deviceSnapshot(alive), now);
+        }
+        int onlineConnections = node.getOnlineConnections();
         if (payload.get("online") instanceof Map<?, ?> online) {
+            onlineConnections = 0;
             for (Object value : online.values()) onlineConnections += (int) number(value);
         }
+        String loadStatus = payload.containsKey("status")
+            ? jsonNullable(payload.get("status"))
+            : node.getLoadStatus();
+        String metrics = payload.containsKey("metrics")
+            ? jsonNullable(payload.get("metrics"))
+            : node.getMetrics();
         node.recordReport(
-            upload, download, onlineUsers, onlineConnections,
-            jsonNullable(payload.get("status")), jsonNullable(payload.get("metrics")), now
+            upload, download, reportedUsers, onlineConnections,
+            loadStatus, metrics, now
         );
+        if (!exhaustedGroupIds.isEmpty()) {
+            eventPublisher.publishEvent(NodeAccessGroupsChangedEvent.of(
+                exhaustedGroupIds,
+                "subscription traffic exhausted"
+            ));
+        }
+    }
+
+    private Map<Long, List<String>> deviceSnapshot(Map<?, ?> rawSnapshot) {
+        Map<Long, List<String>> snapshot = new LinkedHashMap<>();
+        rawSnapshot.forEach((rawUserId, rawAddresses) -> {
+            Long nodeUserId = positiveLong(rawUserId);
+            if (nodeUserId == null || !(rawAddresses instanceof List<?> values)) return;
+            List<String> addresses = values.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .toList();
+            snapshot.put(nodeUserId, addresses);
+        });
+        return snapshot;
     }
 
     private List<Map<String, Object>> routePayload(ProxyNode node) {

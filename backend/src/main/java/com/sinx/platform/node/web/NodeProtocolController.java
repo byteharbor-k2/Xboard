@@ -29,12 +29,14 @@ public class NodeProtocolController {
 
     @GetMapping("/config")
     ResponseEntity<?> config(
-        @RequestParam(name = "machine_id") long machineId,
+        @RequestParam(name = "machine_id", required = false) Long machineId,
         @RequestParam(name = "node_id") long nodeId,
         @RequestParam String token,
         @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
     ) {
-        NodeProtocolService.ConfigPayload payload = protocol.config(machineId, nodeId, token);
+        NodeProtocolService.ConfigPayload payload = machineId == null
+            ? protocol.configLegacy(nodeId, token)
+            : protocol.config(machineId, nodeId, token);
         if (payload.etag().equals(ifNoneMatch)) {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(payload.etag()).build();
         }
@@ -43,12 +45,14 @@ public class NodeProtocolController {
 
     @GetMapping("/user")
     ResponseEntity<?> users(
-        @RequestParam(name = "machine_id") long machineId,
+        @RequestParam(name = "machine_id", required = false) Long machineId,
         @RequestParam(name = "node_id") long nodeId,
         @RequestParam String token,
         @RequestHeader(name = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch
     ) {
-        NodeProtocolService.UsersPayload payload = protocol.users(machineId, nodeId, token);
+        NodeProtocolService.UsersPayload payload = machineId == null
+            ? protocol.usersLegacy(nodeId, token)
+            : protocol.users(machineId, nodeId, token);
         if (payload.etag().equals(ifNoneMatch)) {
             return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(payload.etag()).build();
         }
@@ -57,15 +61,27 @@ public class NodeProtocolController {
 
     @PostMapping("/report")
     Map<String, Object> report(@RequestBody Map<String, Object> request) {
-        long machineId = requiredPositiveLong(request, "machine_id");
+        Long machineId = optionalPositiveLong(request, "machine_id");
         long nodeId = requiredPositiveLong(request, "node_id");
         String token = requiredToken(request);
         Map<String, Object> payload = new LinkedHashMap<>(request);
         payload.remove("machine_id");
         payload.remove("node_id");
         payload.remove("token");
-        protocol.report(machineId, nodeId, token, payload);
+        if (machineId == null) {
+            protocol.reportLegacy(nodeId, token, payload);
+        } else {
+            protocol.report(machineId, nodeId, token, payload);
+        }
         return Map.of("data", true);
+    }
+
+    private Long optionalPositiveLong(Map<String, Object> request, String key) {
+        if (!request.containsKey(key) || request.get(key) == null
+            || String.valueOf(request.get(key)).isBlank()) {
+            return null;
+        }
+        return requiredPositiveLong(request, key);
     }
 
     private long requiredPositiveLong(Map<String, Object> request, String key) {

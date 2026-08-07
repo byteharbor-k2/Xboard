@@ -1,6 +1,7 @@
 package com.sinx.platform.node.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,6 +14,8 @@ public interface ProxyNodeRepository extends JpaRepository<ProxyNode, Long> {
     List<ProxyNode> findByMachineIdAndEnabledTrueOrderBySortOrderAscIdAsc(Long machineId);
 
     List<ProxyNode> findByMachineIdOrderBySortOrderAscIdAsc(Long machineId);
+
+    Optional<ProxyNode> findFirstByCode(String code);
 
     long countByMachineId(Long machineId);
 }

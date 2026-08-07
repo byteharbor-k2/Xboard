@@ -93,7 +93,10 @@ public class SecurityConfiguration {
                     "/api/v2/server/machine/status",
                     "/api/v2/server/config",
                     "/api/v2/server/user",
-                    "/api/v2/server/report"
+                    "/api/v2/server/report",
+                    "/api/v1/server/UniProxy/**",
+                    "/ws",
+                    "/ws/**"
                 ).permitAll()
                 .requestMatchers(
                     "/session/password",
