@@ -12,6 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/byteharbor-k2
 
 permissions:
   contents: read
@@ -49,9 +50,9 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: |
-            ghcr.io/${{ github.repository }}/${{ matrix.image }}:dev
-            ghcr.io/${{ github.repository }}/${{ matrix.image }}:sha-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.run_number }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:dev
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:sha-${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ github.run_number }}
 
       - name: Make package public
         run: |
