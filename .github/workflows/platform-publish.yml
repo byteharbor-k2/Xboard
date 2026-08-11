@@ -54,10 +54,5 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:sha-${{ github.sha }}
             ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ github.run_number }}
 
-      - name: Make package public
-        run: |
-          gh api -X POST \
-            "/orgs/${{ github.repository_owner }}/packages/container/${{ matrix.image }}/visibility" \
-            -f visibility=public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR packages stay private unless the org sets visibility to public
+      # or the deploy host logs in with a token that has read:packages.
