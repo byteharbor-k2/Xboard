@@ -1,0 +1,62 @@
+name: Platform Docker Build and Publish
+
+on:
+  push:
+    branches: ["dev"]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "compose.test.yml"
+      - ".github/workflows/platform-publish.yml"
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image: xboard-backend
+            context: ./backend
+            dockerfile: backend/Dockerfile
+          - image: xboard-frontend
+            context: ./frontend
+            dockerfile: frontend/Dockerfile
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:dev
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.run_number }}
+
+      - name: Make package public
+        run: |
+          gh api -X POST \
+            "/orgs/${{ github.repository_owner }}/packages/container/${{ matrix.image }}/visibility" \
+            -f visibility=public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
