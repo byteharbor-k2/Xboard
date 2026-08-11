@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,6 +28,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.http.server.ServletServerHttpResponse;
 
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.node.application.NodeDeviceStateService;
 import com.sinx.platform.node.application.NodeMachineService;
 import com.sinx.platform.node.application.NodeManagementService;
@@ -51,7 +53,10 @@ class NodeWebSocketContractTest {
         );
         when(authenticator.machine(7L, "node-token")).thenReturn(auth);
         NodeWebSocketHandshakeInterceptor interceptor =
-            new NodeWebSocketHandshakeInterceptor(authenticator);
+            new NodeWebSocketHandshakeInterceptor(
+                authenticator,
+                configuration(true)
+            );
         MockHttpServletRequest servletRequest = new MockHttpServletRequest(
             "GET", "/ws"
         );
@@ -104,7 +109,10 @@ class NodeWebSocketContractTest {
         );
         when(authenticator.node(17L, "global-token")).thenReturn(auth);
         NodeWebSocketHandshakeInterceptor interceptor =
-            new NodeWebSocketHandshakeInterceptor(authenticator);
+            new NodeWebSocketHandshakeInterceptor(
+                authenticator,
+                configuration(true)
+            );
         MockHttpServletRequest servletRequest = new MockHttpServletRequest("GET", "/ws");
         servletRequest.setQueryString("token=global-token&node_id=17");
         Map<String, Object> attributes = new HashMap<>();
@@ -122,6 +130,31 @@ class NodeWebSocketContractTest {
             auth
         );
         verify(authenticator).node(17L, "global-token");
+    }
+
+    @Test
+    void disabledWebSocketRejectsHandshakeBeforeAuthentication() {
+        NodeWebSocketAuthenticator authenticator = mock(NodeWebSocketAuthenticator.class);
+        NodeWebSocketHandshakeInterceptor interceptor =
+            new NodeWebSocketHandshakeInterceptor(
+                authenticator,
+                configuration(false)
+            );
+        MockHttpServletRequest servletRequest = new MockHttpServletRequest("GET", "/ws");
+        servletRequest.setQueryString("machine_id=7&token=node-token");
+        MockHttpServletResponse servletResponse = new MockHttpServletResponse();
+
+        boolean accepted = interceptor.beforeHandshake(
+            new ServletServerHttpRequest(servletRequest),
+            new ServletServerHttpResponse(servletResponse),
+            mock(WebSocketHandler.class),
+            new HashMap<>()
+        );
+
+        assertThat(accepted).isFalse();
+        assertThat(servletResponse.getStatus()).isEqualTo(503);
+        verify(authenticator, never()).machine(any(Long.class), any(String.class));
+        verify(authenticator, never()).node(any(Long.class), any(String.class));
     }
 
     @Test
@@ -148,7 +181,8 @@ class NodeWebSocketContractTest {
             protocol,
             devices,
             objectMapper,
-            CLOCK
+            CLOCK,
+            configuration(true)
         );
         WebSocketSession session = session("legacy-node-17");
         session.getAttributes().put(
@@ -204,7 +238,8 @@ class NodeWebSocketContractTest {
             protocol,
             devices,
             objectMapper,
-            CLOCK
+            CLOCK,
+            configuration(true)
         );
         WebSocketSession session = session("machine-3");
         session.getAttributes().put(
@@ -282,7 +317,8 @@ class NodeWebSocketContractTest {
             protocol,
             devices,
             objectMapper,
-            CLOCK
+            CLOCK,
+            configuration(true)
         );
         WebSocketSession session = session("machine-4");
         session.getAttributes().put(
@@ -324,7 +360,8 @@ class NodeWebSocketContractTest {
             protocol,
             devices,
             objectMapper,
-            CLOCK
+            CLOCK,
+            configuration(true)
         );
         NodeWebSocketAuthContext valid = new NodeWebSocketAuthContext(
             8L, "current-token", null, List.of(31L)
@@ -353,6 +390,55 @@ class NodeWebSocketContractTest {
         verify(rejected).close(any());
     }
 
+    @Test
+    void disablingWebSocketDuringUpgradeCannotLeaveConnectionRegistered()
+        throws Exception {
+        NodeDeviceStateService devices = mock(NodeDeviceStateService.class);
+        NodeWebSocketRegistry registry = new NodeWebSocketRegistry(devices);
+        NodeWebSocketAuthenticator authenticator = mock(NodeWebSocketAuthenticator.class);
+        NodeWebSocketAuthContext auth = new NodeWebSocketAuthContext(
+            18L, "machine-token", null, List.of(61L)
+        );
+        when(authenticator.refresh(auth)).thenReturn(auth);
+        PlatformConfigurationService configuration = mock(
+            PlatformConfigurationService.class
+        );
+        when(configuration.nodeCommunicationSettings()).thenReturn(
+            settings(true),
+            settings(false)
+        );
+        NodeProtocolService protocol = mock(NodeProtocolService.class);
+        ObjectMapper objectMapper = new ObjectMapper();
+        NodeWebSocketHandler handler = new NodeWebSocketHandler(
+            registry,
+            authenticator,
+            new NodeWebSocketSyncService(
+                registry,
+                protocol,
+                mock(NodeManagementService.class),
+                objectMapper,
+                CLOCK
+            ),
+            protocol,
+            devices,
+            objectMapper,
+            CLOCK,
+            configuration
+        );
+        WebSocketSession session = session("machine-18-race");
+        session.getAttributes().put(
+            NodeWebSocketHandshakeInterceptor.AUTH_CONTEXT,
+            auth
+        );
+
+        handler.afterConnectionEstablished(session);
+
+        assertThat(registry.machine(18L)).isNull();
+        assertThat(registry.node(61L)).isNull();
+        assertThat(registry.auth(session)).isNull();
+        verify(session).close(any());
+    }
+
     @SuppressWarnings("unchecked")
     private WebSocketSession session(String id) throws Exception {
         WebSocketSession session = mock(WebSocketSession.class);
@@ -373,5 +459,26 @@ class NodeWebSocketContractTest {
     @SuppressWarnings("unchecked")
     private List<String> sentMessages(WebSocketSession session) {
         return (List<String>) session.getAttributes().get("sent");
+    }
+
+    private PlatformConfigurationService configuration(boolean enabled) {
+        PlatformConfigurationService configuration = mock(
+            PlatformConfigurationService.class
+        );
+        when(configuration.nodeCommunicationSettings()).thenReturn(settings(enabled));
+        return configuration;
+    }
+
+    private PlatformConfigurationService.NodeCommunicationSettings settings(
+        boolean enabled
+    ) {
+        return new PlatformConfigurationService.NodeCommunicationSettings(
+            "legacy-token",
+            60,
+            60,
+            0,
+            enabled,
+            null
+        );
     }
 }

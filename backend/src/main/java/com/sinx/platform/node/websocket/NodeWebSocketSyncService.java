@@ -115,6 +115,22 @@ public class NodeWebSocketSyncService {
         );
     }
 
+    public int disconnectAllConnections() {
+        return registry.disconnectAll(
+            CloseStatus.SERVICE_RESTARTED.withReason(
+                "WebSocket communication disabled"
+            )
+        );
+    }
+
+    public int disconnectLegacyConnections() {
+        return registry.disconnectLegacyConnections(
+            CloseStatus.POLICY_VIOLATION.withReason(
+                "Legacy node credentials rotated"
+            )
+        );
+    }
+
     public boolean sendDevices(
         org.springframework.web.socket.WebSocketSession session,
         long nodeId,

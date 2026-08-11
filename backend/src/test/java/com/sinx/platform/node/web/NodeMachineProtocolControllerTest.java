@@ -130,7 +130,7 @@ class NodeMachineProtocolControllerTest {
         when(nodes.forMachine(2L, true)).thenReturn(java.util.List.of());
         when(configuration.nodeCommunicationSettings()).thenReturn(
             new PlatformConfigurationService.NodeCommunicationSettings(
-                "legacy-token", 31, 17, true, null
+                "legacy-token", 31, 17, 0, true, null
             )
         );
         MockMvc mvc = MockMvcBuilders.standaloneSetup(

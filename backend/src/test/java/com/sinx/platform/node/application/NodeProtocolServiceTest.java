@@ -316,7 +316,7 @@ class NodeProtocolServiceTest {
         when(trafficRates.charge(7L, BigDecimal.ONE)).thenReturn(7L);
         when(configuration.nodeCommunicationSettings()).thenReturn(
             new PlatformConfigurationService.NodeCommunicationSettings(
-                "legacy-token", 17, 19, true, null
+                "legacy-token", 17, 19, 0, true, null
             )
         );
 

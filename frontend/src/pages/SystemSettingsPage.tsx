@@ -73,6 +73,7 @@ const copy = {
     subscriptionFormat: "当前订阅路径格式：{path}/xxxxxxxxxx",
     subscriptionRestart: "修改订阅路径后，可能需要重启服务才能生效。",
     generateToken: "生成随机通信密钥",
+    rangeError: "请输入 {min} 到 {max} 之间的整数。",
     templateName: "邮件模板",
     subject: "邮件主题",
     content: "模板内容 (HTML)",
@@ -111,6 +112,7 @@ const copy = {
     subscriptionFormat: "Current subscription format: {path}/xxxxxxxxxx",
     subscriptionRestart: "A service restart may be required after changing this path.",
     generateToken: "Generate a random communication key",
+    rangeError: "Enter an integer between {min} and {max}.",
     templateName: "Email template",
     subject: "Email subject",
     content: "Template content (HTML)",
@@ -175,14 +177,21 @@ function parseValue(
 }
 
 function generateServerToken() {
-  const characters =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const length = Math.floor(Math.random() * 17) + 16;
-  return Array.from(
-    { length },
-    () => characters[Math.floor(Math.random() * characters.length)]
-  ).join("");
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+    ""
+  );
 }
+
+type PendingSettingsSave = {
+  timer: ReturnType<typeof setTimeout>;
+  request: {
+    section: SystemSettingsSection;
+    key: string;
+    value: SettingValue;
+  };
+};
 
 function MailTemplateManager({
   accessToken,
@@ -422,6 +431,7 @@ export function SystemSettingsPage() {
   const pathname = usePathname();
   const accessToken = useAdminAuthStore((state) => state.accessToken)!;
   const language = useAdminPreferences((state) => state.language);
+  const queryClient = useQueryClient();
   const labels = copy[language];
   const selectedSection = sectionFromPath(pathname);
   const section = useMemo(
@@ -437,10 +447,14 @@ export function SystemSettingsPage() {
   );
   const defaults = useMemo(() => getSettingsDefaults(section), [section]);
   const [draft, setDraft] = useState<SettingsValues>(defaults);
+  const [loadedSection, setLoadedSection] =
+    useState<SystemSettingsSection | null>(null);
   const [status, setStatus] = useState("");
   const [emailTab, setEmailTab] = useState<"settings" | "templates">("settings");
   const [templateTab, setTemplateTab] = useState("subscribe_template_singbox");
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaves = useRef<Map<string, PendingSettingsSave>>(new Map());
+  const currentSection = useRef(selectedSection);
+  currentSection.current = selectedSection;
 
   const settings = useQuery({
     queryKey: ["admin-system-settings", selectedSection],
@@ -456,25 +470,70 @@ export function SystemSettingsPage() {
   });
 
   useEffect(() => {
-    if (settings.data) {
+    if (settings.data !== undefined && loadedSection !== selectedSection) {
       setDraft({ ...defaults, ...settings.data });
+      setLoadedSection(selectedSection);
       setStatus("");
     }
-  }, [defaults, settings.data]);
+  }, [defaults, loadedSection, selectedSection, settings.data]);
+
+  const autoSave = useMutation({
+    mutationFn: (request: PendingSettingsSave["request"]) =>
+      saveSystemSettings(accessToken, request.section, {
+        [request.key]: request.value
+      }),
+    scope: { id: "admin-system-settings-autosave" },
+    onSuccess: (_response, request) => {
+      queryClient.setQueryData<SettingsValues>(
+        ["admin-system-settings", request.section],
+        (current) => ({
+          ...(current ?? {}),
+          [request.key]: request.value
+        })
+      );
+      if (currentSection.current === request.section) {
+        setStatus(labels.autoSaved);
+      }
+    },
+    onError: (_error, request) => {
+      if (currentSection.current === request.section) {
+        setStatus(labels.saveFailed);
+      }
+    }
+  });
+
+  function flushSave(mapKey: string) {
+    const pending = pendingSaves.current.get(mapKey);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    pendingSaves.current.delete(mapKey);
+    autoSave.mutate(pending.request);
+  }
+
+  function flushSectionSaves(sectionToFlush: SystemSettingsSection) {
+    for (const [mapKey, pending] of pendingSaves.current) {
+      if (pending.request.section === sectionToFlush) {
+        flushSave(mapKey);
+      }
+    }
+  }
 
   useEffect(
-    () => () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    },
+    () => () => flushSectionSaves(selectedSection),
     [selectedSection]
   );
 
-  const autoSave = useMutation({
-    mutationFn: (values: SettingsValues) =>
-      saveSystemSettings(accessToken, selectedSection, values),
-    onSuccess: () => setStatus(labels.autoSaved),
-    onError: () => setStatus(labels.saveFailed)
-  });
+  useEffect(() => {
+    function warnAboutPendingSave(event: BeforeUnloadEvent) {
+      if (pendingSaves.current.size === 0) return;
+      event.preventDefault();
+      event.returnValue = "";
+    }
+
+    window.addEventListener("beforeunload", warnAboutPendingSave);
+    return () =>
+      window.removeEventListener("beforeunload", warnAboutPendingSave);
+  }, []);
 
   const testEmail = useMutation({
     mutationFn: () => sendTestEmail(accessToken),
@@ -488,17 +547,50 @@ export function SystemSettingsPage() {
     onError: () => setStatus(labels.actionFailed)
   });
 
-  function scheduleSave(values: SettingsValues, delay = 1000) {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
+  function scheduleSave(
+    field: SettingsField,
+    value: SettingValue,
+    delay = 1000
+  ) {
+    const mapKey = `${selectedSection}:${field.key}`;
+    const previous = pendingSaves.current.get(mapKey);
+    if (previous) clearTimeout(previous.timer);
     setStatus(labels.saving);
-    saveTimer.current = setTimeout(() => autoSave.mutate(values), delay);
+    const request = {
+      section: selectedSection,
+      key: field.key,
+      value
+    };
+    const timer = setTimeout(() => flushSave(mapKey), delay);
+    pendingSaves.current.set(mapKey, { timer, request });
   }
 
   function updateField(field: SettingsField, value: SettingValue) {
     const next = { ...draft, [field.key]: value };
     setDraft(next);
+    if (
+      field.type === "number" &&
+      (typeof value !== "number" ||
+        !Number.isInteger(value) ||
+        (field.min !== undefined && value < field.min) ||
+        (field.max !== undefined && value > field.max))
+    ) {
+      const mapKey = `${selectedSection}:${field.key}`;
+      const pending = pendingSaves.current.get(mapKey);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pendingSaves.current.delete(mapKey);
+      }
+      setStatus(
+        labels.rangeError
+          .replace("{min}", String(field.min ?? "−∞"))
+          .replace("{max}", String(field.max ?? "+∞"))
+      );
+      return;
+    }
     scheduleSave(
-      { [field.key]: value },
+      field,
+      value,
       selectedSection === "subscribe_template" ? 1500 : 1000
     );
   }
@@ -603,9 +695,12 @@ export function SystemSettingsPage() {
     return (
       <div className="settings-input-wrap">
         <input
+          autoComplete={field.key === "server_token" ? "off" : undefined}
           max={field.max}
           min={field.min}
           placeholder={field.placeholder?.[language]}
+          readOnly={field.readOnly}
+          spellCheck={field.key === "server_token" ? false : undefined}
           step={field.step}
           type={field.type}
           value={inputValue(field, value)}
@@ -618,7 +713,7 @@ export function SystemSettingsPage() {
             title={labels.generateToken}
             type="button"
           >
-            ↻
+            ⟳
           </button>
         )}
       </div>
@@ -629,6 +724,8 @@ export function SystemSettingsPage() {
     selectedSection === "subscribe_template"
       ? section.fields.filter((field) => field.key === templateTab)
       : section.fields.filter(isVisible);
+  const settingsReady =
+    settings.isSuccess && loadedSection === selectedSection;
 
   return (
     <AdminShell>
@@ -698,7 +795,7 @@ export function SystemSettingsPage() {
             </p>
           )}
 
-          {selectedSection === "email" && (
+          {settingsReady && selectedSection === "email" && (
             <div className="settings-tabs">
               <button
                 className={emailTab === "settings" ? "active" : ""}
@@ -717,7 +814,7 @@ export function SystemSettingsPage() {
             </div>
           )}
 
-          {selectedSection === "subscribe_template" && (
+          {settingsReady && selectedSection === "subscribe_template" && (
             <div className="settings-tabs settings-template-tabs">
               {section.fields.map((field) => (
                 <button
@@ -732,13 +829,14 @@ export function SystemSettingsPage() {
             </div>
           )}
 
-          {selectedSection === "email" && emailTab === "templates" ? (
-            <MailTemplateManager
-              accessToken={accessToken}
-              language={language}
-            />
-          ) : (
-            <div className="settings-form">
+          {settingsReady &&
+            (selectedSection === "email" && emailTab === "templates" ? (
+              <MailTemplateManager
+                accessToken={accessToken}
+                language={language}
+              />
+            ) : (
+              <div className="settings-form">
               {visibleFields.map((field) => (
                 <label
                   className={`settings-field ${
@@ -801,8 +899,8 @@ export function SystemSettingsPage() {
                   </button>
                 </div>
               )}
-            </div>
-          )}
+              </div>
+            ))}
 
           {status && <p className="settings-status">{status}</p>}
         </section>

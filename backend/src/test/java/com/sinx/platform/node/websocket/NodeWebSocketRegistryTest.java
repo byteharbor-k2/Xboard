@@ -139,6 +139,63 @@ class NodeWebSocketRegistryTest {
         verify(session, never()).close(any(CloseStatus.class));
     }
 
+    @Test
+    void disconnectingLegacyConnectionsLeavesMachineSessionsRegistered()
+        throws Exception {
+        NodeDeviceStateService devices = mock(NodeDeviceStateService.class);
+        NodeWebSocketRegistry registry = new NodeWebSocketRegistry(devices);
+        WebSocketSession legacy = session("legacy-71");
+        WebSocketSession machine = session("machine-22");
+        NodeWebSocketAuthContext machineAuth = new NodeWebSocketAuthContext(
+            22L, "machine-token", null, List.of(72L)
+        );
+        registry.register(
+            legacy,
+            new NodeWebSocketAuthContext(0, "legacy-token", 71L, List.of(71L))
+        );
+        registry.register(machine, machineAuth);
+        CloseStatus status = CloseStatus.POLICY_VIOLATION.withReason("rotated");
+
+        assertThat(registry.disconnectLegacyConnections(status)).isEqualTo(1);
+
+        assertThat(registry.node(71L)).isNull();
+        assertThat(registry.auth(legacy)).isNull();
+        assertThat(registry.machine(22L)).isSameAs(machine);
+        assertThat(registry.node(72L)).isSameAs(machine);
+        assertThat(registry.auth(machine)).isEqualTo(machineAuth);
+        verify(legacy).close(status);
+        verify(machine, never()).close(any(CloseStatus.class));
+    }
+
+    @Test
+    void disconnectingAllConnectionsClearsEveryMappingBeforeClose()
+        throws Exception {
+        NodeDeviceStateService devices = mock(NodeDeviceStateService.class);
+        NodeWebSocketRegistry registry = new NodeWebSocketRegistry(devices);
+        WebSocketSession legacy = session("legacy-81");
+        WebSocketSession machine = session("machine-23");
+        registry.register(
+            legacy,
+            new NodeWebSocketAuthContext(0, "legacy-token", 81L, List.of(81L))
+        );
+        registry.register(
+            machine,
+            new NodeWebSocketAuthContext(23L, "machine-token", null, List.of(82L))
+        );
+        CloseStatus status = CloseStatus.SERVICE_RESTARTED.withReason("disabled");
+
+        assertThat(registry.disconnectAll(status)).isEqualTo(2);
+
+        assertThat(registry.sessions()).isEmpty();
+        assertThat(registry.node(81L)).isNull();
+        assertThat(registry.node(82L)).isNull();
+        assertThat(registry.machine(23L)).isNull();
+        assertThat(registry.auth(legacy)).isNull();
+        assertThat(registry.auth(machine)).isNull();
+        verify(legacy).close(status);
+        verify(machine).close(status);
+    }
+
     private WebSocketSession session(String id) {
         WebSocketSession session = mock(WebSocketSession.class);
         when(session.getId()).thenReturn(id);

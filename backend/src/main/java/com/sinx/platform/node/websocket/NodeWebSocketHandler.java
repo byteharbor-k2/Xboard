@@ -19,6 +19,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
 
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.node.application.NodeDeviceStateService;
 import com.sinx.platform.node.application.NodeProtocolService;
 
@@ -39,6 +40,7 @@ public class NodeWebSocketHandler extends TextWebSocketHandler {
     private final NodeDeviceStateService devices;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final PlatformConfigurationService configuration;
     private final Map<String, Instant> lastActivity = new ConcurrentHashMap<>();
 
     public NodeWebSocketHandler(
@@ -48,7 +50,8 @@ public class NodeWebSocketHandler extends TextWebSocketHandler {
         NodeProtocolService protocol,
         NodeDeviceStateService devices,
         ObjectMapper objectMapper,
-        Clock clock
+        Clock clock,
+        PlatformConfigurationService configuration
     ) {
         this.registry = registry;
         this.authenticator = authenticator;
@@ -57,10 +60,17 @@ public class NodeWebSocketHandler extends TextWebSocketHandler {
         this.devices = devices;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.configuration = configuration;
     }
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
+        if (!webSocketEnabled()) {
+            session.close(CloseStatus.SERVICE_RESTARTED.withReason(
+                "WebSocket communication disabled"
+            ));
+            return;
+        }
         Object value = session.getAttributes().get(NodeWebSocketHandshakeInterceptor.AUTH_CONTEXT);
         if (!(value instanceof NodeWebSocketAuthContext pendingAuth)) {
             session.close(CloseStatus.NOT_ACCEPTABLE.withReason("Authentication required"));
@@ -77,6 +87,13 @@ public class NodeWebSocketHandler extends TextWebSocketHandler {
             return;
         }
         registry.register(session, auth);
+        if (!webSocketEnabled()) {
+            registry.unregister(session);
+            session.close(CloseStatus.SERVICE_RESTARTED.withReason(
+                "WebSocket communication disabled"
+            ));
+            return;
+        }
         try {
             // Close the remaining race where credentials are revoked after the
             // first validation but before registration. Admin revocation also
@@ -239,6 +256,15 @@ public class NodeWebSocketHandler extends TextWebSocketHandler {
         try {
             if (session.isOpen()) session.close(status);
         } catch (IOException ignored) {
+        }
+    }
+
+    private boolean webSocketEnabled() {
+        try {
+            return configuration.nodeCommunicationSettings().webSocketEnabled();
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Could not read node WebSocket setting", exception);
+            return false;
         }
     }
 }

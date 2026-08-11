@@ -11,15 +11,22 @@ import org.springframework.web.socket.WebSocketHandler;
 import org.springframework.web.socket.server.HandshakeInterceptor;
 import org.springframework.web.util.UriComponentsBuilder;
 
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
+
 @Component
 public class NodeWebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String AUTH_CONTEXT = "nodeWebSocketAuth";
 
     private final NodeWebSocketAuthenticator authenticator;
+    private final PlatformConfigurationService configuration;
 
-    public NodeWebSocketHandshakeInterceptor(NodeWebSocketAuthenticator authenticator) {
+    public NodeWebSocketHandshakeInterceptor(
+        NodeWebSocketAuthenticator authenticator,
+        PlatformConfigurationService configuration
+    ) {
         this.authenticator = authenticator;
+        this.configuration = configuration;
     }
 
     @Override
@@ -29,6 +36,15 @@ public class NodeWebSocketHandshakeInterceptor implements HandshakeInterceptor {
         WebSocketHandler wsHandler,
         Map<String, Object> attributes
     ) {
+        try {
+            if (!configuration.nodeCommunicationSettings().webSocketEnabled()) {
+                response.setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+                return false;
+            }
+        } catch (RuntimeException exception) {
+            response.setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);
+            return false;
+        }
         MultiValueMap<String, String> query = UriComponentsBuilder
             .fromUri(request.getURI())
             .build()

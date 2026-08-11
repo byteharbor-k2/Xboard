@@ -17,6 +17,7 @@ export type SettingsField = {
   min?: number;
   max?: number;
   step?: number;
+  readOnly?: boolean;
   rows?: number;
   visibleWhen?: { key: string; value?: SettingValue };
 };
@@ -246,10 +247,20 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       "Configure node communication and synchronization settings."
     ),
     fields: [
-      field("server_token", "通讯密钥", "Communication key", "Xboard与节点通讯的密钥，以便数据不会被他人获取。", "The key protecting communication between Xboard and its nodes.", "text", ""),
-      field("server_pull_interval", "节点拉取动作轮询间隔", "Node pull interval", "节点从面板获取数据的间隔频率。", "How often nodes pull data from the panel.", "number", 0),
-      field("server_push_interval", "节点推送动作轮询间隔", "Node push interval", "节点推送数据到面板的间隔频率。", "How often nodes push data to the panel.", "number", 0),
-      field("server_ws_enable", "启用 WebSocket 通信", "Enable WebSocket communication", "开启后节点将通过 WebSocket 与面板进行实时通信，延迟更低、推送更及时。", "Use WebSocket for lower-latency real-time node communication.", "toggle", false),
+      field("server_token", "通讯密钥", "Communication key", "由系统生成的 256 位随机密钥，不允许手动输入。", "A system-generated 256-bit random key that cannot be entered manually.", "text", "", {
+        readOnly: true
+      }),
+      field("server_pull_interval", "节点拉取动作轮询间隔", "Node pull interval", "节点从面板获取数据的间隔频率，单位为秒；Xboard-Node 机器模式最小为 30 秒。", "How often nodes pull data from the panel, in seconds; Xboard-Node machine mode requires at least 30 seconds.", "number", 60, {
+        min: 30,
+        max: 3600,
+        step: 1
+      }),
+      field("server_push_interval", "节点推送动作轮询间隔", "Node push interval", "节点推送数据到面板的间隔频率，单位为秒；Xboard-Node 机器模式最小为 10 秒。", "How often nodes push data to the panel, in seconds; Xboard-Node machine mode requires at least 10 seconds.", "number", 60, {
+        min: 10,
+        max: 3600,
+        step: 1
+      }),
+      field("server_ws_enable", "启用 WebSocket 通信", "Enable WebSocket communication", "开启后节点将通过 WebSocket 与面板进行实时通信，延迟更低、推送更及时。", "Use WebSocket for lower-latency real-time node communication.", "toggle", true),
       field("server_ws_url", "WebSocket 地址", "WebSocket URL", "节点连接面板的 WebSocket 地址，留空则自动使用站点网址。", "Leave blank to use the site URL.", "url", "", {
         visibleWhen: { key: "server_ws_enable" }
       })

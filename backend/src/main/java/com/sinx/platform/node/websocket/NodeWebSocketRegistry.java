@@ -136,6 +136,19 @@ public class NodeWebSocketRegistry {
         return true;
     }
 
+    public synchronized int disconnectAll(CloseStatus status) {
+        return disconnectSessions(new ArrayList<>(sessions.values()), status);
+    }
+
+    public synchronized int disconnectLegacyConnections(CloseStatus status) {
+        List<WebSocketSession> legacySessions = connections.entrySet().stream()
+            .filter(entry -> !entry.getValue().machineMode())
+            .map(entry -> sessions.get(entry.getKey()))
+            .filter(java.util.Objects::nonNull)
+            .toList();
+        return disconnectSessions(legacySessions, status);
+    }
+
     public boolean send(WebSocketSession session, String json) {
         if (session == null || !session.isOpen()) return false;
         try {
@@ -158,6 +171,17 @@ public class NodeWebSocketRegistry {
         if (previous != null && !previous.getId().equals(replacement.getId())) {
             replaced.add(previous);
         }
+    }
+
+    private int disconnectSessions(
+        List<WebSocketSession> targets,
+        CloseStatus status
+    ) {
+        for (WebSocketSession session : targets) {
+            detach(session);
+            closeQuietly(session, status);
+        }
+        return targets.size();
     }
 
     private void detach(WebSocketSession session) {

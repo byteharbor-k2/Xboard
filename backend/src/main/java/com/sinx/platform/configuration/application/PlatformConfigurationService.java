@@ -9,10 +9,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +62,8 @@ public class PlatformConfigurationService {
         "server.server_pull_interval";
     private static final String SERVER_PUSH_INTERVAL_KEY =
         "server.server_push_interval";
+    private static final String SERVER_DEVICE_LIMIT_MODE_KEY =
+        "server.device_limit_mode";
     private static final String SERVER_WS_ENABLED_KEY =
         "server.server_ws_enable";
     private static final String SERVER_WS_URL_KEY = "server.server_ws_url";
@@ -67,16 +71,22 @@ public class PlatformConfigurationService {
         "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
             + "(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$"
     );
+    private static final Pattern SERVER_TOKEN_PATTERN = Pattern.compile(
+        "^[0-9a-f]{64}$"
+    );
 
     private final PlatformSettingRepository settings;
     private final Clock clock;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PlatformConfigurationService(
         PlatformSettingRepository settings,
-        Clock clock
+        Clock clock,
+        ApplicationEventPublisher eventPublisher
     ) {
         this.settings = settings;
         this.clock = clock;
+        this.eventPublisher = eventPublisher;
     }
 
     public Map<String, Object> sectionSettings(String section) {
@@ -143,6 +153,7 @@ public class PlatformConfigurationService {
                     "server_token", node.legacyToken() == null ? "" : node.legacyToken(),
                     "server_pull_interval", node.pullIntervalSeconds(),
                     "server_push_interval", node.pushIntervalSeconds(),
+                    "device_limit_mode", node.deviceLimitMode(),
                     "server_ws_enable", node.webSocketEnabled(),
                     "server_ws_url", node.webSocketUrl() == null ? "" : node.webSocketUrl()
                 );
@@ -162,6 +173,9 @@ public class PlatformConfigurationService {
         Map.Entry<String, Object> entry = values.entrySet()
             .iterator()
             .next();
+        NodeCommunicationSettings before = "server".equals(section)
+            ? nodeCommunicationSettings()
+            : null;
         switch (section + "." + entry.getKey()) {
             case APP_URL_KEY -> saveAppUrl(entry.getValue());
             case TERMS_URL_KEY -> saveTermsUrl(entry.getValue());
@@ -216,13 +230,18 @@ public class PlatformConfigurationService {
                 saveBoolean(EMAIL_REMINDERS_KEY, entry.getValue());
             case SERVER_TOKEN_KEY -> saveServerToken(entry.getValue());
             case SERVER_PULL_INTERVAL_KEY ->
-                saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue(), 5, 3600);
+                saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue(), 30, 3600);
             case SERVER_PUSH_INTERVAL_KEY ->
-                saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue(), 5, 3600);
+                saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue(), 10, 3600);
+            case SERVER_DEVICE_LIMIT_MODE_KEY ->
+                saveInteger(SERVER_DEVICE_LIMIT_MODE_KEY, entry.getValue(), 0, 1);
             case SERVER_WS_ENABLED_KEY ->
                 saveBoolean(SERVER_WS_ENABLED_KEY, entry.getValue());
             case SERVER_WS_URL_KEY -> saveWebSocketUrl(entry.getValue());
             default -> throw unsupportedSetting();
+        }
+        if (before != null) {
+            publishNodeCommunicationChange(before, nodeCommunicationSettings());
         }
     }
 
@@ -299,6 +318,7 @@ public class PlatformConfigurationService {
             read(SERVER_TOKEN_KEY).filter(value -> !value.isBlank()).orElse(null),
             readInteger(SERVER_PULL_INTERVAL_KEY, 60),
             readInteger(SERVER_PUSH_INTERVAL_KEY, 60),
+            readInteger(SERVER_DEVICE_LIMIT_MODE_KEY, 0),
             readBoolean(SERVER_WS_ENABLED_KEY, true),
             read(SERVER_WS_URL_KEY).filter(value -> !value.isBlank()).orElse(null)
         );
@@ -531,7 +551,7 @@ public class PlatformConfigurationService {
             settings.deleteById(SERVER_TOKEN_KEY);
             return;
         }
-        if (normalized.length() < 16) {
+        if (!SERVER_TOKEN_PATTERN.matcher(normalized).matches()) {
             throw invalidSettingValue();
         }
         store(SERVER_TOKEN_KEY, normalized);
@@ -574,6 +594,24 @@ public class PlatformConfigurationService {
             .orElseGet(() -> PlatformSetting.create(key, value, now));
         setting.update(value, now);
         settings.save(setting);
+    }
+
+    private void publishNodeCommunicationChange(
+        NodeCommunicationSettings before,
+        NodeCommunicationSettings after
+    ) {
+        boolean legacyTokenChanged = !Objects.equals(
+            before.legacyToken(),
+            after.legacyToken()
+        );
+        boolean webSocketDisabled = before.webSocketEnabled()
+            && !after.webSocketEnabled();
+        if (legacyTokenChanged || webSocketDisabled) {
+            eventPublisher.publishEvent(new NodeCommunicationSettingsChangedEvent(
+                legacyTokenChanged,
+                webSocketDisabled
+            ));
+        }
     }
 
     private void validateTermsUrl(String value) {
@@ -711,6 +749,7 @@ public class PlatformConfigurationService {
         String legacyToken,
         int pullIntervalSeconds,
         int pushIntervalSeconds,
+        int deviceLimitMode,
         boolean webSocketEnabled,
         String webSocketUrl
     ) {

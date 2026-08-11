@@ -40,6 +40,10 @@ public class PlatformSetting {
         return value;
     }
 
+    public String key() {
+        return key;
+    }
+
     public void update(String value, Instant now) {
         this.value = value;
         this.updatedAt = now;

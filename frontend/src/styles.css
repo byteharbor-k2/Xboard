@@ -3288,10 +3288,22 @@ button:disabled {
   bottom: 1px;
   width: 38px;
   border: 0;
+  border-left: 1px solid #e3e7ee;
   border-radius: 0 8px 8px 0;
   color: #667188;
-  background: transparent;
+  background: #f6f8fb;
   cursor: pointer;
+}
+
+.settings-input-wrap > button:hover {
+  color: #235be7;
+  background: #edf3ff;
+}
+
+.settings-input-wrap input[readonly] {
+  padding-right: 48px;
+  cursor: default;
+  background: #fbfcfe;
 }
 
 .settings-template-textarea {
