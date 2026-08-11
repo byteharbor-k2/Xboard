@@ -4,6 +4,11 @@ This file preserves the operational and development context for the SinX Cloud X
 
 Last consolidated: 2026-07-21.
 
+> 注意：本文件记录原版 Laravel Xboard fork（SinX Cloud 旧面板）的生产运维
+> 上下文。仓库已重组为 monorepo：新平台重写（Spring Boot + React）位于
+> `backend/` 与 `frontend/`，其进度清单见根目录 `plan.md`，API 清单见
+> `backend_api_summary.md`。涉及新平台时以根目录文档为准。
+
 ## Project Identity
 
 - Local repo: `/Users/howienew/Workspace/Xboard`
@@ -371,4 +376,3 @@ Use these patterns when checking production. Run remote commands read-only unles
   - generated client config fields
   - TLS cert paths
   - protocol-specific requirements such as Reality server name and fingerprint
-
