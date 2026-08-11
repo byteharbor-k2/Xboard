@@ -330,6 +330,9 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
 - [x] 管理员套餐、节点、机器、访问组与路由控制面（后端 + 前端页面）
 - [x] xboard-node HTTP/轮询/WebSocket 兼容与实时同步
 - [x] 节点通讯设置热生效与管理员设置页自动保存重构
+- [x] ByteVirt-SG 测试环境：Docker 部署面板（PG/Redis/后端/前端）+
+  xboard-node 机器模式端到端（握手、节点发现、配置与用户输出、WebSocket
+  实时推送、机器状态上报）
 - [ ] 管理员完整业务控制台
 - [ ] 用户完整业务闭环
 - [ ] 订阅凭据与配置输出
@@ -347,3 +350,5 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
 ## 9. 部署
 
 代码由 GitHub Actions验证并构建不可变镜像，测试和生产服务器从 GHCR拉取指定版本部署。
+新平台镜像由 `platform-publish` 工作流在 `dev` 分支发布（`xboard-backend`、
+`xboard-frontend`），测试环境使用 `compose.test.yml` 部署。
