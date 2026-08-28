@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -74,11 +75,8 @@ public class NodeWebSocketChangeNotifier {
         // refreshMachine also performs the initial config/users sync for newly
         // assigned nodes, so a second node-scoped sync would be redundant.
         refreshMachines(machinesToRefresh);
-        fullSyncNodes.forEach(this::fullSync);
-        configSyncNodes.forEach(nodeId -> safely(
-            "config sync for node " + nodeId,
-            () -> sync.pushConfig(nodeId)
-        ));
+        fullSyncNodes.forEach(nodeId -> fullSync(current.get(nodeId)));
+        configSyncNodes.forEach(nodeId -> deliverConfig(current.get(nodeId)));
     }
 
     public void nodesDeleted(Collection<NodeManagementService.NodeView> nodes) {
@@ -96,12 +94,7 @@ public class NodeWebSocketChangeNotifier {
         nodeSnapshot.stream()
             .filter(NodeManagementService.NodeView::show)
             .filter(node -> node.routeIds().contains(routeId))
-            .map(NodeManagementService.NodeView::id)
-            .distinct()
-            .forEach(nodeId -> safely(
-                "route config sync for node " + nodeId,
-                () -> sync.pushConfig(nodeId)
-            ));
+            .forEach(this::deliverConfig);
     }
 
     public void machineDeleted(long machineId) {
@@ -118,14 +111,56 @@ public class NodeWebSocketChangeNotifier {
         );
     }
 
-    private void fullSync(long nodeId) {
-        safely(
-            "config sync for node " + nodeId,
-            () -> sync.pushConfig(nodeId)
+    private void fullSync(NodeManagementService.NodeView node) {
+        if (node == null) return;
+        boolean config = deliver(
+            "config sync for node " + node.id(),
+            () -> sync.pushConfig(node.id())
         );
-        safely(
-            "user sync for node " + nodeId,
-            () -> sync.pushUsers(nodeId)
+        boolean users = deliver(
+            "user sync for node " + node.id(),
+            () -> sync.pushUsers(node.id())
+        );
+        if (!config || !users) rediscoverOnMachine(node, "group membership");
+    }
+
+    private void deliverConfig(NodeManagementService.NodeView node) {
+        if (node == null) return;
+        boolean delivered = deliver(
+            "config sync for node " + node.id(),
+            () -> sync.pushConfig(node.id())
+        );
+        if (!delivered) rediscoverOnMachine(node, "configuration");
+    }
+
+    /**
+     * A node-scoped push only reaches a node holding a live WebSocket session.
+     * A node whose kernel failed to start has none, so the corrected settings
+     * would be dropped and the node could never be repaired from the panel.
+     * Falling back to a machine-level node-list sync makes a machine-mode agent
+     * rediscover the node and start it with the new configuration.
+     */
+    private void rediscoverOnMachine(
+        NodeManagementService.NodeView node,
+        String change
+    ) {
+        if (node.machineId() == null) {
+            LOGGER.info(
+                "Node {} holds no session; {} change applies on its next poll",
+                node.id(),
+                change
+            );
+            return;
+        }
+        LOGGER.info(
+            "Node {} holds no session; refreshing machine {} to redeliver the {} change",
+            node.id(),
+            node.machineId(),
+            change
+        );
+        deliver(
+            "node-list fallback sync for machine " + node.machineId(),
+            () -> sync.refreshMachine(node.machineId())
         );
     }
 
@@ -175,6 +210,15 @@ public class NodeWebSocketChangeNotifier {
             || !Objects.equals(before.customOutbounds(), after.customOutbounds())
             || !Objects.equals(before.customRoutes(), after.customRoutes())
             || !Objects.equals(before.certConfig(), after.certConfig());
+    }
+
+    private boolean deliver(String operation, BooleanSupplier callback) {
+        try {
+            return callback.getAsBoolean();
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Could not deliver {}", operation, exception);
+            return false;
+        }
     }
 
     private void safely(String operation, Runnable callback) {

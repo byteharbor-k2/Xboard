@@ -118,11 +118,34 @@ public class NodeManagementService {
             source.getName() + " copy", source.getRate(), source.isRateTimeEnable(),
             jsonValue(source.getRateTimeRanges()), source.getTransferEnable(),
             jsonStringList(source.getTags()), source.getHost(), source.getPort(),
-            source.getServerPort(), jsonMap(source.getProtocolSettings()),
+            nextFreePort(source), jsonMap(source.getProtocolSettings()),
             jsonValue(source.getCustomOutbounds()), jsonValue(source.getCustomRoutes()),
             nullableJsonValue(source.getCertConfig()), false, source.isEnabled(), null
         );
         return save(draft);
+    }
+
+    /**
+     * A copy lands on the same machine as its source, where the source already
+     * holds the listen port. Reusing it would be rejected by the port check, so
+     * the copy takes the next free port instead and the administrator adjusts it
+     * afterwards. Unbound nodes keep the original port because nothing else on
+     * the panel owns it.
+     */
+    private int nextFreePort(ProxyNode source) {
+        if (source.getMachine() == null) return source.getServerPort();
+        Set<Integer> taken = nodes
+            .findByMachineIdOrderBySortOrderAscIdAsc(source.getMachine().getId())
+            .stream()
+            .map(ProxyNode::getServerPort)
+            .collect(java.util.stream.Collectors.toSet());
+        for (int port = source.getServerPort() + 1; port <= 65535; port += 1) {
+            if (!taken.contains(port)) return port;
+        }
+        for (int port = source.getServerPort() - 1; port >= 1; port -= 1) {
+            if (!taken.contains(port)) return port;
+        }
+        throw invalid("No free server port is available on this machine");
     }
 
     @Transactional
@@ -235,6 +258,7 @@ public class NodeManagementService {
         validateArray(draft.customRoutes(), "custom_routes");
         validateObject(draft.certConfig(), "cert_config");
         NodeMachine machine = machine(draft.machineId());
+        validatePortAvailable(draft, machine);
         validateReferences(draft, type);
         Map<String, Object> protocolSettings = draft.protocolSettings() == null
             ? new java.util.LinkedHashMap<>()
@@ -258,6 +282,27 @@ public class NodeManagementService {
             draft.show() == null || draft.show(), draft.enabled() == null || draft.enabled(),
             draft.sort() == null ? defaultSort : draft.sort(), clock.instant()
         );
+    }
+
+    /**
+     * Every node bound to a machine gets its own inbound on that machine, so two
+     * nodes sharing a listen port make the agent fail with "address already in
+     * use" and the second node never starts. The panel cannot see that failure,
+     * so the collision has to be refused up front. Unbound nodes are deployed by
+     * hand and are not checked.
+     */
+    private void validatePortAvailable(NodeDraft draft, NodeMachine machine) {
+        if (machine == null) return;
+        boolean taken = nodes
+            .findByMachineIdAndServerPort(machine.getId(), draft.serverPort())
+            .stream()
+            .anyMatch(existing -> !existing.getId().equals(draft.id()));
+        if (taken) {
+            throw invalid(
+                "Server port " + draft.serverPort()
+                    + " is already used by another node on this machine"
+            );
+        }
     }
 
     private NodeMachine machine(Long id) {

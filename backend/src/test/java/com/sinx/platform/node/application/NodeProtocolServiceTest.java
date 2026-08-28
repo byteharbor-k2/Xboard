@@ -1,6 +1,7 @@
 package com.sinx.platform.node.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
@@ -28,6 +29,7 @@ import com.sinx.platform.node.domain.NodeRouteRule;
 import com.sinx.platform.node.domain.ProxyNode;
 import com.sinx.platform.node.repository.NodeRouteRuleRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
+import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.EntitlementState;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
@@ -285,6 +287,32 @@ class NodeProtocolServiceTest {
         ));
 
         verify(fixture.node()).recordReport(11L, 13L, 1, 0, null, null, NOW);
+    }
+
+    @Test
+    void keepsAcceptingReportsFromADisabledNode() {
+        Fixture fixture = fixture("[10]", "[]");
+        when(fixture.node().isEnabled()).thenReturn(false);
+        when(fixture.node().getOnlineUsers()).thenReturn(0);
+
+        // Usage the node already carried still has to be billed; the node stops
+        // on its own once the machine picks up the new node list.
+        fixture.service().report(1, 9, "token", Map.of("traffic", Map.of()));
+
+        verify(fixture.node()).recordReport(
+            0L, 0L, 0, 0, null, null, NOW
+        );
+    }
+
+    @Test
+    void withholdsConfigurationAndUsersFromADisabledNode() {
+        Fixture fixture = fixture("[10]", "[]");
+        when(fixture.node().isEnabled()).thenReturn(false);
+
+        assertThatThrownBy(() -> fixture.service().config(1, 9, "token"))
+            .isInstanceOf(ApiProblemException.class);
+        assertThatThrownBy(() -> fixture.service().users(1, 9, "token"))
+            .isInstanceOf(ApiProblemException.class);
     }
 
     private Fixture fixture(String groupIds, String routeIds) {

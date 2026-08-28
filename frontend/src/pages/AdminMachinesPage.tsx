@@ -22,6 +22,7 @@ import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import { useAdminAuthStore } from "../store/adminAuth";
+import { ConfirmBar, type ConfirmRequest } from "../components/ConfirmBar";
 import { useAdminPreferences } from "../store/adminPreferences";
 
 type Language = "zh-CN" | "en-US";
@@ -85,6 +86,7 @@ const copy = {
     install: "安装 xboard-node",
     installHint: "在目标服务器上执行此命令，即可用 machine mode 安装 xboard-node 并接入当前服务器记录。",
     installFootnote: "需要 root 或 sudo 权限，且目标服务器需为支持 systemd 的 Linux。",
+    installMasked: "命令内含机器 Token，已隐藏；点击上方“显示 Token”查看，复制按钮始终复制完整命令。",
     command: "安装命令",
     copy: "复制",
     copied: "已复制",
@@ -177,6 +179,7 @@ const copy = {
     install: "Install xboard-node",
     installHint: "Run this command on the target server to install xboard-node in machine mode.",
     installFootnote: "Requires root or sudo on a Linux server with systemd.",
+    installMasked: "The command embeds the machine token and is masked. Use \u201cShow token\u201d above to reveal it; copying always copies the full command.",
     command: "Install command",
     copy: "Copy",
     copied: "Copied",
@@ -308,6 +311,19 @@ function HistoryChart({
   </div>;
 }
 
+/**
+ * The install command carries the machine token in the clear. The token is
+ * already gated behind an explicit reveal elsewhere on this screen, so mask it
+ * here too - otherwise a screenshot or a shared screen hands it over.
+ */
+function maskInstallToken(command: string): string {
+  return command.replace(
+    /(--token\s+')([^']+)(')/,
+    (_match, prefix: string, token: string, suffix: string) =>
+      `${prefix}${"\u2022".repeat(Math.min(token.length, 16))}${suffix}`
+  );
+}
+
 export function AdminMachinesPage() {
   const language = useAdminPreferences((state) => state.language);
   const accessToken = useAdminAuthStore((state) => state.accessToken)!;
@@ -327,6 +343,8 @@ export function AdminMachinesPage() {
   const [historyMetric, setHistoryMetric] = useState<HistoryMetric>("cpu");
   const [tokenVisible, setTokenVisible] = useState(false);
   const [revealedToken, setRevealedToken] = useState<string>();
+  const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmRequest | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [associateOpen, setAssociateOpen] = useState(false);
   const [associateSearch, setAssociateSearch] = useState("");
   const [selectedNodeIds, setSelectedNodeIds] = useState<number[]>([]);
@@ -483,14 +501,33 @@ export function AdminMachinesPage() {
     } catch (caught) { setError(errorText(caught, text.operationFailed)); }
   }
 
-  async function rotateToken() {
-    if (!detailMachineId || !window.confirm(text.rotateConfirm)) return;
+  function rotateToken() {
+    if (!detailMachineId) return;
+    setPendingConfirmation({
+      message: text.rotateConfirm,
+      confirmLabel: text.rotate,
+      danger: true,
+      run: async () => {
+        const result = await rotateMachineToken(accessToken, detailMachineId);
+        setRevealedToken(result.token);
+        setTokenVisible(true);
+        await queryClient.invalidateQueries({ queryKey: ["admin", "machines", detailMachineId, "install-command"] });
+      }
+    });
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingConfirmation || confirming) return;
+    setConfirming(true);
+    setError("");
     try {
-      const result = await rotateMachineToken(accessToken, detailMachineId);
-      setRevealedToken(result.token);
-      setTokenVisible(true);
-      await queryClient.invalidateQueries({ queryKey: ["admin", "machines", detailMachineId, "install-command"] });
-    } catch (caught) { setError(errorText(caught, text.operationFailed)); }
+      await pendingConfirmation.run();
+      setPendingConfirmation(null);
+    } catch (caught) {
+      setError(errorText(caught, text.operationFailed));
+    } finally {
+      setConfirming(false);
+    }
   }
 
   async function copyCredentialValue(value: string, field: "token" | "command") {
@@ -519,6 +556,9 @@ export function AdminMachinesPage() {
         <div><p>{text.eyebrow}</p><h1>{text.title}</h1><span>{text.description}</span></div>
         <button className="admin-primary-button" onClick={openCreate} type="button">+ {text.create}</button>
       </header>
+
+      {pendingConfirmation && <ConfirmBar busy={confirming} language={language} onCancel={() => setPendingConfirmation(null)}
+        onConfirm={() => void confirmPendingAction()} request={pendingConfirmation} />}
 
       <section className="machine-summary-grid" aria-label={text.title}>
         {[
@@ -569,7 +609,7 @@ export function AdminMachinesPage() {
                   <td><strong>{relativeTime(machine.last_seen_at, language, text.neverConnected)}</strong><small>{text.report}: {relativeTime(load?.updated_at ?? null, language, text.noReport)}</small></td>
                   <td><div className="machine-row-actions"><button aria-label={text.details} onClick={() => openDetails(machine)} title={text.details} type="button">⌁</button>
                     <button aria-label={text.edit} onClick={() => openEdit(machine)} title={text.edit} type="button">✎</button>
-                    <button aria-label={text.remove} className="danger" onClick={() => window.confirm(text.removeConfirm) && deleteMutation.mutate(machine.id)} title={text.remove} type="button">⌫</button></div></td>
+                    <button aria-label={text.remove} className="danger" onClick={() => setPendingConfirmation({ message: `${machine.name} — ${text.removeConfirm}`, confirmLabel: text.remove, danger: true, run: async () => { await deleteMutation.mutateAsync(machine.id); } })} title={text.remove} type="button">⌫</button></div></td>
                 </tr>;
               })}</tbody></table>}
         </div>
@@ -633,8 +673,9 @@ export function AdminMachinesPage() {
                 className={copiedCredential === "token" ? "copied" : ""} onClick={() => void copyCredentialValue(revealedToken, "token")} type="button">{copiedCredential === "token" ? "✓" : "⧉"}</button></span><small>{text.tokenAutoHide}</small></>}
             </section>
             <section className="machine-detail-section"><h3>{text.install}</h3><p>{text.installHint}</p>
-              {installQuery.data?.command && <span className="machine-credential-value"><code>{installQuery.data.command}</code><button aria-label={`${text.copy} ${text.command}`}
+              {installQuery.data?.command && <span className="machine-credential-value"><code>{tokenVisible ? installQuery.data.command : maskInstallToken(installQuery.data.command)}</code><button aria-label={`${text.copy} ${text.command}`}
                 className={copiedCredential === "command" ? "copied" : ""} onClick={() => void copyCredentialValue(installQuery.data.command, "command")} type="button">{copiedCredential === "command" ? "✓" : "⧉"}</button></span>}
+              {!tokenVisible && <small>{text.installMasked}</small>}
               <small>{text.installFootnote}</small>
             </section>
             <section className="machine-detail-section"><div className="machine-section-title"><div><h3>{text.linkedNodes}</h3>
@@ -647,7 +688,7 @@ export function AdminMachinesPage() {
                     <tbody>{linkedNodes.map((node) => <tr key={node.id}><td><button className="machine-node-link" onClick={() => goToNodes()} type="button">#{node.id} {node.name}</button></td>
                       <td>{node.type}</td><td>{node.host ?? "—"}:{node.port ?? node.server_port}</td><td><label className="machine-switch"><input checked={node.enabled} disabled={nodeMutation.isPending} type="checkbox"
                         onChange={() => nodeMutation.mutate({ id: node.id, values: { enabled: !node.enabled } })} /><span /></label></td>
-                      <td><button className="machine-detach" onClick={() => window.confirm(text.detachConfirm) && nodeMutation.mutate({ id: node.id, values: { machine_id: null } })} type="button">{text.detach}</button></td></tr>)}</tbody></table>}
+                      <td><button className="machine-detach" onClick={() => setPendingConfirmation({ message: `#${node.id} ${node.name} — ${text.detachConfirm}`, confirmLabel: text.detach, danger: true, run: async () => { await nodeMutation.mutateAsync({ id: node.id, values: { machine_id: null } }); } })} type="button">{text.detach}</button></td></tr>)}</tbody></table>}
               </div>
             </section>
           </div>

@@ -1,0 +1,62 @@
+.admin-confirmbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #f1d49a;
+  border-radius: 12px;
+  color: #503d16;
+  background: #fff9ec;
+}
+
+.admin-confirmbar.danger {
+  border-color: #f0bdc3;
+  color: #702630;
+  background: #fff3f4;
+}
+
+.admin-confirmbar > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-confirmbar > div span {
+  font-size: 13px;
+}
+
+.admin-confirmbar > button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #d7deea;
+  border-radius: 8px;
+  color: #38465e;
+  background: #fff;
+  font: inherit;
+  font-weight: 650;
+}
+
+.admin-confirmbar > button.primary {
+  border-color: #315efb;
+  color: #fff;
+  background: #315efb;
+}
+
+.admin-confirmbar > button.danger {
+  border-color: #d94f5e;
+  color: #fff;
+  background: #d94f5e;
+}
+
+.admin-confirmbar > button:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+@media (max-width: 900px) {
+  .admin-confirmbar { align-items: stretch; flex-wrap: wrap; }
+  .admin-confirmbar > div { flex-basis: 100%; }
+}

@@ -64,8 +64,11 @@
 .node-drag-handle { cursor: grab; color: #71809a; font-size: 22px; }
 .node-table tr[draggable="true"] { cursor: grab; }
 .node-inline-select { max-width: 160px; min-height: 32px; border: 1px solid #dce3ed; border-radius: 7px; background: #fff; color: #35425a; padding: 0 7px; }
-.node-switch { display: flex; align-items: center; gap: 6px; margin-top: 7px; }
-.node-switch input { position: absolute; opacity: 0; }
+.node-switch { position: relative; display: flex; align-items: center; gap: 6px; margin-top: 7px; }
+/* Without a positioned ancestor and an explicit size the hidden checkbox is
+   laid out against the viewport, stretching the document and giving the whole
+   admin page a horizontal scrollbar. Pin it to the visible switch instead. */
+.node-switch input { position: absolute; top: 0; left: 0; width: 31px; height: 18px; margin: 0; opacity: 0; }
 .node-switch > span { position: relative; width: 31px; height: 18px; border-radius: 99px; background: #d7deea; cursor: pointer; }
 .node-switch > span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: #fff; transition: .15s; }
 .node-switch input:checked + span { background: #315efb; }
@@ -97,8 +100,8 @@
 .node-field textarea { min-height: 104px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.5; }
 .node-field small { font-weight: 400; color: #7d899d; }
 .node-toggle-row { display: flex; gap: 22px; margin-top: 17px; }
-.node-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: 42px; }
-.node-toggle > input { position: absolute; opacity: 0; pointer-events: none; }
+.node-toggle { position: relative; display: flex; align-items: center; gap: 10px; cursor: pointer; min-height: 42px; }
+.node-toggle > input { position: absolute; top: 0; left: 0; width: 38px; height: 22px; margin: 0; opacity: 0; pointer-events: none; }
 .node-toggle > span { width: 38px; height: 22px; padding: 2px; box-sizing: border-box; border-radius: 999px; background: #bdc8d9; transition: .18s ease; }
 .node-toggle > span::after { display: block; content: ""; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px #74839a66; transition: .18s ease; }
 .node-toggle > input:checked + span { background: #315efb; }
@@ -170,3 +173,6 @@
   .node-confirmbar > div { flex-basis: 100%; }
   .node-runtime-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+.node-runtime-button.stalled strong { color: #c2410c; }
+.node-runtime-button.stalled small { color: #c2410c; }

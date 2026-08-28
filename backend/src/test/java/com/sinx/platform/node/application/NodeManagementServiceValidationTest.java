@@ -2,14 +2,18 @@ package com.sinx.platform.node.application;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
+import com.sinx.platform.node.domain.NodeMachine;
+import com.sinx.platform.node.domain.ProxyNode;
 import com.sinx.platform.node.repository.NodeAccessGroupRepository;
 import com.sinx.platform.node.repository.NodeMachineRepository;
 import com.sinx.platform.node.repository.NodeRouteRuleRepository;
@@ -57,6 +61,47 @@ class NodeManagementServiceValidationTest {
             BigDecimal.ONE, 0L,
             List.of(Map.of("start", "08:00", "end", "12:00", "rate", -1))),
             "non-negative numeric rate");
+    }
+
+    @Test
+    void refusesTwoNodesSharingAListenPortOnTheSameMachine() {
+        ProxyNodeRepository nodes = mock(ProxyNodeRepository.class);
+        NodeMachineRepository machines = mock(NodeMachineRepository.class);
+        NodeMachine machine = mock(NodeMachine.class);
+        ProxyNode existing = mock(ProxyNode.class);
+        when(machine.getId()).thenReturn(4L);
+        when(machines.findById(4L)).thenReturn(Optional.of(machine));
+        when(existing.getId()).thenReturn(77L);
+        when(nodes.findByMachineIdAndServerPort(4L, 8443))
+            .thenReturn(List.of(existing));
+        NodeManagementService scoped = new NodeManagementService(
+            nodes,
+            machines,
+            mock(NodeAccessGroupRepository.class),
+            mock(NodeRouteRuleRepository.class),
+            new ObjectMapper(),
+            Clock.systemUTC()
+        );
+
+        // The agent would fail with "address already in use" and the panel
+        // could not see it, so the collision is refused up front.
+        assertThatThrownBy(() -> scoped.save(onMachine(4L, 8443)))
+            .isInstanceOf(ApiProblemException.class)
+            .hasMessageContaining("already used by another node on this machine");
+    }
+
+    private NodeManagementService.NodeDraft onMachine(long machineId, int serverPort) {
+        NodeManagementService.NodeDraft base = draft(
+            "node.example.test", 443, serverPort, BigDecimal.ONE, 0L, List.of()
+        );
+        return new NodeManagementService.NodeDraft(
+            base.id(), base.type(), base.code(), base.parentId(), machineId,
+            base.groupIds(), base.routeIds(), base.name(), base.rate(),
+            base.rateTimeEnable(), base.rateTimeRanges(), base.transferEnable(),
+            base.tags(), base.host(), base.port(), base.serverPort(),
+            base.protocolSettings(), base.customOutbounds(), base.customRoutes(),
+            base.certConfig(), base.show(), base.enabled(), base.sort()
+        );
     }
 
     private NodeManagementService.NodeDraft draft(

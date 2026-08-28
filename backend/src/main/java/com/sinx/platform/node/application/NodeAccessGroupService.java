@@ -10,12 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.node.domain.NodeAccessGroup;
 import com.sinx.platform.node.domain.ProxyNode;
 import com.sinx.platform.node.repository.NodeAccessGroupRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
+import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -31,6 +33,7 @@ public class NodeAccessGroupService {
     private final ProxyNodeRepository nodes;
     private final ServicePlanRepository plans;
     private final UserAccountRepository users;
+    private final SubscriptionEntitlementRepository entitlements;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -39,6 +42,7 @@ public class NodeAccessGroupService {
         ProxyNodeRepository nodes,
         ServicePlanRepository plans,
         UserAccountRepository users,
+        SubscriptionEntitlementRepository entitlements,
         ObjectMapper objectMapper,
         Clock clock
     ) {
@@ -46,6 +50,7 @@ public class NodeAccessGroupService {
         this.nodes = nodes;
         this.plans = plans;
         this.users = users;
+        this.entitlements = entitlements;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -88,6 +93,9 @@ public class NodeAccessGroupService {
         if (users.countByServerGroupId(id) > 0) {
             throw inUse("The group is assigned to one or more users");
         }
+        if (activeSubscribers(id) > 0) {
+            throw inUse("The group still serves one or more active subscriptions");
+        }
         groups.delete(group);
         return true;
     }
@@ -107,10 +115,22 @@ public class NodeAccessGroupService {
         return new GroupView(
             group.getId(),
             group.getName(),
-            users.countByServerGroupId(group.getId()),
+            activeSubscribers(group.getId()),
             serverCount,
             group.getCreatedAt().getEpochSecond(),
             group.getUpdatedAt().getEpochSecond()
+        );
+    }
+
+    /**
+     * Users reach a group through their entitlement, so users.serverGroupId only
+     * covers explicit overrides and reports zero for plan-assigned subscribers.
+     */
+    private long activeSubscribers(long groupId) {
+        return entitlements.countActiveForServerGroup(
+            groupId,
+            clock.instant(),
+            UserStatus.ACTIVE
         );
     }
 

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.node.domain.NodeAccessGroup;
 import com.sinx.platform.node.domain.NodeMachine;
@@ -29,6 +30,7 @@ import com.sinx.platform.node.repository.NodeMachineRepository;
 import com.sinx.platform.node.repository.NodeRouteRuleRepository;
 import com.sinx.platform.node.repository.ProxyNodeRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
+import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -49,7 +51,8 @@ class NodeAdministrationServiceTest {
         when(nodes.findAll()).thenReturn(List.of(node));
 
         NodeAccessGroupService service = new NodeAccessGroupService(
-            groups, nodes, plans, users, new ObjectMapper(), CLOCK
+            groups, nodes, plans, users,
+            mock(SubscriptionEntitlementRepository.class), new ObjectMapper(), CLOCK
         );
 
         assertThatThrownBy(() -> service.delete(12L))
@@ -70,7 +73,8 @@ class NodeAdministrationServiceTest {
         when(plans.countByServerGroupId(21L)).thenReturn(1L);
 
         NodeAccessGroupService service = new NodeAccessGroupService(
-            groups, nodes, plans, users, new ObjectMapper(), CLOCK
+            groups, nodes, plans, users,
+            mock(SubscriptionEntitlementRepository.class), new ObjectMapper(), CLOCK
         );
         assertThatThrownBy(() -> service.delete(21L))
             .isInstanceOf(ApiProblemException.class)
@@ -86,6 +90,34 @@ class NodeAdministrationServiceTest {
     }
 
     @Test
+    void refusesToDeleteAGroupThatStillServesActiveSubscriptions() {
+        NodeAccessGroupRepository groups = mock(NodeAccessGroupRepository.class);
+        ProxyNodeRepository nodes = mock(ProxyNodeRepository.class);
+        ServicePlanRepository plans = mock(ServicePlanRepository.class);
+        UserAccountRepository users = mock(UserAccountRepository.class);
+        SubscriptionEntitlementRepository entitlements =
+            mock(SubscriptionEntitlementRepository.class);
+        NodeAccessGroup group = NodeAccessGroup.create("Subscribers", NOW);
+        when(groups.findById(33L)).thenReturn(Optional.of(group));
+        when(nodes.findAll()).thenReturn(List.of());
+        // Nothing references the group directly; the subscribers reached it
+        // through their plan, which users.serverGroupId does not record.
+        when(plans.countByServerGroupId(33L)).thenReturn(0L);
+        when(users.countByServerGroupId(33L)).thenReturn(0L);
+        when(entitlements.countActiveForServerGroup(33L, NOW, UserStatus.ACTIVE))
+            .thenReturn(4L);
+
+        NodeAccessGroupService service = new NodeAccessGroupService(
+            groups, nodes, plans, users, entitlements, new ObjectMapper(), CLOCK
+        );
+
+        assertThatThrownBy(() -> service.delete(33L))
+            .isInstanceOf(ApiProblemException.class)
+            .extracting(exception -> ((ApiProblemException) exception).getCode())
+            .isEqualTo("NODE_GROUP_IN_USE");
+    }
+
+    @Test
     void validatesGroupNamesUsingTheOriginalAdminUiRules() {
         NodeAccessGroupRepository groups = mock(NodeAccessGroupRepository.class);
         NodeAccessGroupService service = new NodeAccessGroupService(
@@ -93,6 +125,7 @@ class NodeAdministrationServiceTest {
             mock(ProxyNodeRepository.class),
             mock(ServicePlanRepository.class),
             mock(UserAccountRepository.class),
+            mock(SubscriptionEntitlementRepository.class),
             new ObjectMapper(),
             CLOCK
         );

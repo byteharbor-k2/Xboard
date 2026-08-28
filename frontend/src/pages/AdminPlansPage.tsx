@@ -11,6 +11,7 @@ import { listNodeGroups } from "../admin/groupManagementApi";
 import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
 import { useAdminAuthStore } from "../store/adminAuth";
+import { ConfirmBar, type ConfirmRequest } from "../components/ConfirmBar";
 import { useAdminPreferences } from "../store/adminPreferences";
 import type {
   BillingPeriod,
@@ -344,6 +345,9 @@ export function AdminPlansPage() {
   const accessToken = useAdminAuthStore((state) => state.accessToken);
   const queryClient = useQueryClient();
   const text = copy[language];
+  const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmRequest | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [pageError, setPageError] = useState("");
   const [editing, setEditing] = useState<ManagedPlan | null | undefined>();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [formError, setFormError] = useState("");
@@ -430,13 +434,26 @@ export function AdminPlansPage() {
   }
 
   function remove(plan: ManagedPlan) {
-    if (!window.confirm(text.removeConfirm)) {
-      return;
-    }
-    deleteMutation.mutate(plan.id, {
-      onError: (error) =>
-        window.alert(errorMessage(error, text.operationFailed))
+    setPendingConfirmation({
+      message: `${plan.name} — ${text.removeConfirm}`,
+      confirmLabel: text.remove,
+      danger: true,
+      run: () => deleteMutation.mutateAsync(plan.id)
     });
+  }
+
+  async function confirmPendingAction() {
+    if (!pendingConfirmation || confirming) return;
+    setConfirming(true);
+    setPageError("");
+    try {
+      await pendingConfirmation.run();
+      setPendingConfirmation(null);
+    } catch (error) {
+      setPageError(errorMessage(error, text.operationFailed));
+    } finally {
+      setConfirming(false);
+    }
   }
 
   return (
@@ -451,6 +468,10 @@ export function AdminPlansPage() {
           ＋ {text.create}
         </button>
       </header>
+
+      {pendingConfirmation && <ConfirmBar busy={confirming} language={language} onCancel={() => setPendingConfirmation(null)}
+        onConfirm={() => void confirmPendingAction()} request={pendingConfirmation} />}
+      {pageError && <p className="admin-operation-error">{pageError}</p>}
 
       <section className="admin-card plan-management-card">
         {plansQuery.isLoading ? (

@@ -75,12 +75,36 @@ public class NodeProtocolService {
     }
 
     public AuthenticatedNode authenticate(long machineId, long nodeId, String token) {
+        return authenticate(machineId, nodeId, token, true);
+    }
+
+    /**
+     * Traffic the node already carried has to be billed even after an
+     * administrator disables the node, so reporting stays open while
+     * configuration and user lists are withheld. The node stops on its own once
+     * the machine picks up the new node list; rejecting its closing report only
+     * discards usage that was genuinely consumed.
+     */
+    public AuthenticatedNode authenticateForReport(
+        long machineId,
+        long nodeId,
+        String token
+    ) {
+        return authenticate(machineId, nodeId, token, false);
+    }
+
+    private AuthenticatedNode authenticate(
+        long machineId,
+        long nodeId,
+        String token,
+        boolean requireEnabled
+    ) {
         NodeMachine machine = machines.authenticate(machineId, token);
         ProxyNode node = nodes.findById(nodeId).orElseThrow(() -> forbidden("Node not found"));
         if (node.getMachine() == null || !node.getMachine().getId().equals(machine.getId())) {
             throw forbidden("Node does not belong to this machine");
         }
-        if (!node.isEnabled()) throw forbidden("Node is disabled");
+        if (requireEnabled && !node.isEnabled()) throw forbidden("Node is disabled");
         return new AuthenticatedNode(machine, node);
     }
 
@@ -254,7 +278,7 @@ public class NodeProtocolService {
 
     @Transactional
     public void report(long machineId, long nodeId, String token, Map<String, Object> payload) {
-        ProxyNode node = authenticate(machineId, nodeId, token).node();
+        ProxyNode node = authenticateForReport(machineId, nodeId, token).node();
         report(node, payload);
     }
 

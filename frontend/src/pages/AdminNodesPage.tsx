@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { listNodeGroups, saveNodeGroup } from "../admin/groupManagementApi";
-import { listMachines } from "../admin/machineManagementApi";
+import { listMachines, type ManagedMachine } from "../admin/machineManagementApi";
 import {
   NODE_PROTOCOLS,
   batchDeleteNodes,
@@ -25,6 +25,7 @@ import { listNodeRoutes } from "../admin/routeManagementApi";
 import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
 import { useAdminAuthStore } from "../store/adminAuth";
+import { ConfirmBar, type ConfirmRequest } from "../components/ConfirmBar";
 import { useAdminPreferences } from "../store/adminPreferences";
 import "./AdminNodesPage.css";
 
@@ -82,6 +83,24 @@ function numericValue(source: Record<string, unknown>, keys: string[]) {
     if (Number.isFinite(number)) return number;
   }
   return null;
+}
+
+/**
+ * A node bound to a machine that is itself reporting, yet has gone silent, is
+ * almost always a node whose kernel refused to start - a port collision, a bad
+ * certificate. The agent has no channel to report that back, so the panel would
+ * otherwise render it identically to a node that was only just created.
+ */
+function nodeStalled(
+  node: ManagedNode,
+  machines: ManagedMachine[] | undefined
+): boolean {
+  if (!node.enabled || node.machine_id === null) return false;
+  const machine = machines?.find((entry) => entry.id === node.machine_id);
+  const now = Math.floor(Date.now() / 1000);
+  if (!machine?.last_seen_at || now - machine.last_seen_at > 180) return false;
+  const lastPush = node.last_push_at ?? node.last_check_at;
+  return !lastPush || now - lastPush > 180;
 }
 
 function runtimeSummary(node: ManagedNode) {
@@ -144,13 +163,6 @@ function Toggle({ checked, onChange, label, hint }: { checked: boolean; onChange
     <div><strong>{label}</strong>{hint && <small>{hint}</small>}</div></label>;
 }
 
-type PendingConfirmation = {
-  message: string;
-  confirmLabel: string;
-  danger: boolean;
-  run: () => Promise<void>;
-};
-
 export function AdminNodesPage() {
   const language = useAdminPreferences((state) => state.language);
   const token = useAdminAuthStore((state) => state.accessToken)!;
@@ -190,7 +202,7 @@ export function AdminNodesPage() {
   const [sorting, setSorting] = useState(false);
   const [order, setOrder] = useState<number[]>([]);
   const [dragging, setDragging] = useState<number | null>(null);
-  const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState<ConfirmRequest | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [runtimeNode, setRuntimeNode] = useState<ManagedNode>();
   const [portsSynced, setPortsSynced] = useState(true);
@@ -446,25 +458,22 @@ export function AdminNodesPage() {
       <option value="">{tx("批量操作", "Batch action")}</option><option value="show">{tx("显示", "Show")}</option><option value="hide">{tx("隐藏", "Hide")}</option>
       <option value="enable">{tx("启用", "Enable")}</option><option value="disable">{tx("停用", "Disable")}</option><option value="reset">{tx("重置流量", "Reset traffic")}</option><option value="delete">{tx("删除", "Delete")}</option>
     </select><button disabled={!batchAction} onClick={() => void runBatch()} type="button">{tx("执行", "Apply")}</button></section>}
-    {pendingConfirmation && <section aria-live="assertive" className={pendingConfirmation.danger ? "node-confirmbar danger" : "node-confirmbar"} role="alertdialog">
-      <div><strong>{pendingConfirmation.danger ? tx("高风险操作", "Risky operation") : tx("请确认操作", "Confirm action")}</strong><span>{pendingConfirmation.message}</span></div>
-      <button disabled={confirming} onClick={() => setPendingConfirmation(null)} type="button">{tx("取消", "Cancel")}</button>
-      <button className={pendingConfirmation.danger ? "danger" : "primary"} disabled={confirming} onClick={() => void confirmPendingAction()} type="button">{confirming ? tx("处理中…", "Processing...") : pendingConfirmation.confirmLabel}</button>
-    </section>}
+    {pendingConfirmation && <ConfirmBar busy={confirming} language={language} onCancel={() => setPendingConfirmation(null)}
+      onConfirm={() => void confirmPendingAction()} request={pendingConfirmation} />}
     {error && <p className="admin-operation-error">{error}</p>}
 
     <section className="admin-card admin-table-wrap node-table-card">
       {nodesQuery.isPending ? <p className="admin-table-empty">{tx("正在加载节点…", "Loading nodes...")}</p> : !nodes.length ? <p className="admin-table-empty">{tx("没有符合条件的节点。", "No matching nodes.")}</p> :
         <table className="admin-table node-table"><thead><tr><th><input aria-label={tx("全选", "Select all")} checked={allVisibleSelected} onChange={(event) => setSelected(event.target.checked ? Array.from(new Set([...selected, ...visibleNodes.map((node) => node.id)])) : selected.filter((id) => !visibleNodes.some((node) => node.id === id)))} type="checkbox" /></th>
           {sorting && <th>{tx("排序", "Order")}</th>}{columns.id && <th>{tx("节点 ID", "Node ID")}</th>}{columns.visibility && <th>{tx("显隐", "Visibility")}</th>}{columns.node && <th>{tx("节点", "Node")}</th>}{columns.deployment && <th>{tx("部署方式", "Deployment")}</th>}{columns.address && <th>{tx("地址", "Address")}</th>}{columns.runtime && <th>{tx("运行指标", "Runtime")}</th>}{columns.online && <th>{tx("在线人数", "Online")}</th>}{columns.rate && <th>{tx("倍率", "Rate")}</th>}{columns.groups && <th>{tx("权限组", "Groups")}</th>}{columns.traffic && <th>{tx("流量使用", "Traffic")}</th>}<th>{tx("操作", "Actions")}</th></tr></thead>
-          <tbody>{visibleNodes.map((node) => { const runtime = runtimeSummary(node); return <tr draggable={sorting} key={node.id} onDragOver={(event) => sorting && event.preventDefault()} onDragStart={() => setDragging(node.id)} onDrop={() => dropOn(node.id)}>
+          <tbody>{visibleNodes.map((node) => { const runtime = runtimeSummary(node); const stalled = nodeStalled(node, machinesQuery.data); return <tr draggable={sorting} key={node.id} onDragOver={(event) => sorting && event.preventDefault()} onDragStart={() => setDragging(node.id)} onDrop={() => dropOn(node.id)}>
             <td><input aria-label={`${tx("选择", "Select")} ${node.name}`} checked={selected.includes(node.id)} onChange={(event) => setSelected(event.target.checked ? [...selected, node.id] : selected.filter((id) => id !== node.id))} type="checkbox" /></td>
             {sorting && <td><span className="node-drag-handle" title={tx("拖动排序", "Drag to sort")}>⠿</span></td>}
             {columns.id && <td><code>#{node.id}</code></td>}{columns.visibility && <td><button className={node.show ? "node-icon-toggle on" : "node-icon-toggle"} onClick={() => void action(() => updateNode(token, node.id, { show: !node.show }))} title={node.show ? tx("点击隐藏", "Hide") : tx("点击显示", "Show")} type="button">{node.show ? "◉" : "○"}</button></td>}
             {columns.node && <td><strong>{node.name}</strong><small>{protocolNames[node.type]}{node.parent_id ? ` · ${tx("子节点", "Child")} #${node.parent_id}` : ""}</small></td>}
             {columns.deployment && <td><select aria-label={`${tx("部署服务器", "Deployment machine")} ${node.name}`} className="node-inline-select" onChange={(event) => void action(() => updateNode(token, node.id, { machine_id: event.target.value ? Number(event.target.value) : null }))} value={node.machine_id ?? ""}><option value="">{tx("未绑定", "Unbound")}</option>{machinesQuery.data?.map((machine) => <option key={machine.id} value={machine.id}>{machine.name}</option>)}</select><label className="node-switch"><input aria-label={`${tx("启用节点", "Enable node")} ${node.name}`} checked={node.enabled} onChange={() => void action(() => updateNode(token, node.id, { enabled: !node.enabled }))} type="checkbox" /><span /><small>{node.enabled ? tx("运行中", "Enabled") : tx("已停用", "Disabled")}</small></label></td>}
             {columns.address && <td><div className="node-address-cell"><span>{node.host || "—"}<small>{node.port ?? node.server_port} / {tx("内", "internal")} {node.server_port}</small></span><button aria-label={tx("复制地址", "Copy address")} onClick={() => void copyAddress(node)} title={copiedAddressId === node.id ? tx("已复制", "Copied") : tx("复制地址", "Copy address")} type="button">{copiedAddressId === node.id ? "✓" : "⧉"}</button></div></td>}
-            {columns.runtime && <td><button className="node-runtime-button" onClick={() => setRuntimeNode(node)} type="button"><strong>{runtime.cpu === null ? tx("暂无上报", "No report") : `CPU ${runtime.cpu.toFixed(1)}%`}</strong><small>{tx("最后推送", "Last push")}: {formatNodeTime(node.last_push_at ?? node.last_check_at, language)}</small></button></td>}
+            {columns.runtime && <td><button className={stalled ? "node-runtime-button stalled" : "node-runtime-button"} onClick={() => setRuntimeNode(node)} title={stalled ? tx("服务器在线但该节点未上报，通常是节点内核启动失败（端口占用、证书错误等）。", "The machine is reporting but this node is not, which usually means its kernel failed to start (port already in use, certificate error).") : undefined} type="button"><strong>{stalled ? tx("⚠ 未上报", "⚠ Not reporting") : runtime.cpu === null ? tx("暂无上报", "No report") : `CPU ${runtime.cpu.toFixed(1)}%`}</strong><small>{stalled ? tx("服务器在线，节点可能启动失败", "Machine online, node may have failed to start") : `${tx("最后推送", "Last push")}: ${formatNodeTime(node.last_push_at ?? node.last_check_at, language)}`}</small></button></td>}
             {columns.online && <td>{node.onlineUsers}<small>{node.online_conn} {tx("连接", "connections")}</small></td>}{columns.rate && <td>{Number(node.rate).toFixed(2)}x</td>}
             {columns.groups && <td><div className="node-chip-list">{node.group_ids.length ? node.group_ids.map((id) => <span key={id}>{groupsQuery.data?.find((group) => group.id === id)?.name ?? `#${id}`}</span>) : <em>—</em>}</div></td>}
             {columns.traffic && <td>↑ {formatBytes(node.u)}<small>↓ {formatBytes(node.d)}</small></td>}

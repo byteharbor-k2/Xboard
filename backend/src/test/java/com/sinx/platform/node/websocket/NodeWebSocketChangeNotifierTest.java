@@ -1,6 +1,7 @@
 package com.sinx.platform.node.websocket;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,6 +30,9 @@ class NodeWebSocketChangeNotifierTest {
             1, 10L, true, true, List.of(4L), List.of(7L), 8443
         );
 
+        when(sync.pushConfig(1)).thenReturn(true);
+        when(sync.pushUsers(1)).thenReturn(true);
+
         notifier.nodesUpdated(List.of(before), List.of(after));
 
         verify(sync).pushConfig(1);
@@ -45,11 +49,47 @@ class NodeWebSocketChangeNotifierTest {
             1, 10L, true, true, List.of(3L), List.of(7L), 9443
         );
 
+        when(sync.pushConfig(1)).thenReturn(true);
+
         notifier.nodesUpdated(List.of(before), List.of(after));
 
         verify(sync).pushConfig(1);
         verify(sync, never()).pushUsers(1);
         verify(sync, never()).refreshMachine(10);
+    }
+
+    @Test
+    void configChangeForAnOfflineNodeFallsBackToAMachineRefresh() {
+        NodeManagementService.NodeView before = node(
+            1, 10L, true, true, List.of(3L), List.of(7L), 8443
+        );
+        NodeManagementService.NodeView after = node(
+            1, 10L, true, true, List.of(3L), List.of(7L), 9443
+        );
+        // A node whose kernel failed to start holds no session, so the
+        // node-scoped push cannot land.
+        when(sync.pushConfig(1)).thenReturn(false);
+
+        notifier.nodesUpdated(List.of(before), List.of(after));
+
+        verify(sync).pushConfig(1);
+        verify(sync).refreshMachine(10);
+    }
+
+    @Test
+    void configChangeForAnOfflineUnboundNodeSkipsTheFallback() {
+        NodeManagementService.NodeView before = node(
+            1, null, true, true, List.of(3L), List.of(7L), 8443
+        );
+        NodeManagementService.NodeView after = node(
+            1, null, true, true, List.of(3L), List.of(7L), 9443
+        );
+        when(sync.pushConfig(1)).thenReturn(false);
+
+        notifier.nodesUpdated(List.of(before), List.of(after));
+
+        verify(sync).pushConfig(1);
+        verify(sync, never()).refreshMachine(anyLong());
     }
 
     @Test

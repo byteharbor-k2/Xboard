@@ -18,4 +18,6 @@ public interface ProxyNodeRepository extends JpaRepository<ProxyNode, Long> {
     Optional<ProxyNode> findFirstByCode(String code);
 
     long countByMachineId(Long machineId);
+
+    List<ProxyNode> findByMachineIdAndServerPort(Long machineId, int serverPort);
 }
