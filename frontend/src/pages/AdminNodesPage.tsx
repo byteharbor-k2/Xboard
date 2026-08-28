@@ -91,6 +91,8 @@ function numericValue(source: Record<string, unknown>, keys: string[]) {
  * certificate. The agent has no channel to report that back, so the panel would
  * otherwise render it identically to a node that was only just created.
  */
+const SILENCE_SECONDS = 180;
+
 function nodeStalled(
   node: ManagedNode,
   machines: ManagedMachine[] | undefined
@@ -98,9 +100,13 @@ function nodeStalled(
   if (!node.enabled || node.machine_id === null) return false;
   const machine = machines?.find((entry) => entry.id === node.machine_id);
   const now = Math.floor(Date.now() / 1000);
-  if (!machine?.last_seen_at || now - machine.last_seen_at > 180) return false;
+  if (!machine?.last_seen_at || now - machine.last_seen_at > SILENCE_SECONDS) {
+    return false;
+  }
+  // A node created moments ago has simply not had time to report yet.
+  if (node.created_at && now - node.created_at < SILENCE_SECONDS) return false;
   const lastPush = node.last_push_at ?? node.last_check_at;
-  return !lastPush || now - lastPush > 180;
+  return !lastPush || now - lastPush > SILENCE_SECONDS;
 }
 
 function runtimeSummary(node: ManagedNode) {
