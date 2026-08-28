@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 
 import { AuthLayout } from "../components/AuthLayout";
+import { QrCode } from "../components/QrCode";
 import {
   adminLogin,
   ApiError,
@@ -190,9 +191,25 @@ export function AdminLoginPage() {
         <form className="freedom-form" onSubmit={handleEnrollment}>
           <div className="security-notice">
             <strong>首次管理员登录必须配置 MFA</strong>
-            <p>在验证器中打开链接，或手动输入密钥。</p>
-            <a href={enrollment.otpauthUri}>在验证器中打开</a>
-            <code className="secret-code">{enrollment.secret}</code>
+            <p>
+              用 Google Authenticator、Microsoft Authenticator、1Password
+              或任意兼容 TOTP 的验证器扫描下方二维码。
+            </p>
+            <div className="mfa-qr">
+              <QrCode
+                label="MFA 配置二维码"
+                value={enrollment.otpauthUri}
+              />
+            </div>
+            <details className="mfa-manual">
+              <summary>无法扫码？手动添加</summary>
+              <p>
+                在验证器中打开链接，或选择“手动输入密钥”并粘贴下方密钥
+                （类型为基于时间的验证码，6 位，30 秒）。
+              </p>
+              <a href={enrollment.otpauthUri}>在验证器中打开</a>
+              <code className="secret-code">{enrollment.secret}</code>
+            </details>
           </div>
           <label>
             当前 6 位验证码

@@ -1019,6 +1019,35 @@ button:disabled {
   letter-spacing: 0.08em;
 }
 
+.mfa-qr {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.qr-code {
+  display: block;
+  width: 200px;
+  height: auto;
+  max-width: 100%;
+}
+
+.mfa-manual {
+  margin-top: 12px;
+}
+
+.mfa-manual summary {
+  color: #2f6bd8;
+  cursor: pointer;
+}
+
+.mfa-manual p {
+  margin: 8px 0;
+}
+
 .recovery-box {
   padding: 18px;
   border: 1px solid #f0d99c;
