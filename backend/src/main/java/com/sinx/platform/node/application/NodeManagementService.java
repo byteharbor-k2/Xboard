@@ -117,7 +117,7 @@ public class NodeManagementService {
             jsonList(source.getGroupIds()), jsonList(source.getRouteIds()),
             source.getName() + " copy", source.getRate(), source.isRateTimeEnable(),
             jsonValue(source.getRateTimeRanges()), source.getTransferEnable(),
-            jsonStringList(source.getTags()), source.getHost(), source.getPort(),
+            jsonStringList(source.getTags()), source.getHost(), copyPublicPort(source),
             nextFreePort(source), jsonMap(source.getProtocolSettings()),
             jsonValue(source.getCustomOutbounds()), jsonValue(source.getCustomRoutes()),
             nullableJsonValue(source.getCertConfig()), false, source.isEnabled(), null
@@ -132,6 +132,20 @@ public class NodeManagementService {
      * afterwards. Unbound nodes keep the original port because nothing else on
      * the panel owns it.
      */
+    /**
+     * Nodes normally advertise the port they listen on, and the form keeps the
+     * two in step. When the copy has to move its listen port, the advertised
+     * port has to move with it, or clients would dial the source node instead.
+     * A deliberate mismatch on the source is left alone.
+     */
+    private Integer copyPublicPort(ProxyNode source) {
+        Integer publicPort = source.getPort();
+        if (publicPort != null && publicPort == source.getServerPort()) {
+            return nextFreePort(source);
+        }
+        return publicPort;
+    }
+
     private int nextFreePort(ProxyNode source) {
         if (source.getMachine() == null) return source.getServerPort();
         Set<Integer> taken = nodes
