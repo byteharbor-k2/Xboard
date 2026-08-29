@@ -29,7 +29,7 @@ sinx:
   security:
     jwt-secret: ${SECURITY_JWT_SECRET}
     mfa-encryption-key: ${MFA_ENCRYPTION_KEY}
-    secure-cookies: true
+    secure-cookies: ${SECURE_COOKIES:true}
   registration:
     turnstile-enabled: true
     turnstile-site-key: ${TURNSTILE_SITE_KEY}

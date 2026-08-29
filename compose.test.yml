@@ -42,6 +42,9 @@ services:
       SECURITY_JWT_SECRET: ${SECURITY_JWT_SECRET:?set SECURITY_JWT_SECRET}
       MFA_ENCRYPTION_KEY: ${MFA_ENCRYPTION_KEY:?set MFA_ENCRYPTION_KEY}
       REGISTRATION_MAX_PER_IP: "100"
+      # The test host terminates TLS, so session cookies must carry Secure even
+      # though the dev profile defaults it off for plain-HTTP local runs.
+      SECURE_COOKIES: "true"
       PUBLIC_BASE_URL: http://127.0.0.1:8080
     depends_on:
       postgres:

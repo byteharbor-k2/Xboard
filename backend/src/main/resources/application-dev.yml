@@ -16,6 +16,6 @@ sinx:
   security:
     jwt-secret: ${SECURITY_JWT_SECRET:dev-only-jwt-secret-change-before-production-2026}
     mfa-encryption-key: ${MFA_ENCRYPTION_KEY:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
-    secure-cookies: false
+    secure-cookies: ${SECURE_COOKIES:false}
   registration:
     turnstile-enabled: false
