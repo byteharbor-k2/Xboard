@@ -84,11 +84,6 @@ public class NodeMachine {
         this.updatedAt = now;
     }
 
-    public void touch(Instant now) {
-        this.lastSeenAt = now;
-        this.updatedAt = now;
-    }
-
     public Long getId() {
         return id;
     }

@@ -118,6 +118,29 @@ class NodeAdministrationServiceTest {
     }
 
     @Test
+    void machineAuthenticationLeavesTheSharedMachineRowUntouched() {
+        NodeMachineRepository machines = mock(NodeMachineRepository.class);
+        NodeMachine machine = NodeMachine.create("SG", "token", null, true, NOW);
+        when(machines.findByIdAndToken(7L, "token"))
+            .thenReturn(Optional.of(machine));
+        NodeMachineService service = new NodeMachineService(
+            machines,
+            mock(NodeMachineLoadHistoryRepository.class),
+            mock(ProxyNodeRepository.class),
+            new ObjectMapper(),
+            CLOCK
+        );
+
+        service.authenticate(7L, "token");
+
+        // Every node request authenticates. Writing a heartbeat here made two
+        // nodes on one machine collide on its optimistic-lock version, and the
+        // loser's transaction rolled back a traffic report that the node had
+        // already counted.
+        assertThat(machine.getLastSeenAt()).isNull();
+    }
+
+    @Test
     void validatesGroupNamesUsingTheOriginalAdminUiRules() {
         NodeAccessGroupRepository groups = mock(NodeAccessGroupRepository.class);
         NodeAccessGroupService service = new NodeAccessGroupService(

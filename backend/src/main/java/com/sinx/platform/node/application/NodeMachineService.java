@@ -158,7 +158,12 @@ public class NodeMachineService {
                 "Machine is disabled"
             );
         }
-        machine.touch(clock.instant());
+        // Deliberately no heartbeat here. Authentication runs on every node
+        // request, so touching the shared machine row made two nodes on one
+        // machine collide on its optimistic-lock version, and the loser's whole
+        // transaction rolled back - discarding a traffic report that had
+        // already been counted on the node. The heartbeat belongs to the
+        // machine's own status push, which records it in recordStatus.
         return machine;
     }
 
