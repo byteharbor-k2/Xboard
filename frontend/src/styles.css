@@ -540,6 +540,31 @@
   gap: 20px;
 }
 
+/* An overlay button keeps the whole card clickable without nesting
+   interactive elements inside one another. */
+.plan-card { position: relative; }
+
+.plan-card-open {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.plan-card-open:focus-visible {
+  outline: 2px solid #2f7ff0;
+  outline-offset: 2px;
+}
+
+.plan-card > *:not(.plan-card-open) {
+  position: relative;
+  z-index: 2;
+  pointer-events: none;
+}
+
 .plan-card {
   display: grid;
   gap: 22px;

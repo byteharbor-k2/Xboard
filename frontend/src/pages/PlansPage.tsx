@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
 import { ApiError, publicGraphQl } from "../lib/http";
+import { navigate } from "../lib/navigation";
 import {
   billingPeriodLabel,
   formatBytes,
@@ -132,6 +133,12 @@ export function PlansPage() {
       <section className="plan-grid">
         {offers.map((offer) => (
           <article className="plan-card" key={offer.id}>
+            <button
+              aria-label={offer.name}
+              className="plan-card-open"
+              onClick={() => navigate(`/plans/${offer.id}`)}
+              type="button"
+            />
             <header>
               <div className="plan-tags">
                 <span

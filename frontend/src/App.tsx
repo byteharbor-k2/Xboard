@@ -29,6 +29,7 @@ import { InvitationsPage } from "./pages/InvitationsPage";
 import { KnowledgeBasePage } from "./pages/KnowledgeBasePage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { PlansPage } from "./pages/PlansPage";
+import { PlanCheckoutPage } from "./pages/PlanCheckoutPage";
 import { useAuthStore } from "./store/auth";
 import { useAdminAuthStore } from "./store/adminAuth";
 
@@ -126,6 +127,13 @@ export function App() {
     return (
       <ProtectedRoute>
         <PlansPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path.startsWith("/plans/")) {
+    return (
+      <ProtectedRoute>
+        <PlanCheckoutPage planId={path.slice("/plans/".length)} />
       </ProtectedRoute>
     );
   }

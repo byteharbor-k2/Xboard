@@ -3,12 +3,26 @@ type Query {
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
     offerCatalog: [PlanOffer!]!
+    planOffer(id: ID!): PlanOffer
     viewerEntitlement: SubscriptionEntitlement
+    """What a purchase would cost, itemised. Never mutates anything."""
+    orderQuote(
+        planId: ID!
+        period: BillingPeriod!
+        couponCode: String
+    ): OrderQuote!
+    viewerOrders: [ServiceOrder!]!
 }
 
 type Mutation {
     revokeDeviceSession(id: ID!): Boolean!
     updateViewerProfile(displayName: String!): Viewer!
+    placeOrder(
+        planId: ID!
+        period: BillingPeriod!
+        couponCode: String
+    ): ServiceOrder!
+    cancelOrder(tradeNo: String!): Boolean!
 }
 
 type SystemStatus {
@@ -107,4 +121,62 @@ enum EntitlementState {
     EXPIRED
     EXHAUSTED
     CANCELED
+}
+
+"""
+Every amount is in minor units of `currency`, serialised as a string so a
+64-bit value survives JSON. `totalAmount` is what is left to pay once the
+coupon, the unused value of the plan being replaced, and the account balance
+have all been applied.
+"""
+type OrderQuote {
+    planId: ID!
+    planName: String!
+    period: BillingPeriod!
+    orderType: OrderType!
+    currency: String!
+    originalAmount: String!
+    discountAmount: String!
+    surplusAmount: String!
+    """The part of the surplus that outgrew this order and is owed back."""
+    surplusCredit: String!
+    balanceAmount: String!
+    totalAmount: String!
+    couponCode: String
+    couponName: String
+    accountBalanceMinor: String!
+}
+
+type ServiceOrder {
+    id: ID!
+    tradeNo: String!
+    planId: ID!
+    planName: String!
+    period: BillingPeriod!
+    orderType: OrderType!
+    status: OrderStatus!
+    currency: String!
+    originalAmount: String!
+    discountAmount: String!
+    surplusAmount: String!
+    surplusCredit: String!
+    balanceAmount: String!
+    totalAmount: String!
+    createdAt: String!
+    paidAt: String
+}
+
+enum OrderType {
+    NEW_PURCHASE
+    RENEWAL
+    UPGRADE
+    RESET_TRAFFIC
+}
+
+enum OrderStatus {
+    PENDING
+    PROCESSING
+    CANCELLED
+    COMPLETED
+    DISCOUNTED
 }

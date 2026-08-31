@@ -50,6 +50,9 @@ public class UserAccount {
     @Column(name = "server_group_id")
     private Long serverGroupId;
 
+    @Column(name = "balance_minor", nullable = false)
+    private long balanceMinor;
+
     @Column(name = "node_user_id", insertable = false, updatable = false)
     private Long nodeUserId;
 
@@ -167,6 +170,32 @@ public class UserAccount {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public long getBalanceMinor() {
+        return balanceMinor;
+    }
+
+    /**
+     * Spends up to {@code requestedMinor} of the balance and reports what was
+     * actually taken, so a caller cannot overdraw by reading then writing.
+     */
+    public long spendBalance(long requestedMinor, Instant now) {
+        long spent = Math.min(Math.max(requestedMinor, 0), balanceMinor);
+        if (spent == 0) {
+            return 0;
+        }
+        balanceMinor -= spent;
+        updatedAt = now;
+        return spent;
+    }
+
+    public void creditBalance(long amountMinor, Instant now) {
+        if (amountMinor <= 0) {
+            return;
+        }
+        balanceMinor += amountMinor;
+        updatedAt = now;
     }
 
     public void assignServerGroup(Long serverGroupId, Instant now) {

@@ -117,6 +117,56 @@ export type PlanOffer = {
   prices: PlanPrice[];
 };
 
+export type OrderType =
+  | "NEW_PURCHASE"
+  | "RENEWAL"
+  | "UPGRADE"
+  | "RESET_TRAFFIC";
+
+export type OrderStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "CANCELLED"
+  | "COMPLETED"
+  | "DISCOUNTED";
+
+/** Amounts are minor units of `currency`, as strings to survive JSON. */
+export type OrderQuote = {
+  planId: string;
+  planName: string;
+  period: BillingPeriod;
+  orderType: OrderType;
+  currency: string;
+  originalAmount: string;
+  discountAmount: string;
+  surplusAmount: string;
+  surplusCredit: string;
+  balanceAmount: string;
+  totalAmount: string;
+  couponCode: string | null;
+  couponName: string | null;
+  accountBalanceMinor: string;
+};
+
+export type ServiceOrder = {
+  id: string;
+  tradeNo: string;
+  planId: string;
+  planName: string;
+  period: BillingPeriod;
+  orderType: OrderType;
+  status: OrderStatus;
+  currency: string;
+  originalAmount: string;
+  discountAmount: string;
+  surplusAmount: string;
+  surplusCredit: string;
+  balanceAmount: string;
+  totalAmount: string;
+  createdAt: string;
+  paidAt: string | null;
+};
+
 export type ManagedPlanPrice = {
   period: BillingPeriod;
   amountMinor: number;

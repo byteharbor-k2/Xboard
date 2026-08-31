@@ -39,6 +39,19 @@ public class CatalogService {
             .toList();
     }
 
+    /**
+     * A single offer for the detail page. Returns empty when the plan is not on
+     * sale, so a stale link cannot reveal a withdrawn plan.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<PlanOfferView> availableOffer(java.util.UUID planId) {
+        Instant now = Instant.now(clock);
+        return planRepository.findById(planId)
+            .filter(ServicePlan::isPublished)
+            .filter(ServicePlan::isSellable)
+            .map(plan -> toAvailableOffer(plan, now));
+    }
+
     private PlanOfferView toAvailableOffer(ServicePlan plan, Instant now) {
         if (plan.getPrices().isEmpty()) {
             return null;
