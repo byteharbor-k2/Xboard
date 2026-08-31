@@ -158,6 +158,18 @@ public class ServiceOrder {
         return status == OrderStatus.PENDING || status == OrderStatus.PROCESSING;
     }
 
+    /**
+     * True while nothing has been delivered for this order.
+     *
+     * A fully discounted order is not awaiting payment, but until provisioning
+     * exists it has still taken the customer's balance and coupon without
+     * giving anything back, so it has to remain undoable.
+     */
+    public boolean isRevocable() {
+        return status != OrderStatus.COMPLETED
+            && status != OrderStatus.CANCELLED;
+    }
+
     /** Value this order contributed, as the original panel's surplus sum does. */
     public long settledValue() {
         return totalAmount + balanceAmount + surplusAmount - surplusCredit;

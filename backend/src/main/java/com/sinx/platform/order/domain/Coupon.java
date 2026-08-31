@@ -116,6 +116,15 @@ public class Coupon {
         updatedAt = now;
     }
 
+    /** Hands a redemption back when the order it belonged to is cancelled. */
+    public void releaseRedemption(Instant now) {
+        if (redemptionsUsed == 0) {
+            return;
+        }
+        redemptionsUsed -= 1;
+        updatedAt = now;
+    }
+
     public void configureLimits(
         Instant startsAt,
         Instant endsAt,

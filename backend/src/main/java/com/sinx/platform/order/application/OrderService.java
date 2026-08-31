@@ -27,6 +27,7 @@ import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.domain.OrderType;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.CouponRedemptionRepository;
+import com.sinx.platform.order.repository.CouponRepository;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
@@ -65,6 +66,7 @@ public class OrderService {
     private final SubscriptionEntitlementRepository entitlements;
     private final CouponEvaluator couponEvaluator;
     private final CouponRedemptionRepository redemptions;
+    private final CouponRepository coupons;
     private final SurplusValuation surplusValuation;
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -77,6 +79,7 @@ public class OrderService {
         SubscriptionEntitlementRepository entitlements,
         CouponEvaluator couponEvaluator,
         CouponRedemptionRepository redemptions,
+        CouponRepository coupons,
         SurplusValuation surplusValuation,
         ObjectMapper objectMapper,
         Clock clock
@@ -87,6 +90,7 @@ public class OrderService {
         this.entitlements = entitlements;
         this.couponEvaluator = couponEvaluator;
         this.redemptions = redemptions;
+        this.coupons = coupons;
         this.surplusValuation = surplusValuation;
         this.objectMapper = objectMapper;
         this.clock = clock;
@@ -235,18 +239,30 @@ public class OrderService {
                 "ORDER_NOT_FOUND",
                 "The order does not exist"
             ));
-        if (!order.isOpen()) {
+        if (!order.isRevocable()) {
             throw problem(
                 HttpStatus.CONFLICT,
                 "ORDER_NOT_CANCELLABLE",
-                "Only an open order can be cancelled"
+                "This order can no longer be cancelled"
             );
         }
         Instant now = Instant.now(clock);
-        // Give back whatever the order had taken from the balance.
+        // Give back whatever the order had taken from the balance, and release
+        // the coupon use so a cancelled order does not consume an allowance.
         order.getUser().creditBalance(order.getBalanceAmount(), now);
+        releaseCoupon(order, now);
         order.cancel(now);
         return order;
+    }
+
+    private void releaseCoupon(ServiceOrder order, Instant now) {
+        UUID couponId = order.getCouponId();
+        if (couponId == null) {
+            return;
+        }
+        redemptions.deleteByOrderId(order.getId());
+        coupons.findById(couponId)
+            .ifPresent(coupon -> coupon.releaseRedemption(now));
     }
 
     public List<ServiceOrder> history(UUID userId) {
