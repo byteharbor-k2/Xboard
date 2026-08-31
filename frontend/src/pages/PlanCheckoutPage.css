@@ -2,19 +2,19 @@
   margin-bottom: 18px;
   padding: 0;
   border: 0;
-  color: #7fd3ff;
+  color: #2f6bd8;
   background: transparent;
   cursor: pointer;
   font: inherit;
 }
 
 .checkout-status {
-  color: #93a2bd;
+  color: #707c92;
 }
 
 .checkout-error {
   margin-top: 12px;
-  color: #ff9aa6;
+  color: #c2410c;
   font-size: 13px;
 }
 
@@ -27,15 +27,17 @@
 
 .checkout-card {
   padding: 24px 26px;
-  border: 1px solid #1e2c44;
+  border: 1px solid #dde4ef;
   border-radius: 16px;
-  background: #0f1a2c;
+  color: #25314a;
+  background: #fff;
 }
 
 .checkout-card h2 {
   margin: 24px 0 12px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #1e2c44;
+  border-bottom: 1px solid #e6ebf3;
+  color: #17213a;
   font-size: 20px;
 }
 
@@ -45,7 +47,7 @@
 
 .checkout-plan-name {
   margin: 0;
-  color: #93a2bd;
+  color: #707c92;
   font-size: 14px;
 }
 
@@ -64,12 +66,12 @@
 }
 
 .checkout-facts span {
-  color: #93a2bd;
+  color: #707c92;
 }
 
 .checkout-notes p {
   margin: 0 0 8px;
-  color: #c6d2e6;
+  color: #46536b;
   line-height: 1.65;
 }
 
@@ -94,13 +96,18 @@
   font: inherit;
 }
 
+.checkout-period {
+  border-bottom-color: #eef1f6;
+  color: #25314a;
+}
+
 .checkout-period:hover {
-  background: #13223a;
+  background: #f5f8fd;
 }
 
 .checkout-period.is-selected {
-  border-color: #2f7ff0;
-  background: #12233c;
+  border-color: #1f4b8f;
+  background: #f2f7ff;
 }
 
 .checkout-coupon {
@@ -108,6 +115,9 @@
   gap: 10px;
   align-items: center;
   padding: 14px 16px;
+  border-color: #1e2c44;
+  color: #e8eef8;
+  background: #1b2739;
 }
 
 .checkout-coupon input {
@@ -115,11 +125,15 @@
   min-width: 0;
   min-height: 42px;
   padding: 0 12px;
-  border: 1px solid #26364f;
+  border: 1px solid #33425c;
   border-radius: 9px;
-  color: inherit;
-  background: #0b1524;
+  color: #e8eef8;
+  background: transparent;
   font: inherit;
+}
+
+.checkout-coupon input::placeholder {
+  color: #8996ad;
 }
 
 .checkout-coupon button {
@@ -136,6 +150,17 @@
 .checkout-coupon button:disabled {
   opacity: .5;
   cursor: not-allowed;
+}
+
+.checkout-summary {
+  border-color: #1e2c44;
+  color: #e8eef8;
+  background: #1b2739;
+}
+
+.checkout-summary h2 {
+  border-bottom-color: #2c3a52;
+  color: #f2f6fc;
 }
 
 .checkout-summary dl {
@@ -159,7 +184,7 @@
 }
 
 .checkout-summary dl > div.is-note {
-  color: #93a2bd;
+  color: #9aa8c0;
   font-size: 13px;
 }
 
@@ -174,7 +199,7 @@
 
 .checkout-total-label {
   margin: 0;
-  color: #93a2bd;
+  color: #9aa8c0;
 }
 
 .checkout-total {
@@ -190,7 +215,7 @@
 
 .checkout-balance-note {
   margin: 6px 0 0;
-  color: #93a2bd;
+  color: #9aa8c0;
   font-size: 13px;
 }
 
@@ -215,12 +240,16 @@
 .checkout-placed {
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px solid #1e2c44;
+  border-top: 1px solid #2c3a52;
 }
 
 .checkout-placed p {
-  color: #93a2bd;
+  color: #9aa8c0;
   font-size: 13px;
+}
+
+.checkout-placed .text-button {
+  color: #9fc2ff;
 }
 
 @media (max-width: 980px) {
