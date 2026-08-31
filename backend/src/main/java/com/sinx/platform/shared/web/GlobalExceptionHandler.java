@@ -11,6 +11,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -52,6 +53,30 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    /**
+     * An unmatched path reaches the static-resource handler, which raises this.
+     * Left to the catch-all it became a 500 with a full stack trace, so every
+     * request to a not-yet-implemented endpoint both lied about the cause and
+     * buried real failures in the log.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    ProblemDetail handleUnknownRoute(
+        NoResourceFoundException exception,
+        HttpServletRequest request
+    ) {
+        LOGGER.debug(
+            "No handler for {} {}",
+            request.getMethod(),
+            request.getRequestURI()
+        );
+        return baseProblem(
+            HttpStatus.NOT_FOUND,
+            "NOT_FOUND",
+            "The requested endpoint does not exist",
+            request
+        );
+    }
+
     @ExceptionHandler(Exception.class)
     ProblemDetail handleUnexpected(Exception exception, HttpServletRequest request) {
         LOGGER.error("Unhandled request failure for {} {}", request.getMethod(), request.getRequestURI(), exception);
@@ -70,7 +95,9 @@ public class GlobalExceptionHandler {
         HttpServletRequest request
     ) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setType(URI.create("https://dev.sinx.it.com/problems/" + code.toLowerCase()));
+        // Relative on purpose: an absolute URI here pinned every environment to
+        // whichever host was hardcoded, leaking it into production responses.
+        problem.setType(URI.create("/problems/" + code.toLowerCase()));
         problem.setTitle(status.getReasonPhrase());
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", code);
