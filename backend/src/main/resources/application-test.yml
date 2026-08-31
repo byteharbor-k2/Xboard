@@ -10,6 +10,11 @@ sinx:
     jwt-secret: test-only-jwt-secret-with-at-least-32-characters
     mfa-encryption-key: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     secure-cookies: false
+    # Zero tolerance here so the integration test keeps asserting strict single
+    # use: a replayed refresh token must be rejected and must poison its family.
+    # That also exercises the kill switch. The window's own behaviour is covered
+    # by ScopedSessionServiceTest.
+    refresh-replay-window: 0s
   registration:
     turnstile-enabled: false
     max-registrations-per-ip: 100
