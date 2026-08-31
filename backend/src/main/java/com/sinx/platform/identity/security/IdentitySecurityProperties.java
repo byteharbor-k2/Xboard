@@ -19,6 +19,7 @@ public record IdentitySecurityProperties(
     @NotNull Duration adminRefreshTokenTtl,
     @NotNull Duration passwordResetTtl,
     @NotNull Duration mfaChallengeTtl,
+    @NotNull Duration refreshReplayWindow,
     @NotBlank String mfaIssuer,
     @NotBlank String mfaEncryptionKey,
     @NotBlank @Size(min = 32) String jwtSecret,

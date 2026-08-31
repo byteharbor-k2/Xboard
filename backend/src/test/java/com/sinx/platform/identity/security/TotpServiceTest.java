@@ -52,6 +52,7 @@ class TotpServiceTest {
             Duration.ofHours(12),
             Duration.ofMinutes(30),
             Duration.ofMinutes(5),
+            Duration.ofSeconds(10),
             "SinX Cloud",
             TEST_KEY,
             "test-only-jwt-secret-with-at-least-32-characters",

@@ -64,6 +64,10 @@ sinx:
     admin-refresh-token-ttl: ${ADMIN_REFRESH_TOKEN_TTL:12h}
     password-reset-ttl: ${PASSWORD_RESET_TTL:30m}
     mfa-challenge-ttl: ${MFA_CHALLENGE_TTL:5m}
+    # How long a just-rotated refresh token still resolves to its replacement,
+    # so a reload racing an in-flight refresh is not mistaken for a replay.
+    # Set to 0 to enforce single use with no tolerance.
+    refresh-replay-window: ${REFRESH_REPLAY_WINDOW:10s}
     mfa-issuer: ${MFA_ISSUER:SinX Cloud}
     refresh-cookie-name: ${REFRESH_COOKIE_NAME:rt_session}
     admin-refresh-cookie-name: ${ADMIN_REFRESH_COOKIE_NAME:rt_admin}

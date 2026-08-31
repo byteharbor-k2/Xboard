@@ -2,6 +2,7 @@ package com.sinx.platform.identity.application;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
@@ -25,17 +26,20 @@ public class ScopedSessionService {
     private final DeviceSessionRepository sessionRepository;
     private final IdentityTokenService tokenService;
     private final IdentitySecurityProperties properties;
+    private final RefreshTokenReplayWindow replayWindow;
     private final Clock clock;
 
     public ScopedSessionService(
         DeviceSessionRepository sessionRepository,
         IdentityTokenService tokenService,
         IdentitySecurityProperties properties,
+        RefreshTokenReplayWindow replayWindow,
         Clock clock
     ) {
         this.sessionRepository = sessionRepository;
         this.tokenService = tokenService;
         this.properties = properties;
+        this.replayWindow = replayWindow;
         this.clock = clock;
     }
 
@@ -95,6 +99,12 @@ public class ScopedSessionService {
         Instant now = Instant.now(clock);
 
         if (currentSession.isRevoked()) {
+            Optional<SessionGrant> concurrent =
+                settleConcurrentRefresh(tokenHash, expectedScope, now);
+            if (concurrent.isPresent()) {
+                return concurrent.get();
+            }
+            replayWindow.forget(tokenHash);
             sessionRepository.revokeActiveFamily(
                 currentSession.getSessionFamilyId(),
                 now
@@ -127,7 +137,54 @@ public class ScopedSessionService {
             currentSession.getSessionFamilyId()
         );
         currentSession.revoke(now, replacement.sessionId());
+        replayWindow.remember(tokenHash, replacement.refreshToken());
         return replacement;
+    }
+
+    /**
+     * Answers a refresh that lost a race against another refresh carrying the
+     * same cookie - a reload on top of an in-flight call, a network retry.
+     *
+     * The loser gets back the very token the winner was issued rather than one
+     * of its own, so the chain never forks: whichever holder rotates next
+     * invalidates the other, and replay detection resumes immediately. Minting
+     * a second token here would instead hand an attacker a parallel lineage
+     * that survives alongside the victim's.
+     *
+     * Outside the window, or once the replacement itself is gone, this finds
+     * nothing and the caller tears the family down as before.
+     */
+    private Optional<SessionGrant> settleConcurrentRefresh(
+        String rotatedTokenHash,
+        SessionScope expectedScope,
+        Instant now
+    ) {
+        return replayWindow.recall(rotatedTokenHash).flatMap(replacementToken ->
+            sessionRepository
+                .findForUpdateByTokenHash(
+                    tokenService.hashRefreshToken(replacementToken)
+                )
+                .filter(session -> session.isActiveAt(now))
+                .filter(session -> session.getSessionScope() == expectedScope)
+                .filter(session ->
+                    session.getUser().getStatus() == UserStatus.ACTIVE
+                )
+                .map(session -> {
+                    AccessTokenGrant accessToken = tokenService.issueAccessToken(
+                        session.getUser(),
+                        session.getId(),
+                        expectedScope
+                    );
+                    return new SessionGrant(
+                        accessToken.token(),
+                        accessToken.expiresAt(),
+                        replacementToken,
+                        session.getExpiresAt(),
+                        session.getId(),
+                        ViewerView.forScope(session.getUser(), expectedScope)
+                    );
+                })
+        );
     }
 
     @Transactional
