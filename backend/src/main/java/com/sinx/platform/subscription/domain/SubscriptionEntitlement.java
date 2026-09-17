@@ -109,6 +109,74 @@ public class SubscriptionEntitlement {
         return entitlement;
     }
 
+    /**
+     * Puts a periodic plan on this entitlement.
+     *
+     * The caller decides where the coverage ends, because that is where the
+     * original panel's three cases differ: a renewal stacks onto whatever time
+     * is left, an upgrade forfeits it (its value was already handed back
+     * through the surplus deduction), and a first periodic purchase starts from
+     * now.
+     *
+     * @param resetTraffic whether the counters start over. True when the
+     *     customer was not on a periodic plan before - a first purchase, or a
+     *     move off a non-expiring package - and false for renewal and upgrade,
+     *     matching the original's {@code buyByPeriod}.
+     */
+    public void provisionPeriodic(
+        ServicePlan plan,
+        Instant expiresAt,
+        boolean resetTraffic,
+        Instant now
+    ) {
+        if (expiresAt == null) {
+            throw new IllegalArgumentException(
+                "A periodic plan must end at some point"
+            );
+        }
+        applyPlan(plan, expiresAt, now);
+        if (resetTraffic) {
+            clearCounters(now);
+        }
+    }
+
+    /**
+     * Puts a non-expiring traffic package on this entitlement.
+     *
+     * Counterpart of the original's {@code buyByOneTime}: the package replaces
+     * whatever was running, including its expiry, and the counters start over
+     * because the customer is buying a fresh bucket of traffic.
+     */
+    public void provisionPackage(ServicePlan plan, Instant now) {
+        applyPlan(plan, null, now);
+        clearCounters(now);
+    }
+
+    /** Zeroes the counters, leaving the plan and its expiry untouched. */
+    public void resetTraffic(Instant now) {
+        clearCounters(now);
+    }
+
+    private void applyPlan(ServicePlan plan, Instant expiresAt, Instant now) {
+        this.plan = plan;
+        this.planName = plan.getName();
+        this.transferLimitBytes = plan.getTransferLimitBytes();
+        this.speedLimitMbps = plan.getSpeedLimitMbps();
+        this.deviceLimit = plan.getDeviceLimit();
+        this.resetPolicy = plan.getResetPolicy();
+        this.expiresAt = expiresAt;
+        // A paid order activates the subscription again, even one that was
+        // cancelled while nothing was backing it.
+        this.canceledAt = null;
+        this.updatedAt = now;
+    }
+
+    private void clearCounters(Instant now) {
+        uploadedBytes = 0;
+        downloadedBytes = 0;
+        updatedAt = now;
+    }
+
     public void recordUsage(long uploadedBytes, long downloadedBytes, Instant now) {
         if (uploadedBytes < 0 || downloadedBytes < 0) {
             throw new IllegalArgumentException("Traffic usage cannot be negative");

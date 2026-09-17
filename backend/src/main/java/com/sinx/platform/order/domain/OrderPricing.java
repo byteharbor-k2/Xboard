@@ -45,9 +45,6 @@ public final class OrderPricing {
         long balanceAmount,
         long totalAmount
     ) {
-        public boolean isFullySettled() {
-            return totalAmount == 0;
-        }
     }
 
     public static Breakdown compute(Inputs inputs) {

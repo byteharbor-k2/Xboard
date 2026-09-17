@@ -54,6 +54,11 @@ logging:
     level: "%5p [requestId:%X{requestId:-}]"
 
 sinx:
+  order:
+    # An order nobody pays for is called off after this long, handing its
+    # balance and coupon back so it cannot block the next purchase.
+    pending-expiry: ${ORDER_PENDING_EXPIRY:2h}
+    sweep-interval: ${ORDER_SWEEP_INTERVAL:10m}
   node:
     billing-time-zone: ${NODE_BILLING_TIME_ZONE:Asia/Shanghai}
   security:

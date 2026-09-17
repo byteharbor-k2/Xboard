@@ -5,10 +5,13 @@ import java.util.UUID;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import com.sinx.platform.identity.domain.UserAccount;
+
+import jakarta.persistence.LockModeType;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
 
@@ -23,4 +26,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     Optional<UserAccount> findWithRolesById(@Param("id") UUID id);
 
     long countByServerGroupId(Long serverGroupId);
+
+    /**
+     * Reads an account for a balance or subscription change under a row lock,
+     * as the original panel does before opening an order.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from UserAccount user where user.id = :id")
+    Optional<UserAccount> findByIdForUpdate(@Param("id") UUID id);
 }

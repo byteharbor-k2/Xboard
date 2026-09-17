@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -239,7 +240,43 @@ public class OrderService {
                 "ORDER_NOT_FOUND",
                 "The order does not exist"
             ));
-        if (!order.isRevocable()) {
+        return releaseOrder(order);
+    }
+
+    /** Calls off an order on an administrator's authority. */
+    @Transactional
+    public ServiceOrder cancelManually(String tradeNo) {
+        ServiceOrder order = orders.findByTradeNo(tradeNo).orElseThrow(() ->
+            problem(
+                HttpStatus.NOT_FOUND,
+                "ORDER_NOT_FOUND",
+                "The order does not exist"
+            )
+        );
+        return releaseOrder(order);
+    }
+
+    /**
+     * Calls off one order the sweep found, in its own transaction so a single
+     * bad record cannot hold up the rest of the batch.
+     *
+     * Silently does nothing if the order is gone or was settled between the
+     * sweep listing it and this call.
+     */
+    @Transactional
+    public void cancelExpired(String tradeNo) {
+        ServiceOrder order = orders.findByTradeNo(tradeNo).orElse(null);
+        if (order == null || !order.isPending()) {
+            return;
+        }
+        releaseOrder(order);
+    }
+
+    private ServiceOrder releaseOrder(ServiceOrder order) {
+        // Only an order nobody has settled can be called off, as in the
+        // original. A completed order has already handed over a subscription,
+        // and a discounted one has been spent by a later upgrade.
+        if (!order.isPending()) {
             throw problem(
                 HttpStatus.CONFLICT,
                 "ORDER_NOT_CANCELLABLE",
@@ -267,6 +304,19 @@ public class OrderService {
 
     public List<ServiceOrder> history(UUID userId) {
         return orders.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    /**
+     * The newest orders, for the admin list an operator settles from. Newest
+     * first, capped at what the caller asked for.
+     */
+    public List<OrderAdminView> adminList(OrderStatus status, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 200));
+        PageRequest page = PageRequest.of(0, safeLimit);
+        List<ServiceOrder> found = status == null
+            ? orders.findAllByOrderByCreatedAtDesc(page)
+            : orders.findByStatusOrderByCreatedAtDesc(status, page);
+        return found.stream().map(OrderAdminView::from).toList();
     }
 
     /**

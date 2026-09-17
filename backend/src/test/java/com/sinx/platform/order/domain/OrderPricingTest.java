@@ -12,7 +12,6 @@ class OrderPricingTest {
 
         assertThat(breakdown.originalAmount()).isEqualTo(3500);
         assertThat(breakdown.totalAmount()).isEqualTo(3500);
-        assertThat(breakdown.isFullySettled()).isFalse();
     }
 
     @Test
@@ -21,7 +20,6 @@ class OrderPricingTest {
 
         assertThat(breakdown.discountAmount()).isEqualTo(3500);
         assertThat(breakdown.totalAmount()).isZero();
-        assertThat(breakdown.isFullySettled()).isTrue();
     }
 
     @Test

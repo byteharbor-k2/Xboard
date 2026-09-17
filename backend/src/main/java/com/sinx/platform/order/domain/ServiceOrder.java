@@ -100,6 +100,10 @@ public class ServiceOrder {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    /** Payment reference, or {@code manual_operation} for an admin settlement. */
+    @Column(name = "callback_no", length = 64)
+    private String callbackNo;
+
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
@@ -139,10 +143,10 @@ public class ServiceOrder {
         order.totalAmount = breakdown.totalAmount();
         order.couponId = couponId;
         order.surplusOrderIds = surplusOrderIds == null ? "[]" : surplusOrderIds;
-        // Nothing left to pay means there is nothing to wait for.
-        order.status = breakdown.totalAmount() == 0
-            ? OrderStatus.DISCOUNTED
-            : OrderStatus.PENDING;
+        // Every order starts unpaid, however much of it the discounts covered.
+        // A total of zero is not a settled order: nothing is provisioned until
+        // a payment - or an admin settling it by hand - moves it on.
+        order.status = OrderStatus.PENDING;
         order.createdAt = now;
         order.updatedAt = now;
         return order;
@@ -154,20 +158,43 @@ public class ServiceOrder {
         updatedAt = now;
     }
 
-    public boolean isOpen() {
-        return status == OrderStatus.PENDING || status == OrderStatus.PROCESSING;
+    /**
+     * Settles the order and hands it to provisioning.
+     *
+     * Only a pending order can be settled, so a duplicate payment callback
+     * cannot provision twice.
+     */
+    public void markPaid(String callbackNo, Instant now) {
+        if (status != OrderStatus.PENDING) {
+            throw new IllegalStateException(
+                "Only a pending order can be settled, was " + status
+            );
+        }
+        status = OrderStatus.PROCESSING;
+        paidAt = now;
+        this.callbackNo = callbackNo;
+        updatedAt = now;
+    }
+
+    public void complete(Instant now) {
+        status = OrderStatus.COMPLETED;
+        updatedAt = now;
     }
 
     /**
-     * True while nothing has been delivered for this order.
-     *
-     * A fully discounted order is not awaiting payment, but until provisioning
-     * exists it has still taken the customer's balance and coupon without
-     * giving anything back, so it has to remain undoable.
+     * Records that a later upgrade spent whatever value was left in this order.
      */
-    public boolean isRevocable() {
-        return status != OrderStatus.COMPLETED
-            && status != OrderStatus.CANCELLED;
+    public void markDiscounted(Instant now) {
+        status = OrderStatus.DISCOUNTED;
+        updatedAt = now;
+    }
+
+    public boolean isPending() {
+        return status == OrderStatus.PENDING;
+    }
+
+    public boolean isProcessing() {
+        return status == OrderStatus.PROCESSING;
     }
 
     /** Value this order contributed, as the original panel's surplus sum does. */
@@ -237,6 +264,15 @@ public class ServiceOrder {
 
     public UUID getCouponId() {
         return couponId;
+    }
+
+    /** The orders a later upgrade consumed, as a JSON array of ids. */
+    public String getSurplusOrderIds() {
+        return surplusOrderIds;
+    }
+
+    public String getCallbackNo() {
+        return callbackNo;
     }
 
     public Instant getCreatedAt() {
