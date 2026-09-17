@@ -41,6 +41,26 @@ public class ClientFormatResolver {
         "tuic", "anytls", "socks", "http"
     );
 
+    /**
+     * Stash reads Clash's configuration, so it takes the wide protocol set -
+     * everything mihomo can build except mieru, which Stash has no support for
+     * and would refuse the config over rather than skip the entry.
+     */
+    private static final Set<String> STASH_PROTOCOLS = Set.of(
+        "shadowsocks", "vmess", "trojan", "vless", "hysteria",
+        "tuic", "anytls", "socks", "http"
+    );
+
+    private static final Set<String> SURGE_PROTOCOLS = Set.of(
+        "shadowsocks", "vmess", "trojan", "hysteria",
+        "anytls", "socks", "http"
+    );
+
+    /** The narrowest list of the six: Surfboard is Surge's grammar, not its protocols. */
+    private static final Set<String> SURFBOARD_PROTOCOLS = Set.of(
+        "shadowsocks", "vmess", "trojan", "anytls"
+    );
+
     private static final Set<String> GENERIC_PROTOCOLS = Set.of(
         "shadowsocks", "vmess", "vless", "trojan", "hysteria",
         "tuic", "anytls", "socks", "http"
@@ -66,14 +86,14 @@ public class ClientFormatResolver {
                 ),
                 CLASH_META_PROTOCOLS,
                 SubscriptionTemplates.Kind.CLASH_META,
-                new ClashRenderer(true)
+                new ClashRenderer(Dialect.META)
             ),
             new ClientFormat(
                 "clash",
                 List.of("clash"),
                 CLASH_PROTOCOLS,
                 SubscriptionTemplates.Kind.CLASH,
-                new ClashRenderer(false)
+                new ClashRenderer(Dialect.CLASH)
             ),
             new ClientFormat(
                 "sing-box",
@@ -81,6 +101,27 @@ public class ClientFormatResolver {
                 SING_BOX_PROTOCOLS,
                 SubscriptionTemplates.Kind.SING_BOX,
                 new SingBoxRenderer(mapper)
+            ),
+            new ClientFormat(
+                "stash",
+                List.of("stash"),
+                STASH_PROTOCOLS,
+                SubscriptionTemplates.Kind.STASH,
+                new ClashRenderer(Dialect.STASH)
+            ),
+            new ClientFormat(
+                "surge",
+                List.of("surge"),
+                SURGE_PROTOCOLS,
+                SubscriptionTemplates.Kind.SURGE,
+                SurgeRenderer.surge()
+            ),
+            new ClientFormat(
+                "surfboard",
+                List.of("surfboard"),
+                SURFBOARD_PROTOCOLS,
+                SubscriptionTemplates.Kind.SURFBOARD,
+                SurgeRenderer.surfboard()
             ),
             fallback
         );

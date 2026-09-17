@@ -2,7 +2,7 @@
 
 > 当前分支：`dev`
 >
-> 更新时间：2026-08-20（同步至 `dev` 分支最新提交）
+> 更新时间：2026-09-17（同步至 `dev` 分支最新提交）
 
 ## 1. 目标
 
@@ -89,8 +89,8 @@ xboard-node ─────→ 节点控制 HTTP API / WebSocket
 - [ ] 其余支付网关（Btcpay/CoinPayments/AlipayF2f 等）、退款、优惠券管理页、
   礼品卡与佣金
 - [x] 订阅凭据与配置输出：`users.subscription_token` 明文能力 URL、`GET /sub/{token}`
-  公开入口、Clash/Clash.Meta/sing-box/通用 v2ray 链接四种输出、管理员可编辑模板、
-  自助轮换（见 §5）
+  公开入口、Clash/Clash.Meta/Stash/Surge/Surfboard/sing-box/通用 v2ray 链接七种输出、
+  管理员可编辑模板、自助轮换（见 §5）
 - [ ] 公告、知识库、工单和通知后端
 - [ ] 用户流量使用记录与自动重置任务（节点流量上报已接入权益计费，见 §5）
 
@@ -199,7 +199,7 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
 - [x] 访问组 `/api/v2/admin/server/group` 与路由规则
   `/api/v2/admin/server/route`
 - [ ] 管理员用户与角色管理
-- [x] `subscribe_template` 分区后端落库（三个模板键读写 + 保存前校验，见 §5）
+- [x] `subscribe_template` 分区后端落库（六个模板键读写 + 保存前校验，见 §5）
 - [ ] `subscribe`、`telegram`、`app` 分区后端落库
 - [ ] Telegram Webhook与邮件模板后端端点（前端契约已就绪）
 - [ ] 其余管理业务接口
@@ -272,19 +272,38 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
   注册时用 `SecureRandom` 生成，`rotateSubscriptionCredential` 立即作废旧地址。
   公开入口 `GET /sub/{token}`：令牌只在路径里、不进日志与错误 detail；未知令牌
   与已轮换令牌同为 404（防枚举）；封禁/无有效期权益/流量耗尽为 403 空 body。
-- [x] Clash、Clash.Meta、sing-box与通用 v2ray 链接四种输出：`flag` 参数优先、
+- [x] Clash、Clash.Meta、Stash、sing-box与通用 v2ray 链接输出：`flag` 参数优先、
   其次 User-Agent 子串匹配、最后回落通用链接；`types` 收窄协议白名单，
   `filter` 按名称（含即匹配）与标签过滤（>20 码点丢弃）。窄 Clash 只输出
   ss/vmess/trojan/socks/http，Meta 系输出 mihomo 全协议；渲染器与协议字段口径
   逐条对齐原版 `Clash.php` / `ClashMeta.php` / `SingBox.php` / `General.php`。
+- [x] Surge与 Surfboard 输出：两者共用 Surge 语法，一个渲染器承载，差异只有
+  四处 —— 名称分隔符（`name = ss` 对 `name=ss`）、ss 口令白名单（Surfboard 认识
+  `2022-blake3-chacha20-poly1305`）、AnyTLS 是否带 `tfo`/`udp-relay`、响应类型
+  （Surge `application/octet-stream`；原版 Surfboard 未设类型，框架填了
+  `text/html`，本平台改为 `text/plain`）。五个占位符 `$proxies`、`$proxy_group`、
+  `$subs_link`、`$subs_domain`、`$subscribe_info` 与原版同名同义，
+  `$subscribe_info` 的换行是字面量 `\n`。
+- [x] Stash：Clash 文档形态、mihomo 协议集减去 mieru、字段口径单列一档
+  （`Dialect.STASH`）。原版没有 `default.stash.yaml`，其播种回落到 Clash 模板，
+  本平台沿用同一回落。
 - [x] 管理员可编辑模板：打包 `default.clash.yaml` / `default.clashmeta.yaml` /
-  `default.sing-box.json`，后台 `subscribe_template` 分区读写，**保存前校验能解析
-  且具备预期顶层键**（原版不校验，写坏会让所有用户同时拿到坏配置），清空即回落
-  打包默认值。通用 v2ray 链接与原版一致，不是模板驱动。
+  `default.sing-box.json` / `default.surge.conf` / `default.surfboard.conf`，后台
+  `subscribe_template` 分区读写，**保存前校验能解析且具备预期顶层键 / 占位符**
+  （原版不校验，写坏会让所有用户同时拿到坏配置），清空即回落打包默认值。
+  通用 v2ray 链接与原版一致，不是模板驱动。
+- [x] 有意偏离原版一处：打包的 Surge 模板注释掉原版写死的
+  `external-controller-access = surgepasswd@...`。上游把 HTTP API 的固定口令印在
+  每个用户的配置里，等于所有人共用一个口令；默认关闭并注明「要用就自己改密码」。
+  Surfboard 模板与原版逐行一致，未改动。
 - [x] 自助轮换：账号页展示订阅链接、二维码与「重置订阅链接」
 - [ ] 独立订阅域名（本轮只留 `sinx.subscription.public-base-url` 配置位）
 - [ ] 访问限速与异常用量监控
-- [ ] stash / surge / surfboard 适配器（后台模板分区已收敛为实际存在的三个键）
+- [ ] 客户端版本闸门（原版 `protocolRequirements`，如 Stash 用 `9999.0.0` 关掉
+  trojan Reality 与 vmess httpupgrade；本轮只做协议白名单，未做版本判定）
+- [ ] 未验证：真实客户端（Stash / Surge / Surfboard / Clash Verge / sing-box /
+  v2rayN）导入解析。已验证的是输出结构与模板契约，以及 `curl -A` 的三种新格式
+  响应头与正文。
 
 ## 6. 开发顺序
 
@@ -301,7 +320,8 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
 
 - [x] 套餐展示与价格周期
 - [x] 当前订阅、流量和有效期
-- [x] 用户订阅凭据与配置输出（Clash / Clash.Meta / sing-box / 通用 v2ray 链接）
+- [x] 用户订阅凭据与配置输出（Clash / Clash.Meta / Stash / Surge / Surfboard /
+  sing-box / 通用 v2ray 链接）
 
 ### 阶段三：用户交易与支持
 
@@ -370,7 +390,7 @@ API路径及操作语义。管理员端继续要求独立入口、管理员权�
 - [x] ByteVirt-SG 测试环境：Docker 部署面板（PG/Redis/后端/前端）+
   xboard-node 机器模式端到端（握手、节点发现、配置与用户输出、WebSocket
   实时推送、机器状态上报）
-- [x] 订阅凭据与配置输出：`/sub/{token}` 公开入口、四种客户端格式、管理员可编辑
+- [x] 订阅凭据与配置输出：`/sub/{token}` 公开入口、七种客户端格式、管理员可编辑
   模板与自助轮换
 - [ ] 管理员完整业务控制台
 - [ ] 用户完整业务闭环

@@ -24,10 +24,14 @@ class ClashRendererTest {
     private static final SubscriptionTemplates TEMPLATES =
         new SubscriptionTemplates(SubscriptionFixtures.mapper());
 
-    private static Map<String, Object> render(SubscriptionTemplates.Kind kind, boolean meta,
-                                              List<NodeClientView> nodes) {
+    private static Map<String, Object> render(Dialect dialect, List<NodeClientView> nodes) {
+        SubscriptionTemplates.Kind kind = switch (dialect) {
+            case CLASH -> SubscriptionTemplates.Kind.CLASH;
+            case META -> SubscriptionTemplates.Kind.CLASH_META;
+            case STASH -> SubscriptionTemplates.Kind.STASH;
+        };
         return ClashYaml.parse(
-            new ClashRenderer(meta)
+            new ClashRenderer(dialect)
                 .render(
                     SubscriptionFixtures.request(kind, TEMPLATES.bundled(kind)),
                     nodes
@@ -37,15 +41,15 @@ class ClashRendererTest {
     }
 
     private static Map<String, Object> narrow() {
-        return render(
-            SubscriptionTemplates.Kind.CLASH, false, SubscriptionFixtures.nodes()
-        );
+        return render(Dialect.CLASH, SubscriptionFixtures.nodes());
     }
 
     private static Map<String, Object> wide() {
-        return render(
-            SubscriptionTemplates.Kind.CLASH_META, true, SubscriptionFixtures.nodes()
-        );
+        return render(Dialect.META, SubscriptionFixtures.nodes());
+    }
+
+    private static Map<String, Object> stash() {
+        return render(Dialect.STASH, SubscriptionFixtures.nodes());
     }
 
     @SuppressWarnings("unchecked")
@@ -68,6 +72,19 @@ class ClashRendererTest {
             .findFirst()
             .orElseThrow(() -> new AssertionError("No proxy group named " + name));
     }
+
+    /** Which of the fixture nodes this dialect wrote an entry for. */
+    private static List<String> carried(Map<String, Object> config) {
+        List<String> written = proxies(config).stream()
+            .map(entry -> String.valueOf(entry.get("name")))
+            .toList();
+        return FIXTURE_NAMES.stream().filter(written::contains).toList();
+    }
+
+    private static final List<String> FIXTURE_NAMES = List.of(
+        "香港 01", "SS2022", "vmess-ws", "vless-reality", "trojan-grpc",
+        "hy2", "tuic", "anytls", "socks", "http"
+    );
 
     @SuppressWarnings("unchecked")
     private static List<String> groupNames(Map<String, Object> config) {
@@ -229,6 +246,171 @@ class ClashRendererTest {
     }
 
     // ------------------------------------------------------------------
+    // Stash
+    // ------------------------------------------------------------------
+
+    /**
+     * Stash sits between the other two: it reads mihomo's whole protocol set
+     * but none of its newer proxy fields. Mieru is the exception, and the one
+     * protocol its own class leaves out of {@code allowedProtocols}.
+     */
+    @Test
+    void stashCarriesTheWideProtocolSetMinusMieru() {
+        assertThat(carried(stash()))
+            .containsExactly(
+                "香港 01", "SS2022", "vmess-ws", "vless-reality",
+                "trojan-grpc", "hy2", "tuic", "anytls", "socks", "http"
+            );
+
+        NodeClientView mieru = SubscriptionFixtures.node(
+            "mieru", "mieru", "m.example.com", 443, SubscriptionFixtures.IDENTITY, Map.of()
+        );
+        assertThat(proxy(render(Dialect.META, List.of(mieru)), "mieru"))
+            .containsEntry("type", "mieru");
+        assertThat(proxies(render(Dialect.STASH, List.of(mieru)))).isEmpty();
+    }
+
+    /**
+     * Stash renames nearly everything mihomo's hysteria writes: the bandwidth
+     * hints lose their hyphens, the credential key changes, and there is no
+     * port-hopping at all, so no hop interval is written.
+     */
+    @Test
+    void stashSpellsHysteriaItsOwnWay() {
+        assertThat(proxy(stash(), "hy2")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+            Map.entry("name", "hy2"),
+            Map.entry("type", "hysteria2"),
+            Map.entry("server", "h.example.com"),
+            Map.entry("port", 443),
+            Map.entry("sni", "sni.example.com"),
+            Map.entry("skip-cert-verify", false),
+            Map.entry("auth", SubscriptionFixtures.IDENTITY),
+            Map.entry("fast-open", true),
+            Map.entry("obfs", "salamander"),
+            Map.entry("obfs-password", "obfspw"),
+            Map.entry("up-speed", 100),
+            Map.entry("down-speed", 200)
+        ));
+
+        // Hysteria 1 keeps its own spelling of the credential, writes the udp
+        // protocol on the line, and has no fast-open.
+        assertThat(proxy(render(Dialect.STASH, List.of(SubscriptionFixtures.hysteria1())), "hy1"))
+            .containsEntry("type", "hysteria")
+            .containsEntry("auth-str", SubscriptionFixtures.IDENTITY)
+            .containsEntry("protocol", "udp")
+            .doesNotContainKey("fast-open")
+            // The shared fixture leaves the obfs closed, and this builder reads
+            // that flag.
+            .doesNotContainKey("obfs");
+
+        // With it open, hysteria 1's obfs holds the password alone - version 2
+        // is the one that writes a type as well.
+        NodeClientView openObfs = SubscriptionFixtures.node(
+            "hy1-obfs", "hysteria", "h1.example.com", 8443, SubscriptionFixtures.IDENTITY,
+            Map.of(
+                "version", 1,
+                "tls", Map.of("server_name", "sni.example.com", "allow_insecure", true),
+                "obfs", Map.of("open", true, "password", "obfspw")
+            )
+        );
+        assertThat(proxy(render(Dialect.STASH, List.of(openObfs)), "hy1-obfs"))
+            .containsEntry("obfs", "obfspw")
+            .doesNotContainKey("obfs-password");
+    }
+
+    /**
+     * Stash's tuic carries four timing knobs of its own and no {@code udp} key,
+     * which mihomo's has.
+     */
+    @Test
+    void stashTuicCarriesItsOwnTimingKnobs() {
+        assertThat(proxy(stash(), "tuic"))
+            .containsEntry("reduce-rtt", true)
+            .containsEntry("fast-open", true)
+            .containsEntry("heartbeat-interval", 10000)
+            .containsEntry("request-timeout", 8000)
+            .containsEntry("max-udp-relay-packet-size", 1500)
+            .containsEntry("version", 5)
+            .containsEntry("alpn", List.of("h3"))
+            .doesNotContainKey("udp");
+
+        assertThat(proxy(wide(), "tuic")).containsEntry("udp", true);
+    }
+
+    /**
+     * Stash derives the vmess cipher and alterId itself, so it writes neither,
+     * and it has no multiplex or uTLS in vmess.
+     */
+    @Test
+    void stashVmessWritesTheTlsKeysOnEveryNode() {
+        assertThat(proxy(stash(), "vmess-ws")).containsExactlyInAnyOrderEntriesOf(Map.ofEntries(
+            Map.entry("name", "vmess-ws"),
+            Map.entry("type", "vmess"),
+            Map.entry("server", "v.example.com"),
+            Map.entry("port", 443),
+            Map.entry("uuid", SubscriptionFixtures.IDENTITY),
+            Map.entry("alterId", 0),
+            Map.entry("cipher", "auto"),
+            Map.entry("udp", true),
+            Map.entry("tls", true),
+            Map.entry("skip-cert-verify", false),
+            Map.entry("servername", "sni.example.com"),
+            Map.entry("network", "ws"),
+            Map.entry("ws-opts", Map.of("path", "/ws", "headers", Map.of("Host", "cdn.example.com")))
+        ));
+    }
+
+    /**
+     * Stash's vless drops the three fields it derives, keeps the uTLS
+     * fingerprint, and writes both {@code servername} and {@code sni} out of a
+     * reality block where mihomo writes only the first.
+     */
+    @Test
+    void stashVlessKeepsLessAndWritesSniForReality() {
+        Map<String, Object> entry = proxy(stash(), "vless-reality");
+
+        assertThat(entry)
+            .containsEntry("tls", true)
+            .containsEntry("servername", "www.apple.com")
+            .containsEntry("sni", "www.apple.com")
+            .containsEntry("flow", "xtls-rprx-vision")
+            .containsEntry("reality-opts", Map.of("public-key", "PBK", "short-id", "abcd"))
+            .doesNotContainKeys("alterId", "cipher", "encryption", "smux");
+    }
+
+    /**
+     * Only Stash's socks and http write an {@code sni}; the other two builders
+     * have never heard of one.
+     */
+    @Test
+    void stashSocksAndHttpCarryAnSniTheOthersDoNot() {
+        NodeClientView tlsSocks = SubscriptionFixtures.node(
+            "socks-tls", "socks", "s.example.com", 1080, SubscriptionFixtures.IDENTITY,
+            Map.of("tls", 1, "tls_settings", Map.of("server_name", "sni.example.com"))
+        );
+
+        assertThat(proxy(render(Dialect.STASH, List.of(tlsSocks)), "socks-tls"))
+            .containsEntry("sni", "sni.example.com");
+        assertThat(proxy(render(Dialect.META, List.of(tlsSocks)), "socks-tls"))
+            .doesNotContainKey("sni");
+    }
+
+    /** The site address is offered to every member of the family, Stash included. */
+    @Test
+    void stashIsToldWhereTheSubscriptionCameFrom() {
+        RenderedConfig rendered = new ClashRenderer(Dialect.STASH).render(
+            SubscriptionFixtures.request(
+                SubscriptionTemplates.Kind.STASH,
+                TEMPLATES.bundled(SubscriptionTemplates.Kind.STASH)
+            ),
+            SubscriptionFixtures.nodes()
+        );
+
+        assertThat(rendered.headers())
+            .containsEntry("profile-web-page-url", SubscriptionFixtures.APP_URL);
+    }
+
+    // ------------------------------------------------------------------
     // Proxy groups
     // ------------------------------------------------------------------
 
@@ -262,9 +444,7 @@ class ClashRendererTest {
      */
     @Test
     void withNoNodesThePatternsAreLeftAsWritten() {
-        Map<String, Object> config = render(
-            SubscriptionTemplates.Kind.CLASH_META, true, List.of()
-        );
+        Map<String, Object> config = render(Dialect.META, List.of());
 
         assertThat(groupNames(config)).containsExactly(
             "SinX Cloud", "🇭🇰 香港", "🇹🇼 台湾", "🇯🇵 日本", "🇸🇬 新加坡", "🇺🇸 美国"
@@ -290,7 +470,7 @@ class ClashRendererTest {
 
     @Test
     void theSiteNameIsSubstitutedWhereverTheTemplateWroteIt() {
-        String body = new ClashRenderer(true)
+        String body = new ClashRenderer(Dialect.META)
             .render(
                 SubscriptionFixtures.request(
                     SubscriptionTemplates.Kind.CLASH,
@@ -307,7 +487,7 @@ class ClashRendererTest {
 
     @Test
     void theHeadersTellTheClientWhatItFetched() {
-        RenderedConfig rendered = new ClashRenderer(false).render(
+        RenderedConfig rendered = new ClashRenderer(Dialect.CLASH).render(
             SubscriptionFixtures.request(
                 SubscriptionTemplates.Kind.CLASH,
                 TEMPLATES.bundled(SubscriptionTemplates.Kind.CLASH)

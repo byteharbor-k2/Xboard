@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.UserAccountRepository;
+import com.sinx.platform.subscription.application.SubscriptionLinkService;
 import com.sinx.platform.subscription.client.ClientConfigService;
 import com.sinx.platform.subscription.client.RenderedConfig;
 import com.sinx.platform.subscription.domain.EntitlementState;
@@ -55,17 +56,20 @@ public class SubscriptionEndpointController {
     private final UserAccountRepository users;
     private final SubscriptionEntitlementRepository entitlements;
     private final ClientConfigService configs;
+    private final SubscriptionLinkService links;
     private final Clock clock;
 
     public SubscriptionEndpointController(
         UserAccountRepository users,
         SubscriptionEntitlementRepository entitlements,
         ClientConfigService configs,
+        SubscriptionLinkService links,
         Clock clock
     ) {
         this.users = users;
         this.entitlements = entitlements;
         this.configs = configs;
+        this.links = links;
         this.clock = clock;
     }
 
@@ -100,7 +104,8 @@ public class SubscriptionEndpointController {
             flag != null ? flag : userAgent,
             types,
             filter,
-            originOf(host)
+            originOf(host),
+            links.subscriptionUrl(user)
         );
 
         HttpHeaders headers = new HttpHeaders();

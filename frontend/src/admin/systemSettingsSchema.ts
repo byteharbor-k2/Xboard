@@ -323,13 +323,16 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     glyph: "⌘",
     title: text("订阅模板", "Subscription templates"),
     description: text(
-      "配置各个客户端的订阅模板。留空即使用内置模板；节点与规则由系统填入 $app_name、proxies 与 outbounds，请勿删除这些键。",
-      "Configure templates for each supported client. Leaving one blank restores the built-in template; the system fills in $app_name, proxies and outbounds, so those keys must stay present."
+      "配置各个客户端的订阅模板。留空即使用内置模板，清空即恢复默认。Save 前会校验模板能否解析、是否保留必需内容，不通过则拒绝保存。",
+      "Configure templates for each supported client. Leaving one blank restores the built-in template. A template is validated before it is saved - one that will not parse, or that has lost what the renderer writes into, is refused rather than served to everyone."
     ),
     fields: [
-      field("subscribe_template_singbox", "Sing-box 订阅模板", "Sing-box", "配置 Sing-box 的订阅模板格式。必须保留 outbounds 键。", "Configure the Sing-box template. The outbounds key must stay present.", "textarea", "", { rows: 20 }),
-      field("subscribe_template_clash", "Clash 订阅模板", "Clash", "配置 Clash 的订阅模板格式。必须保留 proxies、proxy-groups、rules 键。", "Configure the Clash template. The proxies, proxy-groups and rules keys must stay present.", "textarea", "", { rows: 20 }),
-      field("subscribe_template_clashmeta", "Clash Meta 订阅模板", "Clash Meta", "配置 Clash Meta 的订阅模板格式。必须保留 proxies、proxy-groups、rules 键。", "Configure the Clash Meta template. The proxies, proxy-groups and rules keys must stay present.", "textarea", "", { rows: 20 })
+      field("subscribe_template_singbox", "Sing-box 订阅模板", "Sing-box", "配置 Sing-box 的订阅模板格式。必须保留 outbounds 键，节点会写入其中。", "Configure the Sing-box template. The outbounds key must stay present; the nodes are written into it.", "textarea", "", { rows: 20 }),
+      field("subscribe_template_clash", "Clash 订阅模板", "Clash", "配置 Clash 的订阅模板格式。必须保留 proxies、proxy-groups、rules 三个顶层键；$app_name 会被替换为站点名。", "Configure the Clash template. The proxies, proxy-groups and rules keys must all stay present; $app_name is replaced with the site name.", "textarea", "", { rows: 20 }),
+      field("subscribe_template_clashmeta", "Clash Meta 订阅模板", "Clash Meta", "配置 Clash Meta（mihomo）的订阅模板格式。必须保留 proxies、proxy-groups、rules 三个顶层键。", "Configure the Clash Meta (mihomo) template. The proxies, proxy-groups and rules keys must all stay present.", "textarea", "", { rows: 20 }),
+      field("subscribe_template_stash", "Stash 订阅模板", "Stash", "配置 Stash 的订阅模板格式。与 Clash Meta 同构，必须保留 proxies、proxy-groups、rules 三个顶层键。", "Configure the Stash template. It is Clash-shaped, so the proxies, proxy-groups and rules keys must all stay present.", "textarea", "", { rows: 20 }),
+      field("subscribe_template_surge", "Surge 配置模板", "Surge", "配置 Surge 模板。必须保留 $proxies 与 $proxy_group 占位符；$subs_link、$subs_domain 和 $subscribe_info 也会被替换。", "Configure the Surge template. The $proxies and $proxy_group placeholders must stay; $subs_link, $subs_domain and $subscribe_info are replaced too.", "textarea", "", { rows: 20 }),
+      field("subscribe_template_surfboard", "Surfboard 配置模板", "Surfboard", "配置 Surfboard 模板。写法与 Surge 相同，必须保留 $proxies 与 $proxy_group 占位符。", "Configure the Surfboard template. Its syntax follows Surge's, and the $proxies and $proxy_group placeholders must stay.", "textarea", "", { rows: 20 })
     ]
   }
 ];

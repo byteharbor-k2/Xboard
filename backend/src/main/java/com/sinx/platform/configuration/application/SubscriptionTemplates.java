@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.core.io.ClassPathResource;
@@ -43,7 +44,16 @@ public class SubscriptionTemplates {
     public enum Kind {
         CLASH("clash", "/subscribe/default.clash.yaml", Format.YAML),
         CLASH_META("clashmeta", "/subscribe/default.clashmeta.yaml", Format.YAML),
-        SING_BOX("singbox", "/subscribe/default.sing-box.json", Format.JSON);
+        SING_BOX("singbox", "/subscribe/default.sing-box.json", Format.JSON),
+        // No Stash template ships, here or in the original, which is why the
+        // original's seeding falls back through custom.stash.yaml and
+        // custom.clash.yaml to default.clash.yaml. Stash reads Clash's
+        // configuration, so the Clash default is a working starting point
+        // rather than a placeholder, and an administrator who wants a Stash-
+        // shaped one can save it under this key without that touching Clash.
+        STASH("stash", "/subscribe/default.clash.yaml", Format.YAML),
+        SURGE("surge", "/subscribe/default.surge.conf", Format.TEXT),
+        SURFBOARD("surfboard", "/subscribe/default.surfboard.conf", Format.TEXT);
 
         private static final Map<String, Kind> BY_SETTING_KEY;
 
@@ -84,18 +94,44 @@ public class SubscriptionTemplates {
         }
 
         /**
-         * Whether this template is read by the Clash renderer, whose YAML it
-         * has to parse. The two flags share one renderer and differ only in
-         * which protocols they can express, so this is not {@code this == CLASH}.
+         * The placeholder this template must keep for the renderer to have
+         * anything to put nodes into.
+         *
+         * The Surge-style templates are plain text, so there is no structure to
+         * check - but a template that has lost its {@code $proxies} line serves
+         * a config with no nodes in it while looking perfectly valid, which is
+         * exactly the failure the key checks catch for the other formats.
          */
-        public boolean isClashFamily() {
-            return format == Format.YAML;
+        private static final List<String> TEXT_PLACEHOLDERS =
+            List.of("$proxies", "$proxy_group");
+
+        /**
+         * The top-level keys this template must keep.
+         *
+         * A template missing them parses perfectly well and then fails at
+         * request time for every user; this is what moves that failure to the
+         * moment the administrator saves it.
+         */
+        private List<String> requiredKeys() {
+            return switch (format) {
+                case YAML -> List.of("proxies", "proxy-groups", "rules");
+                case JSON -> List.of("outbounds");
+                case TEXT -> TEXT_PLACEHOLDERS;
+            };
         }
     }
 
+    /**
+     * How a stored template is checked before it is accepted.
+     *
+     * The three are not variations on one thing: YAML and JSON are parsed and
+     * inspected, while the Surge-style templates are text and are checked for
+     * the placeholders the renderer substitutes.
+     */
     private enum Format {
         YAML,
-        JSON
+        JSON,
+        TEXT
     }
 
     private final ObjectMapper json;
@@ -129,11 +165,22 @@ public class SubscriptionTemplates {
      * move earlier.
      */
     public void validate(Kind kind, String content) {
-        Object parsed = read(kind, content);
-        if (!(parsed instanceof Map<?, ?> root)) {
+        List<String> required = kind.requiredKeys();
+        if (kind.format == Format.TEXT) {
+            for (String placeholder : required) {
+                if (!content.contains(placeholder)) {
+                    throw invalidTemplate(
+                        kind,
+                        "it no longer contains '" + placeholder + "'"
+                    );
+                }
+            }
+            return;
+        }
+        if (!(read(kind, content) instanceof Map<?, ?> root)) {
             throw invalidTemplate(kind, "the template must be a mapping");
         }
-        for (String key : requiredKeys(kind)) {
+        for (String key : required) {
             if (!root.containsKey(key)) {
                 throw invalidTemplate(kind, "missing the top-level key '" + key + "'");
             }
@@ -142,21 +189,17 @@ public class SubscriptionTemplates {
 
     private Object read(Kind kind, String content) {
         try {
-            return kind.isClashFamily()
+            return kind.format == Format.YAML
                 ? new Yaml().load(content)
                 : json.readValue(content, Map.class);
         } catch (RuntimeException exception) {
             throw invalidTemplate(
                 kind,
-                kind.isClashFamily() ? "it is not valid YAML" : "it is not valid JSON"
+                kind.format == Format.YAML
+                    ? "it is not valid YAML"
+                    : "it is not valid JSON"
             );
         }
-    }
-
-    private String[] requiredKeys(Kind kind) {
-        return kind.isClashFamily()
-            ? new String[] { "proxies", "proxy-groups", "rules" }
-            : new String[] { "outbounds" };
     }
 
     private String readBundled(Kind kind) {

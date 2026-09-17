@@ -16,12 +16,20 @@ import com.sinx.platform.configuration.application.SubscriptionTemplates;
  * @param requestHost the Host the client asked on, which Clash is told to
  *                    route DIRECT so the subscription itself never goes
  *                    through a node
+ * @param subscriptionUrl the address this very subscription was fetched from,
+ *                    which the Surge-style templates put in their
+ *                    {@code MANAGED-CONFIG} directive so the client knows what
+ *                    to come back to
+ * @param usage       the traffic and expiry the Surge-style information panel
+ *                    displays
  */
 public record ClientConfigRequest(
     SubscriptionTemplates.Kind kind,
     String template,
     String appName,
     String appUrl,
-    String requestHost
+    String requestHost,
+    String subscriptionUrl,
+    SubscriptionUsage usage
 ) {
 }

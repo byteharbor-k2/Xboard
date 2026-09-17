@@ -53,6 +53,9 @@ public class ClientConfigService {
      *               blank means no filtering
      * @param host   the address this subscription was fetched from, so the
      *               client can be told to reach it without a proxy
+     * @param subscriptionUrl the address the account's client was given, which
+     *               the Surge-style templates quote back so the client knows
+     *               where to refresh from
      */
     @Transactional(readOnly = true)
     public RenderedConfig render(
@@ -60,7 +63,8 @@ public class ClientConfigService {
         String flag,
         String types,
         String filter,
-        String host
+        String host,
+        String subscriptionUrl
     ) {
         ClientFormat format = formats.resolve(flag);
         List<String> wanted = parseTypes(types);
@@ -77,19 +81,22 @@ public class ClientConfigService {
         String template = format.templateKind() == null
             ? null
             : configuration.subscriptionTemplate(format.templateKind());
+        SubscriptionUsage usage = usageOf(entitlement);
         RenderedConfig rendered = format.renderer().render(
             new ClientConfigRequest(
                 format.templateKind(),
                 template,
                 configuration.appName(),
                 configuration.appUrl().orElse(""),
-                host
+                host,
+                subscriptionUrl,
+                usage
             ),
             nodes
         );
 
         Map<String, String> headers = new LinkedHashMap<>(rendered.headers());
-        headers.put("subscription-userinfo", userInfo(entitlement));
+        headers.put("subscription-userinfo", userInfo(usage));
         return new RenderedConfig(rendered.body(), rendered.contentType(), headers);
     }
 
@@ -102,15 +109,22 @@ public class ClientConfigService {
      * account with no expiry sends an empty value rather than a zero, because
      * zero is an expiry date a client would display as 1970.
      */
-    private static String userInfo(SubscriptionEntitlement entitlement) {
-        return "upload=" + entitlement.getUploadedBytes()
-            + "; download=" + entitlement.getDownloadedBytes()
-            + "; total=" + entitlement.getTransferLimitBytes()
+    private static String userInfo(SubscriptionUsage usage) {
+        return "upload=" + usage.uploadedBytes()
+            + "; download=" + usage.downloadedBytes()
+            + "; total=" + usage.transferLimitBytes()
             + "; expire=" + (
-                entitlement.getExpiresAt() == null
-                    ? ""
-                    : entitlement.getExpiresAt().getEpochSecond()
+                usage.expiresAt() == null ? "" : usage.expiresAt().getEpochSecond()
             );
+    }
+
+    private static SubscriptionUsage usageOf(SubscriptionEntitlement entitlement) {
+        return new SubscriptionUsage(
+            entitlement.getUploadedBytes(),
+            entitlement.getDownloadedBytes(),
+            entitlement.getTransferLimitBytes(),
+            entitlement.getExpiresAt()
+        );
     }
 
     /**

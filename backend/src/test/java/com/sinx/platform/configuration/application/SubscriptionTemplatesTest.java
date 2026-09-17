@@ -78,8 +78,14 @@ class SubscriptionTemplatesTest {
             .isEqualTo("subscribe_template_clashmeta");
         assertThat(Kind.SING_BOX.settingKey())
             .isEqualTo("subscribe_template_singbox");
+        assertThat(Kind.STASH.settingKey()).isEqualTo("subscribe_template_stash");
+        assertThat(Kind.SURGE.settingKey()).isEqualTo("subscribe_template_surge");
+        assertThat(Kind.SURFBOARD.settingKey())
+            .isEqualTo("subscribe_template_surfboard");
         assertThat(Kind.bySettingKey("subscribe_template_clash"))
             .isEqualTo(Kind.CLASH);
-        assertThat(Kind.bySettingKey("subscribe_template_stash")).isNull();
+        assertThat(Kind.bySettingKey("subscribe_template_surge")).isEqualTo(Kind.SURGE);
+        // A key that names no template is not a template kind.
+        assertThat(Kind.bySettingKey("subscribe_template_nonesuch")).isNull();
     }
 }

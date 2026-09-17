@@ -1,4 +1,4 @@
-# Xboard - Mihomo (Clash Meta) 订阅模板 v2
+# Mihomo (Clash Meta) 订阅模板 v2
 # 基于 net4people/bbs#641 讨论结论 + 实测修复
 #
 # v2 修复记录（2026-08-31）：
@@ -161,13 +161,13 @@ rule-providers:
 proxies:
 
 proxy-groups:
-  # 主选择组（Xboard 会用站点名替换 $app_name）
+  # 主选择组（$app_name 会被替换为站点名）
   - { name: "$app_name", type: select, proxies: ["🚀 自动选择", "♻️ 故障转移", "DIRECT"] }
-  # 延迟测速自动选择（proxies 留空 = Xboard 自动填入全部节点）
+  # 延迟测速自动选择（proxies 留空 = 自动填入全部节点）
   - { name: "🚀 自动选择", type: url-test, proxies: [], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50 }
   # 故障转移
   - { name: "♻️ 故障转移", type: fallback, proxies: [], url: "http://www.gstatic.com/generate_204", interval: 300 }
-  # 地区分组（Xboard 会用正则匹配节点名，请按实际节点命名调整）
+  # 地区分组（正则匹配节点名，请按实际节点命名调整）
   - { name: "🇭🇰 香港", type: select, proxies: ["/香港|HK|HongKong|Hong Kong/i"] }
   - { name: "🇹🇼 台湾", type: select, proxies: ["/台湾|TW|Taiwan/i"] }
   - { name: "🇯🇵 日本", type: select, proxies: ["/日本|JP|Japan/i"] }

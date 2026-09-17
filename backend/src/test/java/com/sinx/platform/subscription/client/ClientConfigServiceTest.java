@@ -56,7 +56,12 @@ class ClientConfigServiceTest {
 
     private RenderedConfig render(SubscriptionEntitlement entitlement) {
         return service().render(
-            entitlement, "meta", null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement,
+            "meta",
+            null,
+            null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
     }
 
@@ -117,7 +122,9 @@ class ClientConfigServiceTest {
     @Test
     void aProtocolWhitelistKeepsOnlyWhatItNames() {
         RenderedConfig rendered = service().render(
-            entitlement(), "meta", "vless|trojan", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "vless|trojan", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(rendered.body()).contains("vless-reality").contains("trojan-grpc");
@@ -127,7 +134,9 @@ class ClientConfigServiceTest {
     @Test
     void aWhitelistSplitOnCommasIsTrimmed() {
         RenderedConfig rendered = service().render(
-            entitlement(), "meta", " vless , trojan ", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", " vless , trojan ", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(rendered.body()).contains("vless-reality").contains("trojan-grpc");
@@ -141,10 +150,14 @@ class ClientConfigServiceTest {
     @Test
     void theFullwidthVerticalBarSplitsAndTheFullwidthCommaDoesNot() {
         RenderedConfig split = service().render(
-            entitlement(), "meta", "vless｜trojan", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "vless｜trojan", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
         RenderedConfig unsplit = service().render(
-            entitlement(), "meta", "vless，trojan", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "vless，trojan", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(split.body()).contains("vless-reality");
@@ -154,13 +167,19 @@ class ClientConfigServiceTest {
     @Test
     void aBlankOrAllWhitelistMeansEveryProtocol() {
         assertThat(proxies(service().render(
-            entitlement(), "meta", "all", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "all", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).hasSize(10);
         assertThat(proxies(service().render(
-            entitlement(), "meta", "  ", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "  ", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).hasSize(10);
         assertThat(proxies(service().render(
-            entitlement(), "meta", null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).hasSize(10);
     }
 
@@ -168,7 +187,9 @@ class ClientConfigServiceTest {
     @Test
     void allInCapitalsIsNotTheKeyword() {
         assertThat(proxies(service().render(
-            entitlement(), "meta", "ALL", null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", "ALL", null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).isEmpty();
     }
 
@@ -179,7 +200,9 @@ class ClientConfigServiceTest {
     @Test
     void aKeywordKeepsTheNodesWhoseNameContainsIt() {
         RenderedConfig rendered = service().render(
-            entitlement(), "meta", null, "香港", SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, "香港",
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(rendered.body()).contains("香港 01").doesNotContain("日本");
@@ -189,14 +212,18 @@ class ClientConfigServiceTest {
     @Test
     void aKeywordMatchesANameWithoutRegardToCase() {
         assertThat(proxies(service().render(
-            entitlement(), "meta", null, "ss2022", SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, "ss2022",
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).hasSize(1);
     }
 
     @Test
     void aKeywordMatchesATagExactly() {
         RenderedConfig tagged = service().render(
-            entitlement(), "meta", null, "hk", SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, "hk",
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(proxies(tagged)).hasSize(10);
@@ -205,7 +232,9 @@ class ClientConfigServiceTest {
     @Test
     void aKeywordThatMatchesNothingLeavesAnEmptyConfig() {
         assertThat(proxies(service().render(
-            entitlement(), "meta", null, "火星", SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, "火星",
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).isEmpty();
     }
 
@@ -220,10 +249,14 @@ class ClientConfigServiceTest {
         String twentyOne = "香".repeat(21);
 
         assertThat(proxies(service().render(
-            entitlement(), "meta", null, twenty, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, twenty,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).isEmpty();
         assertThat(proxies(service().render(
-            entitlement(), "meta", null, twentyOne, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, twentyOne,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         ))).hasSize(10);
     }
 
@@ -234,7 +267,9 @@ class ClientConfigServiceTest {
     @Test
     void theFormatDecidesWhichNodesAreEvenOffered() {
         RenderedConfig narrow = service().render(
-            entitlement(), "clash", null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "clash", null, null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
 
         assertThat(proxies(narrow)).hasSize(5);
@@ -246,12 +281,16 @@ class ClientConfigServiceTest {
     @Test
     void onlyTheTemplateTheFormatRendersIntoIsRead() {
         service().render(
-            entitlement(), "meta", null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), "meta", null, null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
         verify(configuration).subscriptionTemplate(SubscriptionTemplates.Kind.CLASH_META);
 
         service().render(
-            entitlement(), null, null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), null, null, null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
         verify(configuration, never()).subscriptionTemplate(SubscriptionTemplates.Kind.CLASH);
     }
@@ -279,7 +318,9 @@ class ClientConfigServiceTest {
             .containsEntry("profile-web-page-url", SubscriptionFixtures.APP_URL);
 
         RenderedConfig generic = service().render(
-            entitlement(), null, null, null, SubscriptionFixtures.REQUEST_HOST
+            entitlement(), null, null, null,
+            SubscriptionFixtures.REQUEST_HOST,
+            SubscriptionFixtures.SUBSCRIPTION_URL
         );
         assertThat(generic.contentType()).isEqualTo("text/plain");
         assertThat(generic.headers()).doesNotContainKey("profile-web-page-url");

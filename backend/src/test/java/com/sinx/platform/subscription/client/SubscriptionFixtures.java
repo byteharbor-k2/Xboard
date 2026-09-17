@@ -20,6 +20,21 @@ final class SubscriptionFixtures {
     static final String APP_NAME = "SinX Cloud";
     static final String APP_URL = "https://sinx.example";
     static final String REQUEST_HOST = "sub.example.com";
+    static final String SUBSCRIPTION_URL =
+        "https://sub.example.com/sub/abcdefghijklmnopqrstuvwxyz012345";
+
+    /** One gibibyte uploaded, half of one downloaded, out of four. */
+    static final SubscriptionUsage USAGE = new SubscriptionUsage(
+        1024L * 1024L * 1024L,
+        512L * 1024L * 1024L,
+        4L * 1024L * 1024L * 1024L,
+        java.time.Instant.parse("2027-01-01T00:00:00Z")
+    );
+
+    /** An account with nothing consumed and no expiry. */
+    static final SubscriptionUsage NEVER_EXPIRES = new SubscriptionUsage(
+        0L, 0L, 8L * 1024L * 1024L * 1024L, null
+    );
 
     private SubscriptionFixtures() {
     }
@@ -29,11 +44,23 @@ final class SubscriptionFixtures {
     }
 
     static ClientConfigRequest request(SubscriptionTemplates.Kind kind, String template) {
-        return new ClientConfigRequest(kind, template, APP_NAME, APP_URL, REQUEST_HOST);
+        return request(kind, template, USAGE);
+    }
+
+    static ClientConfigRequest request(
+        SubscriptionTemplates.Kind kind,
+        String template,
+        SubscriptionUsage usage
+    ) {
+        return new ClientConfigRequest(
+            kind, template, APP_NAME, APP_URL, REQUEST_HOST, SUBSCRIPTION_URL, usage
+        );
     }
 
     static ClientConfigRequest genericRequest() {
-        return new ClientConfigRequest(null, null, APP_NAME, APP_URL, REQUEST_HOST);
+        return new ClientConfigRequest(
+            null, null, APP_NAME, APP_URL, REQUEST_HOST, SUBSCRIPTION_URL, USAGE
+        );
     }
 
     static NodeClientView node(
@@ -123,8 +150,11 @@ final class SubscriptionFixtures {
     }
 
     /**
-     * Hysteria 1, which is the version that takes bandwidth hints and the one
-     * whose obfs the panel does not gate on {@code obfs.open}.
+     * Hysteria 1, with its obfs deliberately left closed.
+     *
+     * The closed setting is the interesting one: the renderers disagree about
+     * what to do with it, and the fixtures that matter pin that disagreement
+     * rather than assume it. A test that needs an open obfs builds its own node.
      */
     static NodeClientView hysteria1() {
         return node("hy1", "hysteria", "h1.example.com", 8443, IDENTITY, Map.of(

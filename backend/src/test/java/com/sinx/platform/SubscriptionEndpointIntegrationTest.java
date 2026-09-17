@@ -213,6 +213,91 @@ class SubscriptionEndpointIntegrationTest {
     }
 
     /**
+     * Stash reads the same document as the other Clash clients and the same
+     * node set as mihomo, so its output is checked for the second and not the
+     * first.
+     */
+    @Test
+    void theStashFlagIsServedTheClashShapeWithTheWideNodeSet() throws Exception {
+        seedSetting("site.app_url", SITE_URL);
+        Subscriber subscriber = subscribe("sub-stash@example.com");
+
+        MvcResult result = fetch(
+            subscriber.token(),
+            request -> request.param("flag", "stash")
+        )
+            .andExpect(status().isOk())
+            .andReturn();
+
+        assertThat(result.getResponse().getContentType()).startsWith("text/yaml");
+        String body = bodyOf(result);
+        assertThat(body).contains("香港 01")
+            .contains("香港 02")
+            .doesNotContain("新加坡 01");
+        assertThat(result.getResponse().getHeader("profile-web-page-url"))
+            .isEqualTo(SITE_URL);
+    }
+
+    /**
+     * Surge is recognised by its name, and writes proxy lines rather than a
+     * document. Neither Surge nor Surfboard has ever implemented vless, so that
+     * node is absent rather than written as a line the client refuses to load.
+     */
+    @Test
+    void aSurgeClientIsRecognisedByItsUserAgent() throws Exception {
+        Subscriber subscriber = subscribe("sub-surge@example.com");
+
+        MvcResult result = fetch(subscriber.token(), request ->
+            request.header("User-Agent", "Surge/5.8.0"))
+            .andExpect(status().isOk())
+            .andReturn();
+
+        assertThat(result.getResponse().getContentType())
+            .startsWith("application/octet-stream");
+        assertThat(result.getResponse().getHeader("content-disposition"))
+            .isEqualTo("attachment;filename*=UTF-8''SinX%20Cloud.conf");
+
+        String body = bodyOf(result);
+        assertThat(body).contains("香港 01 = vmess,hk1.example.com,443,")
+            .doesNotContain("香港 02")
+            .doesNotContain("新加坡 01");
+        // The panel above the list is filled in from the account's own traffic.
+        assertThat(body).contains("title=SinX Cloud订阅信息, content=上传流量：")
+            .doesNotContain("$subscribe_info");
+    }
+
+    /**
+     * The two are told apart by more than their name: Surfboard writes its
+     * lines without the spaces around the separator, and it speaks four
+     * protocols where Surge speaks seven. The socks node is the one that shows
+     * the difference - a protocol Surge has and Surfboard does not.
+     */
+    @Test
+    void theSurfboardFlagWritesItsOwnGrammarAndProtocolSet() throws Exception {
+        Subscriber subscriber = subscribe("sub-surfboard@example.com");
+        Long groupId = jdbcTemplate.queryForObject(
+            "SELECT id FROM node_access_groups WHERE name = ?",
+            Long.class,
+            "group-sub-surfboard@example.com"
+        );
+        seedNode("socks-node", "socks", "s.example.com", groupId, 4);
+
+        MvcResult result = fetch(
+            subscriber.token(),
+            request -> request.param("flag", "surfboard")
+        )
+            .andExpect(status().isOk())
+            .andReturn();
+
+        String body = bodyOf(result);
+        assertThat(body).contains("香港 01=vmess,hk1.example.com,443,")
+            .doesNotContain("香港 01 = vmess")
+            .doesNotContain("香港 02")
+            .doesNotContain("socks-node")
+            .doesNotContain("新加坡 01");
+    }
+
+    /**
      * The client may name the protocols it wants. A version of a client that
      * cannot speak vless has no other way to ask for a config it can load.
      */
@@ -363,6 +448,12 @@ class SubscriptionEndpointIntegrationTest {
                 .andExpect(jsonPath("$.data.subscribe_template.subscribe_template_clashmeta")
                     .isNotEmpty())
                 .andExpect(jsonPath("$.data.subscribe_template.subscribe_template_singbox")
+                    .isNotEmpty())
+                .andExpect(jsonPath("$.data.subscribe_template.subscribe_template_stash")
+                    .isNotEmpty())
+                .andExpect(jsonPath("$.data.subscribe_template.subscribe_template_surge")
+                    .isNotEmpty())
+                .andExpect(jsonPath("$.data.subscribe_template.subscribe_template_surfboard")
                     .isNotEmpty());
 
             saveTemplate("subscribe_template_clash", custom)
@@ -393,9 +484,28 @@ class SubscriptionEndpointIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("SUBSCRIBE_TEMPLATE_INVALID"));
 
+            // The text templates are checked by placeholder rather than by
+            // parsing, since there is nothing in them to parse.
+            saveTemplate("subscribe_template_surge", """
+                # an administrator's own header
+                [Proxy]
+                $proxies
+                [Proxy Group]
+                Proxy = select, $proxy_group
+                """).andExpect(status().isOk());
+            assertThat(servedTo(subscriber, "surge"))
+                .contains("# an administrator's own header")
+                .contains("香港 01 = vmess");
+
+            saveTemplate("subscribe_template_surge", "# nothing to substitute")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("SUBSCRIBE_TEMPLATE_INVALID"));
+
             // Neither refusal disturbed what was already stored.
             assertThat(servedTo(subscriber, "clash")).contains("MATCH,DIRECT");
             assertThat(servedTo(subscriber, "sing-box")).contains("香港 01");
+            assertThat(servedTo(subscriber, "surge"))
+                .contains("# an administrator's own header");
         } finally {
             clearTemplates();
         }
@@ -664,7 +774,10 @@ class SubscriptionEndpointIntegrationTest {
         for (String key : List.of(
             "subscribe_template_clash",
             "subscribe_template_clashmeta",
-            "subscribe_template_singbox"
+            "subscribe_template_singbox",
+            "subscribe_template_stash",
+            "subscribe_template_surge",
+            "subscribe_template_surfboard"
         )) {
             saveTemplate(key, "").andExpect(status().isOk());
         }

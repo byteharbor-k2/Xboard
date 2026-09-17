@@ -6,12 +6,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Clash and its mihomo forks, rendered from an administrator's template.
+ * The Clash family, rendered from an administrator's template.
  *
- * One renderer serves both flags because the template mechanics are identical
- * and only the proxy entries differ; the original splits them across two
- * classes and duplicates all of this, which is how the two drifted apart in the
- * first place.
+ * One renderer serves every flag because the template mechanics are identical
+ * and only the proxy entries differ; the original splits them across three
+ * classes and duplicates all of this, which is how they drifted apart in the
+ * first place. {@link Dialect} is what tells them apart.
  *
  * The mechanics, in the order the original applies them: read the template,
  * append one proxy entry per node, expand the proxy groups that name their
@@ -21,10 +21,10 @@ import java.util.Map;
  */
 final class ClashRenderer implements ClientConfigRenderer {
 
-    private final boolean meta;
+    private final Dialect dialect;
 
-    ClashRenderer(boolean meta) {
-        this.meta = meta;
+    ClashRenderer(Dialect dialect) {
+        this.dialect = dialect;
     }
 
     @Override
@@ -53,6 +53,11 @@ final class ClashRenderer implements ClientConfigRenderer {
             "profile-update-interval", "24",
             "content-disposition",
             "attachment;filename*=UTF-8''" + V2rayUriEncoding.rawUrlEncode(request.appName()),
+            // The original sets this only on the narrow Clash output. It is
+            // harmless everywhere - it is a documentation link the client shows
+            // beside the profile, and mihomo and Stash both accept it - and
+            // having the whole family carry it is worth more than reproducing
+            // which of the three classes happened to remember.
             "profile-web-page-url", request.appUrl()
         ));
     }
@@ -72,27 +77,48 @@ final class ClashRenderer implements ClientConfigRenderer {
         "chacha20-ietf-poly1305"
     );
 
+    /**
+     * The protocols only the wide dialects understand.
+     *
+     * The resolver's protocol set has already excluded these for the narrow
+     * dialect, so this is a second line of defence rather than the filter -
+     * but it is the one that would matter, because a client handed a proxy type
+     * it does not know refuses to start on the whole config, not just that node.
+     */
+    private static final java.util.Set<String> WIDE_PROTOCOLS = java.util.Set.of(
+        "vless", "hysteria", "tuic", "anytls", "mieru"
+    );
+
+    /**
+     * One proxy entry, or nothing.
+     *
+     * Null means the node is left out of this output entirely.
+     */
     private Map<String, Object> proxy(NodeClientView node) {
+        if (!dialect.isWide() && WIDE_PROTOCOLS.contains(node.protocol())) {
+            return null;
+        }
         return switch (node.protocol()) {
             case "shadowsocks" -> shadowsocks(node);
-            case "vmess" -> ClashProxies.vmess(node, meta);
-            case "trojan" -> ClashProxies.trojan(node, meta);
-            case "socks" -> ClashProxies.socks(node);
-            case "http" -> ClashProxies.http(node);
-            case "vless" -> meta ? ClashProxies.vless(node) : null;
-            case "hysteria" -> meta ? ClashProxies.hysteria(node) : null;
-            case "tuic" -> meta ? ClashProxies.tuic(node) : null;
-            case "anytls" -> meta ? ClashProxies.anytls(node) : null;
-            case "mieru" -> meta ? ClashProxies.mieru(node) : null;
+            case "vmess" -> ClashProxies.vmess(node, dialect);
+            case "trojan" -> ClashProxies.trojan(node, dialect);
+            case "socks" -> ClashProxies.socks(node, dialect);
+            case "http" -> ClashProxies.http(node, dialect);
+            case "vless" -> ClashProxies.vless(node, dialect);
+            case "hysteria" -> ClashProxies.hysteria(node, dialect);
+            case "tuic" -> ClashProxies.tuic(node, dialect);
+            case "anytls" -> ClashProxies.anytls(node, dialect);
+            // Stash has no mieru, though it shares the rest of the wide set.
+            case "mieru" -> dialect.isMihomo() ? ClashProxies.mieru(node) : null;
             default -> null;
         };
     }
 
     private Map<String, Object> shadowsocks(NodeClientView node) {
-        if (!meta && !CLASH_CIPHERS.contains(node.settings().text("cipher"))) {
+        if (!dialect.isWide() && !CLASH_CIPHERS.contains(node.settings().text("cipher"))) {
             return null;
         }
-        return ClashProxies.shadowsocks(node, meta);
+        return ClashProxies.shadowsocks(node, dialect);
     }
 
     /** Whatever the template already listed, followed by this account's nodes. */

@@ -71,9 +71,16 @@ class ClientFormatResolverTest {
     void theGenericListIsAlsoASelectableFormat() {
         assertThat(resolver.resolve("general").templateKind()).isNull();
         assertThat(resolver.formats()).extracting(ClientFormat::name)
-            .containsExactly("meta", "clash", "sing-box", "general");
+            .containsExactly(
+                "meta", "clash", "sing-box", "stash", "surge", "surfboard", "general"
+            );
     }
 
+    /**
+     * The order is not decorative: the mihomo names have to be asked before the
+     * narrow Clash one, because {@code clashmetaforandroid} and
+     * {@code clash-verge} both contain {@code clash} as a substring.
+     */
     @Test
     void everyFormatNamesTheTemplateItRendersInto() {
         assertThat(resolver.resolve("clash").templateKind())
@@ -82,6 +89,12 @@ class ClientFormatResolverTest {
             .isEqualTo(SubscriptionTemplates.Kind.CLASH_META);
         assertThat(resolver.resolve("sing-box").templateKind())
             .isEqualTo(SubscriptionTemplates.Kind.SING_BOX);
+        assertThat(resolver.resolve("stash").templateKind())
+            .isEqualTo(SubscriptionTemplates.Kind.STASH);
+        assertThat(resolver.resolve("surge").templateKind())
+            .isEqualTo(SubscriptionTemplates.Kind.SURGE);
+        assertThat(resolver.resolve("surfboard").templateKind())
+            .isEqualTo(SubscriptionTemplates.Kind.SURFBOARD);
     }
 
     /**
