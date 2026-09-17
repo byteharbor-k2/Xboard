@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "../components/AppShell";
-import { cancelOrder, fetchViewerOrders } from "../lib/orders";
+import { fetchViewerOrders } from "../lib/orders";
 import { ApiError } from "../lib/http";
+import { navigate } from "../lib/navigation";
 import {
   billingPeriodLabel,
   formatDateTime,
@@ -29,11 +30,10 @@ const copy = {
     emptyDescription: "购买套餐后，订单记录会显示在这里。",
     loading: "正在读取订单…",
     failed: "订单读取失败。",
-    cancel: "取消订单",
-    cancelling: "正在取消…",
-    cancelFailed: "订单取消失败。",
-    notCancellable: "—",
-    pendingHint: "订单已创建，等待开通。"
+    view: "查看详情",
+    viewAll: "订单详情",
+    notPending: "—",
+    pendingHint: "订单已创建，等待支付。"
   },
   "en-US": {
     eyebrow: "BILLING",
@@ -50,11 +50,10 @@ const copy = {
     emptyDescription: "Orders will appear here after you purchase a plan.",
     loading: "Loading orders…",
     failed: "Orders could not be loaded.",
-    cancel: "Cancel order",
-    cancelling: "Cancelling…",
-    cancelFailed: "The order could not be cancelled.",
-    notCancellable: "—",
-    pendingHint: "Placed, waiting to be opened."
+    view: "View",
+    viewAll: "Order details",
+    notPending: "—",
+    pendingHint: "Placed, waiting for payment."
   }
 };
 
@@ -62,15 +61,9 @@ export function OrdersPage() {
   const accessToken = useAuthStore((state) => state.accessToken)!;
   const language = useUserPreferences((state) => state.language);
   const labels = copy[language];
-  const queryClient = useQueryClient();
   const orders = useQuery({
     queryKey: ["viewer-orders"],
     queryFn: () => fetchViewerOrders(accessToken)
-  });
-  const cancel = useMutation({
-    mutationFn: (tradeNo: string) => cancelOrder(accessToken, tradeNo),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["viewer-orders"] })
   });
 
   return (
@@ -87,13 +80,6 @@ export function OrdersPage() {
             {orders.error instanceof ApiError
               ? orders.error.message
               : labels.failed}
-          </p>
-        )}
-        {cancel.isError && (
-          <p className="error-message">
-            {cancel.error instanceof ApiError
-              ? cancel.error.message
-              : labels.cancelFailed}
           </p>
         )}
         <div className="user-table-wrap">
@@ -123,7 +109,17 @@ export function OrdersPage() {
               )}
               {orders.data?.map((order) => (
                 <tr key={order.id}>
-                  <td className="order-number">{order.tradeNo}</td>
+                  <td>
+                    <button
+                      className="order-number order-number-link"
+                      onClick={() =>
+                        navigate(`/account/orders/${order.tradeNo}`)
+                      }
+                      type="button"
+                    >
+                      {order.tradeNo}
+                    </button>
+                  </td>
                   <td>
                     {order.planName}
                     <span className="order-type-tag">
@@ -152,17 +148,16 @@ export function OrdersPage() {
                   <td>
                     {order.status === "PENDING" ? (
                       <button
-                        className="danger-button"
-                        disabled={cancel.isPending}
-                        onClick={() => cancel.mutate(order.tradeNo)}
+                        className="text-button"
+                        onClick={() =>
+                          navigate(`/account/orders/${order.tradeNo}`)
+                        }
                         type="button"
                       >
-                        {cancel.isPending
-                          ? labels.cancelling
-                          : labels.cancel}
+                        {labels.view}
                       </button>
                     ) : (
-                      <span className="muted">{labels.notCancellable}</span>
+                      <span className="muted">{labels.notPending}</span>
                     )}
                   </td>
                 </tr>

@@ -59,6 +59,12 @@ sinx:
     # balance and coupon back so it cannot block the next purchase.
     pending-expiry: ${ORDER_PENDING_EXPIRY:2h}
     sweep-interval: ${ORDER_SWEEP_INTERVAL:10m}
+  payment:
+    # Where the payment gateways reach this site: the notify URL handed to them
+    # is built from this, so it has to be an address their servers can resolve.
+    # On a deployment behind Cloudflare or a tunnel, that is the public hostname,
+    # not the origin.
+    public-base-url: ${PAYMENT_PUBLIC_BASE_URL:${PUBLIC_BASE_URL:http://localhost:5173}}
   node:
     billing-time-zone: ${NODE_BILLING_TIME_ZONE:Asia/Shanghai}
   security:

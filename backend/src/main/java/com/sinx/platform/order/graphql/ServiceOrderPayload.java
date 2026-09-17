@@ -22,6 +22,9 @@ public record ServiceOrderPayload(
     String surplusCredit,
     String balanceAmount,
     String totalAmount,
+    String handlingAmount,
+    UUID paymentMethodId,
+    String gateway,
     String createdAt,
     String paidAt
 ) {
@@ -42,6 +45,9 @@ public record ServiceOrderPayload(
             String.valueOf(order.getSurplusCredit()),
             String.valueOf(order.getBalanceAmount()),
             String.valueOf(order.getTotalAmount()),
+            String.valueOf(order.getHandlingAmount()),
+            order.getPaymentMethodId(),
+            order.getGateway(),
             order.getCreatedAt().toString(),
             order.getPaidAt() == null ? null : order.getPaidAt().toString()
         );

@@ -4910,6 +4910,52 @@ button:disabled {
   letter-spacing: -0.2px;
 }
 
+/* The order number doubles as the way into the order. */
+.order-number-link {
+  padding: 0;
+  border: 0;
+  color: #1f5e8a;
+  background: none;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: #b6d2e4;
+  text-underline-offset: 3px;
+}
+
+.order-number-link:hover {
+  text-decoration-color: #1f5e8a;
+}
+
+/* The notify URL is long and never interesting twice; the button beside it is. */
+.payment-notify-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.payment-notify-cell .order-number {
+  overflow: hidden;
+  max-width: 320px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payment-field-required {
+  color: #b3261e;
+  font-size: 11px;
+  font-style: normal;
+}
+
+/* An action that failed belongs in red, wherever it was launched from. */
+.admin-operation-error {
+  margin: 12px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #8c1d18;
+  background: #fdecea;
+  font-size: 13px;
+}
+
 /* An order's status reads as a colour: only the settled one is good news. */
 .order-status-pending {
   color: #8a5a06;

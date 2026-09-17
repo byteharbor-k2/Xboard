@@ -2,6 +2,8 @@ import { graphQl, publicGraphQl } from "./http";
 import type {
   BillingPeriod,
   OrderQuote,
+  PaymentOption,
+  PaymentRedirect,
   PlanOffer,
   ServiceOrder
 } from "../types";
@@ -61,6 +63,9 @@ const ORDER_FIELDS = `
   surplusCredit
   balanceAmount
   totalAmount
+  handlingAmount
+  paymentMethodId
+  gateway
   createdAt
   paidAt
 `;
@@ -123,6 +128,54 @@ export async function fetchViewerOrders(
     `query ViewerOrders { viewerOrders { ${ORDER_FIELDS} } }`
   );
   return data.viewerOrders;
+}
+
+/**
+ * The ways a pending order can be paid for. The fee is worked out by the
+ * server for this particular order, so the total shown here is the total that
+ * will be charged.
+ */
+export async function fetchPaymentOptions(
+  accessToken: string,
+  tradeNo: string
+): Promise<PaymentOption[]> {
+  const data = await graphQl<{ paymentOptions: PaymentOption[] }>(
+    accessToken,
+    `query PaymentOptions($tradeNo: String!) {
+       paymentOptions(tradeNo: $tradeNo) {
+         id
+         name
+         icon
+         handlingFee
+         payableAmount
+         currency
+       }
+     }`,
+    { tradeNo }
+  );
+  return data.paymentOptions;
+}
+
+/**
+ * Chooses how to pay and gets the address to send the browser to. Nothing is
+ * charged here - the order is opened when the gateway reports back.
+ */
+export async function checkoutOrder(
+  accessToken: string,
+  tradeNo: string,
+  paymentMethodId: string
+): Promise<PaymentRedirect> {
+  const data = await graphQl<{ checkoutOrder: PaymentRedirect }>(
+    accessToken,
+    `mutation CheckoutOrder($tradeNo: String!, $paymentMethodId: ID!) {
+       checkoutOrder(tradeNo: $tradeNo, paymentMethodId: $paymentMethodId) {
+         type
+         data
+       }
+     }`,
+    { tradeNo, paymentMethodId }
+  );
+  return data.checkoutOrder;
 }
 
 export async function cancelOrder(

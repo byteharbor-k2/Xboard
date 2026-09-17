@@ -94,6 +94,7 @@ public class SecurityConfiguration {
                     "/api/v2/server/config",
                     "/api/v2/server/user",
                     "/api/v2/server/report",
+                    "/api/v1/guest/payment/notify/**",
                     "/api/v1/server/UniProxy/**",
                     "/ws",
                     "/ws/**"

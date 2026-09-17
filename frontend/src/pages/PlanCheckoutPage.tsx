@@ -53,8 +53,8 @@ const copy = {
     orderTypeUpgrade: "升级",
     orderTypeReset: "流量重置",
     placed: "下单成功",
-    placedHint: "订单号 %s，支付功能尚未开放，可在订单记录中取消。",
-    viewOrders: "查看订单记录",
+    placedHint: "订单号 %s，请前往订单详情完成支付。",
+    viewOrders: "去支付",
     cancelPlaced: "取消该订单",
     quoteFailed: "价格计算失败",
     accountBalance: "账户余额"
@@ -90,8 +90,8 @@ const copy = {
     orderTypeUpgrade: "Upgrade",
     orderTypeReset: "Traffic reset",
     placed: "Order placed",
-    placedHint: "Order %s. Payment is not available yet; you can cancel it from your orders.",
-    viewOrders: "View orders",
+    placedHint: "Order %s. Open it to pay.",
+    viewOrders: "Pay now",
     cancelPlaced: "Cancel this order",
     quoteFailed: "Could not price this order",
     accountBalance: "Account balance"
@@ -416,7 +416,9 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                 <p>{text.placedHint.replace("%s", placedTradeNo)}</p>
                 <button
                   className="checkout-submit"
-                  onClick={() => navigate("/account/orders")}
+                  onClick={() =>
+                    navigate(`/account/orders/${placedTradeNo}`)
+                  }
                   type="button"
                 >
                   {text.viewOrders}

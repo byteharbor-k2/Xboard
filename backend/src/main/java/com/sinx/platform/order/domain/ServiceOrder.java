@@ -84,6 +84,20 @@ public class ServiceOrder {
     @Column(name = "coupon_id")
     private UUID couponId;
 
+    /**
+     * The payment method the customer chose, and the surcharge it added on top
+     * of {@link #totalAmount}. Kept apart from the order's own total so what the
+     * order is worth never depends on how it was paid for.
+     */
+    @Column(name = "payment_method_id")
+    private UUID paymentMethodId;
+
+    @Column(length = 32)
+    private String gateway;
+
+    @Column(name = "handling_amount", nullable = false)
+    private long handlingAmount;
+
     @Column(
         name = "surplus_order_ids",
         nullable = false,
@@ -176,6 +190,40 @@ public class ServiceOrder {
         updatedAt = now;
     }
 
+    /**
+     * Records how the customer is paying, and what that adds to the bill.
+     *
+     * Fixed at checkout and re-read from the order when the callback arrives, so
+     * the amount the gateway is told to collect and the amount it is checked
+     * against come from the same place.
+     */
+    public void attachPayment(
+        UUID paymentMethodId,
+        String gateway,
+        long handlingAmount,
+        Instant now
+    ) {
+        if (status != OrderStatus.PENDING) {
+            throw new IllegalStateException(
+                "Only a pending order can be checked out, was " + status
+            );
+        }
+        if (handlingAmount < 0) {
+            throw new IllegalArgumentException(
+                "A handling fee cannot be negative"
+            );
+        }
+        this.paymentMethodId = paymentMethodId;
+        this.gateway = gateway;
+        this.handlingAmount = handlingAmount;
+        updatedAt = now;
+    }
+
+    /** What the customer is asked to pay: the order plus the surcharge. */
+    public long payableAmount() {
+        return totalAmount + handlingAmount;
+    }
+
     public void complete(Instant now) {
         status = OrderStatus.COMPLETED;
         updatedAt = now;
@@ -264,6 +312,18 @@ public class ServiceOrder {
 
     public UUID getCouponId() {
         return couponId;
+    }
+
+    public UUID getPaymentMethodId() {
+        return paymentMethodId;
+    }
+
+    public String getGateway() {
+        return gateway;
+    }
+
+    public long getHandlingAmount() {
+        return handlingAmount;
     }
 
     /** The orders a later upgrade consumed, as a JSON array of ids. */

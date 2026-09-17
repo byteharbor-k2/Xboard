@@ -163,8 +163,29 @@ export type ServiceOrder = {
   surplusCredit: string;
   balanceAmount: string;
   totalAmount: string;
+  /** The surcharge the chosen payment method added, if one has been chosen. */
+  handlingAmount: string;
+  /** The method this order was checked out with, if it has been. */
+  paymentMethodId: string | null;
+  gateway: string | null;
   createdAt: string;
   paidAt: string | null;
+};
+
+/** One way a pending order can be paid for, priced for that order. */
+export type PaymentOption = {
+  id: string;
+  name: string;
+  icon: string | null;
+  handlingFee: string;
+  payableAmount: string;
+  currency: string;
+};
+
+/** Where to send the browser to pay. 1 is a URL, 0 is a QR payload. */
+export type PaymentRedirect = {
+  type: number;
+  data: string;
 };
 
 export type ManagedPlanPrice = {

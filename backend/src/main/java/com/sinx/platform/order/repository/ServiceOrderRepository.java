@@ -75,6 +75,9 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
         Collection<OrderStatus> statuses
     );
 
+    /** Whether a payment method has been used, and so has a history to keep. */
+    boolean existsByPaymentMethodId(UUID paymentMethodId);
+
     long countByUserIdAndPlanIdAndStatusIn(
         UUID userId,
         UUID planId,

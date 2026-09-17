@@ -14,6 +14,7 @@ import { AdminMachinesPage } from "./pages/AdminMachinesPage";
 import { AdminNodesPage } from "./pages/AdminNodesPage";
 import { AdminNodeGroupsPage } from "./pages/AdminNodeGroupsPage";
 import { AdminOrdersPage } from "./pages/AdminOrdersPage";
+import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
 import { AdminNodeRoutesPage } from "./pages/AdminNodeRoutesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
@@ -28,6 +29,7 @@ import { AccountOverviewPage } from "./pages/AccountOverviewPage";
 import { AccountProfilePage } from "./pages/AccountProfilePage";
 import { InvitationsPage } from "./pages/InvitationsPage";
 import { KnowledgeBasePage } from "./pages/KnowledgeBasePage";
+import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { PlansPage } from "./pages/PlansPage";
 import { PlanCheckoutPage } from "./pages/PlanCheckoutPage";
@@ -152,6 +154,15 @@ export function App() {
       </ProtectedRoute>
     );
   }
+  if (path.startsWith("/account/orders/")) {
+    return (
+      <ProtectedRoute>
+        <OrderDetailPage
+          tradeNo={decodeURIComponent(path.slice("/account/orders/".length))}
+        />
+      </ProtectedRoute>
+    );
+  }
   if (path === "/account/invitations") {
     return (
       <ProtectedRoute>
@@ -216,6 +227,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminOrdersPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/finance/payments") {
+    return (
+      <AdminProtectedRoute>
+        <AdminPaymentsPage />
       </AdminProtectedRoute>
     );
   }

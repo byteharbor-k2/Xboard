@@ -12,6 +12,8 @@ type Query {
         couponCode: String
     ): OrderQuote!
     viewerOrders: [ServiceOrder!]!
+    """The ways one pending order can be paid for, each priced for it."""
+    paymentOptions(tradeNo: String!): [PaymentOption!]!
 }
 
 type Mutation {
@@ -23,6 +25,29 @@ type Mutation {
         couponCode: String
     ): ServiceOrder!
     cancelOrder(tradeNo: String!): Boolean!
+    """
+    Chooses how an order is being paid for and answers where to send the
+    customer. Nothing is charged here - the browser is sent to the gateway, and
+    the order is opened when the gateway's callback arrives.
+    """
+    checkoutOrder(tradeNo: String!, paymentMethodId: ID!): PaymentRedirect!
+}
+
+type PaymentOption {
+    id: ID!
+    name: String!
+    icon: String
+    """What this method adds on top of the order's total."""
+    handlingFee: String!
+    """The order's total plus that fee: what will actually be charged."""
+    payableAmount: String!
+    currency: String!
+}
+
+type PaymentRedirect {
+    """1 is a URL to send the browser to; 0 is a payload to render as a QR code."""
+    type: Int!
+    data: String!
 }
 
 type SystemStatus {
@@ -162,6 +187,11 @@ type ServiceOrder {
     surplusCredit: String!
     balanceAmount: String!
     totalAmount: String!
+    """The surcharge the chosen payment method added, if one has been chosen."""
+    handlingAmount: String!
+    """The method this order was checked out with, if it has been."""
+    paymentMethodId: ID
+    gateway: String
     createdAt: String!
     paidAt: String
 }
