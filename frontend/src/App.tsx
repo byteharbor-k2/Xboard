@@ -13,6 +13,7 @@ import { AdminPlansPage } from "./pages/AdminPlansPage";
 import { AdminMachinesPage } from "./pages/AdminMachinesPage";
 import { AdminNodesPage } from "./pages/AdminNodesPage";
 import { AdminNodeGroupsPage } from "./pages/AdminNodeGroupsPage";
+import { AdminOrdersPage } from "./pages/AdminOrdersPage";
 import { AdminNodeRoutesPage } from "./pages/AdminNodeRoutesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
@@ -208,6 +209,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminPlansPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/finance/orders") {
+    return (
+      <AdminProtectedRoute>
+        <AdminOrdersPage />
       </AdminProtectedRoute>
     );
   }

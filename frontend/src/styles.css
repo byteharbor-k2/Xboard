@@ -4894,6 +4894,48 @@ button:disabled {
   border-bottom: 0;
 }
 
+.order-type-tag {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 99px;
+  color: #4b6275;
+  background: #edf3f6;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.order-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: -0.2px;
+}
+
+/* An order's status reads as a colour: only the settled one is good news. */
+.order-status-pending {
+  color: #8a5a06;
+  background: #fdf1d8;
+}
+
+.order-status-processing {
+  color: #1f5e8a;
+  background: #e3f1fb;
+}
+
+.order-status-completed {
+  color: #137156;
+  background: #e6f8f1;
+}
+
+.order-status-cancelled {
+  color: #6f8294;
+  background: #eef2f5;
+}
+
+.order-status-discounted {
+  color: #6b4a8a;
+  background: #f1e9f8;
+}
+
 .traffic-retention-notice {
   display: flex;
   gap: 10px;

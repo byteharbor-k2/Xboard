@@ -1,10 +1,44 @@
 import type {
   BillingPeriod,
   EntitlementState,
+  OrderStatus,
+  OrderType,
   TrafficResetPolicy
 } from "../types";
 
 type Locale = "zh-CN" | "en-US";
+
+const orderStatusLabels: Record<Locale, Record<OrderStatus, string>> = {
+  "zh-CN": {
+    PENDING: "待支付",
+    PROCESSING: "开通中",
+    COMPLETED: "已完成",
+    CANCELLED: "已取消",
+    DISCOUNTED: "已折抵"
+  },
+  "en-US": {
+    PENDING: "Awaiting payment",
+    PROCESSING: "Opening",
+    COMPLETED: "Completed",
+    CANCELLED: "Cancelled",
+    DISCOUNTED: "Offset against an upgrade"
+  }
+};
+
+const orderTypeLabels: Record<Locale, Record<OrderType, string>> = {
+  "zh-CN": {
+    NEW_PURCHASE: "新购",
+    RENEWAL: "续费",
+    UPGRADE: "升级",
+    RESET_TRAFFIC: "流量重置"
+  },
+  "en-US": {
+    NEW_PURCHASE: "New purchase",
+    RENEWAL: "Renewal",
+    UPGRADE: "Upgrade",
+    RESET_TRAFFIC: "Traffic reset"
+  }
+};
 
 const periodLabels: Record<Locale, Record<BillingPeriod, string>> = {
   "zh-CN": {
@@ -118,4 +152,18 @@ export function entitlementStateLabel(
   locale: Locale = "zh-CN"
 ): string {
   return stateLabels[locale][state];
+}
+
+export function orderStatusLabel(
+  status: OrderStatus,
+  locale: Locale = "zh-CN"
+): string {
+  return orderStatusLabels[locale][status];
+}
+
+export function orderTypeLabel(
+  type: OrderType,
+  locale: Locale = "zh-CN"
+): string {
+  return orderTypeLabels[locale][type];
 }

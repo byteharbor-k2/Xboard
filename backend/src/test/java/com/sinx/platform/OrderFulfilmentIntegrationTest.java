@@ -1,6 +1,7 @@
 package com.sinx.platform;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -114,6 +115,28 @@ class OrderFulfilmentIntegrationTest {
         // Placing an order hands over nothing: the subscription is the
         // settlement's to grant.
         assertThat(entitlementCount(planId)).isZero();
+
+        // What the administrator sees before settling: the original panel's
+        // field names and epoch-second timestamps, with the order's user and
+        // plan resolved from their lazy associations.
+        MvcResult listing = mockMvc.perform(get("/api/v2/admin/order/fetch")
+                .with(administrator())
+                .param("status", "PENDING"))
+            .andExpect(status().isOk())
+            .andReturn();
+        Map<String, Object> listed = listedOrder(listing, tradeNo);
+        assertThat(listed)
+            .containsEntry("email", "order-buyer@example.com")
+            .containsEntry("plan_name", "Starter")
+            .containsEntry("period", "MONTHLY")
+            .containsEntry("order_type", "NEW_PURCHASE")
+            .containsEntry("status", "PENDING")
+            .containsEntry("currency", "CNY")
+            .containsEntry("total_amount", 1200);
+        assertThat(listed.get("created_at")).isInstanceOf(Number.class);
+        // Nothing has settled it, so it carries no settlement at all.
+        assertThat(listed.get("paid_at")).isNull();
+        assertThat(listed.get("callback_no")).isNull();
 
         mockMvc.perform(post("/api/v2/admin/order/paid")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -304,6 +327,25 @@ class OrderFulfilmentIntegrationTest {
             amountMinor
         );
         return planId;
+    }
+
+    /**
+     * Picks one order out of an admin listing. The test class shares its
+     * database across methods, so the listing is matched on the trade number
+     * rather than on position.
+     */
+    private Map<String, Object> listedOrder(MvcResult listing, String tradeNo)
+        throws Exception {
+        List<Map<String, Object>> rows = JsonPath.read(
+            listing.getResponse().getContentAsString(),
+            "$.data"
+        );
+        return rows.stream()
+            .filter((row) -> tradeNo.equals(row.get("trade_no")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError(
+                "No order " + tradeNo + " in " + rows
+            ));
     }
 
     private Map<String, Object> orderRow(String tradeNo) {

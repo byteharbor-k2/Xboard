@@ -416,7 +416,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                 <p>{text.placedHint.replace("%s", placedTradeNo)}</p>
                 <button
                   className="checkout-submit"
-                  onClick={() => navigate("/orders")}
+                  onClick={() => navigate("/account/orders")}
                   type="button"
                 >
                   {text.viewOrders}
