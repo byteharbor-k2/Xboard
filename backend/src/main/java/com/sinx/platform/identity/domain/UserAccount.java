@@ -56,6 +56,17 @@ public class UserAccount {
     @Column(name = "node_user_id", insertable = false, updatable = false)
     private Long nodeUserId;
 
+    /**
+     * What the customer's subscription link is addressed by.
+     *
+     * Deliberately not the node identity above: this token only unlocks the
+     * panel's own config output for whatever the entitlement already permits.
+     * It is held in the clear so the account page can show the link at any
+     * time, which is the whole point of it - see the V20 migration.
+     */
+    @Column(name = "subscription_token", length = 64, nullable = false)
+    private String subscriptionToken;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -77,12 +88,18 @@ public class UserAccount {
     protected UserAccount() {
     }
 
+    /**
+     * An account is born with a working subscription link: the token is a
+     * constructor argument rather than something a caller has to remember to
+     * set afterwards, so no path can persist an account without one.
+     */
     public static UserAccount register(
         UUID id,
         String email,
         String passwordHash,
         String displayName,
         Role defaultRole,
+        String subscriptionToken,
         Instant now
     ) {
         UserAccount user = new UserAccount();
@@ -91,6 +108,7 @@ public class UserAccount {
         user.passwordHash = passwordHash;
         user.displayName = displayName;
         user.status = UserStatus.ACTIVE;
+        user.subscriptionToken = requireSubscriptionToken(subscriptionToken);
         user.createdAt = now;
         user.updatedAt = now;
         user.roles.add(defaultRole);
@@ -166,6 +184,31 @@ public class UserAccount {
 
     public Long getNodeUserId() {
         return nodeUserId;
+    }
+
+    public String getSubscriptionToken() {
+        return subscriptionToken;
+    }
+
+    /**
+     * Replaces the subscription link's credential, for a new account and for a
+     * customer who wants the link they handed around to stop working.
+     *
+     * One method for both, because there is nothing else to the token: it has
+     * no expiry of its own, and rotation is the only operation it supports.
+     */
+    public void rotateSubscriptionToken(String token, Instant now) {
+        this.subscriptionToken = requireSubscriptionToken(token);
+        this.updatedAt = now;
+    }
+
+    private static String requireSubscriptionToken(String token) {
+        if (token == null || token.isBlank()) {
+            throw new IllegalArgumentException(
+                "A subscription token cannot be blank"
+            );
+        }
+        return token;
     }
 
     public Instant getUpdatedAt() {

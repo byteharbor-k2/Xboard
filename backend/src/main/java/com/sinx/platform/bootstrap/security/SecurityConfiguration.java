@@ -95,6 +95,10 @@ public class SecurityConfiguration {
                     "/api/v2/server/user",
                     "/api/v2/server/report",
                     "/api/v1/guest/payment/notify/**",
+                    // The subscription endpoint carries its own credential in
+                    // the path; there is no session to require and no authority
+                    // it could be checked against.
+                    "/sub/**",
                     "/api/v1/server/UniProxy/**",
                     "/ws",
                     "/ws/**"

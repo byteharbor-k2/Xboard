@@ -2,6 +2,7 @@ package com.sinx.platform.subscription.graphql;
 
 import java.util.UUID;
 
+import org.springframework.graphql.data.method.annotation.MutationMapping;
 import org.springframework.graphql.data.method.annotation.QueryMapping;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -27,6 +28,22 @@ public class SubscriptionController {
     ) {
         return subscriptionService
             .currentEntitlement(UUID.fromString(jwt.getSubject()))
+            .orElse(null);
+    }
+
+    @QueryMapping
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
+    String viewerSubscriptionUrl(@AuthenticationPrincipal Jwt jwt) {
+        return subscriptionService
+            .subscriptionUrl(UUID.fromString(jwt.getSubject()))
+            .orElse(null);
+    }
+
+    @MutationMapping
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
+    String rotateSubscriptionCredential(@AuthenticationPrincipal Jwt jwt) {
+        return subscriptionService
+            .rotateSubscriptionCredential(UUID.fromString(jwt.getSubject()))
             .orElse(null);
     }
 }

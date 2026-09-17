@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 
 import { AppLink } from "../components/AppLink";
 import { AppShell } from "../components/AppShell";
+import { ConfirmBar } from "../components/ConfirmBar";
+import { QrCode } from "../components/QrCode";
 import {
   AnnouncementCarousel,
   type PortalAnnouncement
@@ -66,6 +68,15 @@ const copy = {
     deviceUnit: "台",
     empty:
       "当前账户还没有订阅权益，开通套餐后这里会显示流量和有效期。",
+    subscriptionLink: "订阅链接",
+    subscriptionLinkHint:
+      "把链接或二维码导入客户端即可获取节点配置。链接本身就是凭据，请勿分享。",
+    subscriptionLinkFailed: "订阅链接加载失败",
+    copyLink: "复制链接",
+    copiedLink: "已复制",
+    rotateLink: "重置链接",
+    rotateConfirm: "重置后旧链接立即失效，已经导入的客户端需要重新导入。确定继续吗？",
+    rotateFailed: "订阅链接重置失败",
     networkTitle: "全球节点网络",
     networkDescription: "从地图查看服务覆盖与节点状态。",
     availableNodes: "可用节点",
@@ -99,6 +110,16 @@ const copy = {
     deviceUnit: "devices",
     empty:
       "This account has no subscription benefits yet. Data and validity will appear after you activate a plan.",
+    subscriptionLink: "Subscription link",
+    subscriptionLinkHint:
+      "Import the link or the QR code into your client to fetch your node config. The link is the credential itself — do not share it.",
+    subscriptionLinkFailed: "Subscription link could not be loaded",
+    copyLink: "Copy link",
+    copiedLink: "Copied",
+    rotateLink: "Reset link",
+    rotateConfirm:
+      "The old link stops working immediately and clients that already imported it must import the new one. Continue?",
+    rotateFailed: "The subscription link could not be reset",
     networkTitle: "Global node network",
     networkDescription: "Explore service coverage and node availability.",
     availableNodes: "Available nodes",
@@ -119,6 +140,10 @@ export function AccountOverviewPage() {
   const [entitlement, setEntitlement] =
     useState<SubscriptionEntitlement | null>(null);
   const [entitlementLoading, setEntitlementLoading] = useState(true);
+  const [subscriptionUrl, setSubscriptionUrl] = useState("");
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [confirmRotate, setConfirmRotate] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
     networkPreviewNodes[0]
   );
@@ -170,9 +195,13 @@ export function AccountOverviewPage() {
 
   useEffect(() => {
     let active = true;
-    graphQl<{ viewerEntitlement: SubscriptionEntitlement | null }>(
+    graphQl<{
+      viewerEntitlement: SubscriptionEntitlement | null;
+      viewerSubscriptionUrl: string | null;
+    }>(
       accessToken,
       `query AccountSnapshot {
+        viewerSubscriptionUrl
         viewerEntitlement {
           id
           planId
@@ -196,6 +225,7 @@ export function AccountOverviewPage() {
       .then((result) => {
         if (active) {
           setEntitlement(result.viewerEntitlement);
+          setSubscriptionUrl(result.viewerSubscriptionUrl ?? "");
         }
       })
       .catch((caught) => {
@@ -216,6 +246,48 @@ export function AccountOverviewPage() {
       active = false;
     };
   }, [accessToken]);
+
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(subscriptionUrl);
+    } catch {
+      // Clipboard access is refused outside a secure context and in some
+      // browsers even on a click. Falling back to a hidden selection keeps the
+      // button working where the page is served over plain HTTP.
+      const input = document.createElement("textarea");
+      input.value = subscriptionUrl;
+      input.style.position = "fixed";
+      input.style.opacity = "0";
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      input.remove();
+    }
+    setLinkCopied(true);
+    window.setTimeout(() => setLinkCopied(false), 1_500);
+  }
+
+  async function rotateLink() {
+    setLinkBusy(true);
+    setError("");
+    try {
+      const result = await graphQl<{
+        rotateSubscriptionCredential: string | null;
+      }>(
+        accessToken,
+        `mutation RotateSubscriptionCredential {
+          rotateSubscriptionCredential
+        }`
+      );
+      if (result.rotateSubscriptionCredential) {
+        setSubscriptionUrl(result.rotateSubscriptionCredential);
+      }
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : labels.rotateFailed);
+    } finally {
+      setLinkBusy(false);
+    }
+  }
 
   return (
     <AppShell>
@@ -321,6 +393,58 @@ export function AccountOverviewPage() {
           )}
           {!entitlementLoading && !entitlement && (
             <p className="subscription-empty-copy">{labels.empty}</p>
+          )}
+          {subscriptionUrl && (
+            <div className="subscription-link">
+              <div className="subscription-link-heading">
+                <span>{labels.subscriptionLink}</span>
+                <button
+                  className="secondary-button"
+                  disabled={linkBusy}
+                  onClick={() => setConfirmRotate(true)}
+                  type="button"
+                >
+                  {labels.rotateLink}
+                </button>
+              </div>
+              <p className="muted">{labels.subscriptionLinkHint}</p>
+              <div className="subscription-link-body">
+                <div className="subscription-link-row">
+                  <code className="subscription-link-value">
+                    {subscriptionUrl}
+                  </code>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void copyLink()}
+                    type="button"
+                  >
+                    {linkCopied ? labels.copiedLink : labels.copyLink}
+                  </button>
+                </div>
+                <QrCode
+                  label={labels.subscriptionLink}
+                  size={148}
+                  value={subscriptionUrl}
+                />
+              </div>
+            </div>
+          )}
+          {confirmRotate && (
+            <ConfirmBar
+              busy={linkBusy}
+              language={language}
+              onCancel={() => setConfirmRotate(false)}
+              onConfirm={() => {
+                setConfirmRotate(false);
+                void rotateLink();
+              }}
+              request={{
+                message: labels.rotateConfirm,
+                confirmLabel: labels.rotateLink,
+                danger: true,
+                run: rotateLink
+              }}
+            />
           )}
         </section>
         <section className="network-atlas-card">

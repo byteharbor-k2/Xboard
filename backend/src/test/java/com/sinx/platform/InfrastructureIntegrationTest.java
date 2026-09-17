@@ -897,15 +897,16 @@ class InfrastructureIntegrationTest {
             """
             INSERT INTO users (
                 id, email, password_hash, display_name, status,
-                created_at, updated_at
-            ) VALUES (?::uuid, ?, ?, ?, 'ACTIVE', ?, ?)
+                created_at, updated_at, subscription_token
+            ) VALUES (?::uuid, ?, ?, ?, 'ACTIVE', ?, ?, ?)
             """,
             inviterId.toString(),
             "inviter@example.com",
             "not-used-for-login",
             "Inviter",
             Timestamp.from(now),
-            Timestamp.from(now)
+            Timestamp.from(now),
+            inviterId.toString()
         );
         jdbcTemplate.update(
             """

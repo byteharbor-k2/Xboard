@@ -115,6 +115,7 @@ public class IdentityService {
             passwordEncoder.encode(password),
             displayName.trim(),
             defaultRole,
+            tokenService.newOpaqueToken(),
             now
         );
         if (emailVerified) {

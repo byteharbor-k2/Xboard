@@ -76,6 +76,7 @@ class OrderServicePlacementTest {
             "hash",
             "User",
             mock(Role.class),
+            "subscription-token",
             NOW
         );
         plan = plan();

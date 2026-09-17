@@ -19,7 +19,16 @@ import jakarta.persistence.LockModeType;
 public interface SubscriptionEntitlementRepository
     extends JpaRepository<SubscriptionEntitlement, UUID> {
 
-    @EntityGraph(attributePaths = "plan")
+    /**
+     * The account's entitlement, with everything needed to judge and serve it.
+     *
+     * The user is fetched because neither the account's own availability nor the
+     * group it resolves to is readable without it, and this panel runs with
+     * {@code open-in-view} off - a caller that loaded this entity in one
+     * transaction and read it in another would otherwise get a proxy that cannot
+     * be initialised.
+     */
+    @EntityGraph(attributePaths = {"user", "plan"})
     Optional<SubscriptionEntitlement> findByUserId(UUID userId);
 
     @EntityGraph(attributePaths = {"user", "plan"})

@@ -5,6 +5,8 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -27,8 +29,18 @@ import com.sinx.platform.shared.web.ApiProblemException;
 @Transactional(readOnly = true)
 public class PlatformConfigurationService {
 
+    private static final String APP_NAME_KEY = "site.app_name";
     private static final String APP_URL_KEY = "site.app_url";
+    private static final String SUBSCRIBE_URL_KEY = "site.subscribe_url";
     private static final String TERMS_URL_KEY = "site.tos_url";
+
+    /**
+     * What the site is called before anyone has said otherwise. It reaches the
+     * customer inside their config - as the name of the group they pick a node
+     * from, and as the profile title their client shows - so it cannot be left
+     * empty and substituted as a blank.
+     */
+    private static final String DEFAULT_APP_NAME = "SinX Cloud";
     private static final String EMAIL_ALLOWLIST_ENABLED_KEY =
         "safe.email_whitelist_enable";
     private static final String EMAIL_ALLOWLIST_SUFFIXES_KEY =
@@ -78,21 +90,26 @@ public class PlatformConfigurationService {
     private final PlatformSettingRepository settings;
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
+    private final SubscriptionTemplates templates;
 
     public PlatformConfigurationService(
         PlatformSettingRepository settings,
         Clock clock,
-        ApplicationEventPublisher eventPublisher
+        ApplicationEventPublisher eventPublisher,
+        SubscriptionTemplates templates
     ) {
         this.settings = settings;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
+        this.templates = templates;
     }
 
     public Map<String, Object> sectionSettings(String section) {
         return switch (section) {
             case "site" -> Map.of(
+                "app_name", appName(),
                 "app_url", appUrl().orElse(""),
+                "subscribe_url", subscribeUrl().orElse(""),
                 "tos_url", termsUrl().orElse("")
             );
             case "safe" -> {
@@ -158,8 +175,30 @@ public class PlatformConfigurationService {
                     "server_ws_url", node.webSocketUrl() == null ? "" : node.webSocketUrl()
                 );
             }
+            case "subscribe_template" -> {
+                // The effective template, not the stored one: an administrator
+                // editing this section is looking at what is being served, and
+                // a blank box would otherwise hide the default they are
+                // actually shipping.
+                Map<String, Object> templateSettings = new LinkedHashMap<>();
+                for (SubscriptionTemplates.Kind kind
+                    : SubscriptionTemplates.Kind.values()) {
+                    templateSettings.put(
+                        kind.settingKey(),
+                        subscriptionTemplate(kind)
+                    );
+                }
+                yield Map.copyOf(templateSettings);
+            }
             default -> throw unsupportedSection();
         };
+    }
+
+    /**
+     * The template a renderer should use, whether or not one was stored.
+     */
+    public String subscriptionTemplate(SubscriptionTemplates.Kind kind) {
+        return templates.effective(kind, read(kind.settingKey()).orElse(null));
     }
 
     @Transactional
@@ -173,11 +212,17 @@ public class PlatformConfigurationService {
         Map.Entry<String, Object> entry = values.entrySet()
             .iterator()
             .next();
+        if ("subscribe_template".equals(section)) {
+            saveSubscriptionTemplate(entry.getKey(), entry.getValue());
+            return;
+        }
         NodeCommunicationSettings before = "server".equals(section)
             ? nodeCommunicationSettings()
             : null;
         switch (section + "." + entry.getKey()) {
+            case APP_NAME_KEY -> saveAppName(entry.getValue());
             case APP_URL_KEY -> saveAppUrl(entry.getValue());
+            case SUBSCRIBE_URL_KEY -> saveSubscribeUrls(entry.getValue());
             case TERMS_URL_KEY -> saveTermsUrl(entry.getValue());
             case EMAIL_ALLOWLIST_ENABLED_KEY ->
                 saveEmailAllowlistEnabled(entry.getValue());
@@ -243,6 +288,31 @@ public class PlatformConfigurationService {
         if (before != null) {
             publishNodeCommunicationChange(before, nodeCommunicationSettings());
         }
+    }
+
+    public String appName() {
+        return read(APP_NAME_KEY)
+            .filter(value -> !value.isBlank())
+            .orElse(DEFAULT_APP_NAME);
+    }
+
+    /**
+     * Addresses the subscription link may be built on. A list because a site
+     * that fronts several entry points wants one of them to be the one the
+     * customer copies, and because a link handed out once has to keep working
+     * from wherever it was handed out.
+     */
+    public List<String> subscribeUrls() {
+        return read(SUBSCRIBE_URL_KEY)
+            .stream()
+            .flatMap(value -> Arrays.stream(value.split(",")))
+            .map(String::trim)
+            .filter(value -> !value.isBlank())
+            .toList();
+    }
+
+    public Optional<String> subscribeUrl() {
+        return subscribeUrls().stream().findFirst();
     }
 
     public Optional<String> termsUrl() {
@@ -355,6 +425,75 @@ public class PlatformConfigurationService {
         store(TERMS_URL_KEY, normalized);
     }
 
+    private void saveAppName(Object rawValue) {
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            settings.deleteById(APP_NAME_KEY);
+            return;
+        }
+        if (normalized.length() > 120) {
+            throw invalidSettingValue();
+        }
+        store(APP_NAME_KEY, normalized);
+    }
+
+    private void saveSubscribeUrls(Object rawValue) {
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        List<String> candidates = Arrays.stream(value.split(","))
+            .map(String::trim)
+            .filter(entry -> !entry.isBlank())
+            .toList();
+        if (candidates.isEmpty()) {
+            settings.deleteById(SUBSCRIBE_URL_KEY);
+            return;
+        }
+        if (candidates.size() > 10) {
+            throw invalidSettingValue();
+        }
+        List<String> urls = new ArrayList<>(candidates.size());
+        for (String candidate : candidates) {
+            urls.add(validateSubscribeBase(candidate));
+        }
+        store(SUBSCRIBE_URL_KEY, String.join(",", urls));
+    }
+
+    /**
+     * A base a subscription path gets appended to, so it has to be a scheme and
+     * a host and nothing else - a query or a fragment on it would end up in the
+     * middle of the link.
+     */
+    private String validateSubscribeBase(String candidate) {
+        String normalized = candidate;
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.length() > 2048) {
+            throw invalidSettingValue();
+        }
+        try {
+            URI uri = URI.create(normalized);
+            String scheme = uri.getScheme();
+            if (
+                scheme == null
+                    || (!scheme.equalsIgnoreCase("https")
+                        && !scheme.equalsIgnoreCase("http"))
+                    || uri.getHost() == null
+                    || uri.getQuery() != null
+                    || uri.getFragment() != null
+            ) {
+                throw invalidSettingValue();
+            }
+        } catch (IllegalArgumentException exception) {
+            throw invalidSettingValue();
+        }
+        return normalized;
+    }
+
     private void saveAppUrl(Object rawValue) {
         if (!(rawValue instanceof String value)) {
             throw invalidAppUrl();
@@ -409,6 +548,25 @@ public class PlatformConfigurationService {
             throw invalidEmailDomainPolicy();
         }
         return candidate;
+    }
+
+    private void saveSubscriptionTemplate(String key, Object rawValue) {
+        SubscriptionTemplates.Kind kind = SubscriptionTemplates.Kind
+            .bySettingKey(key);
+        if (kind == null) {
+            throw unsupportedSetting();
+        }
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        if (value.isBlank()) {
+            // Blank is how an administrator restores the bundled default, so
+            // there is nothing to validate and nothing to keep.
+            settings.deleteById(kind.settingKey());
+            return;
+        }
+        templates.validate(kind, value);
+        store(kind.settingKey(), value);
     }
 
     private void saveBoolean(String key, Object rawValue) {

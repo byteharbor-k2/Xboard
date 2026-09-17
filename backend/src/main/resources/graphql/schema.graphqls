@@ -5,6 +5,11 @@ type Query {
     offerCatalog: [PlanOffer!]!
     planOffer(id: ID!): PlanOffer
     viewerEntitlement: SubscriptionEntitlement
+    """
+    The address this account's client subscribes to. It carries the account's
+    credential, so it is only ever returned to the account itself.
+    """
+    viewerSubscriptionUrl: String
     """What a purchase would cost, itemised. Never mutates anything."""
     orderQuote(
         planId: ID!
@@ -18,6 +23,12 @@ type Query {
 
 type Mutation {
     revokeDeviceSession(id: ID!): Boolean!
+    """
+    Retires the current subscription link and answers with its replacement. The
+    old address stops working as soon as this returns, which is the only reason
+    to call it.
+    """
+    rotateSubscriptionCredential: String
     updateViewerProfile(displayName: String!): Viewer!
     placeOrder(
         planId: ID!

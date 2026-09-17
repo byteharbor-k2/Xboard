@@ -65,6 +65,12 @@ sinx:
     # On a deployment behind Cloudflare or a tunnel, that is the public hostname,
     # not the origin.
     public-base-url: ${PAYMENT_PUBLIC_BASE_URL:${PUBLIC_BASE_URL:http://localhost:5173}}
+  subscription:
+    # Where the links handed to customers' clients point. An administrator who
+    # sets a subscription address in the site settings overrides this; it is the
+    # fallback, and the seam for serving subscriptions from a hostname that is
+    # not the site's - so it has to be reachable from the public internet.
+    public-base-url: ${SUBSCRIPTION_PUBLIC_BASE_URL:${PUBLIC_BASE_URL:http://localhost:5173}}
   node:
     billing-time-zone: ${NODE_BILLING_TIME_ZONE:Asia/Shanghai}
   security:

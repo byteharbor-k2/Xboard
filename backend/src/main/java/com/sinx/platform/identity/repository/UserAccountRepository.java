@@ -28,6 +28,13 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     long countByServerGroupId(Long serverGroupId);
 
     /**
+     * Resolves the account behind a subscription link. The token is the only
+     * thing the entry point has to go on, so this is the whole lookup.
+     */
+    @EntityGraph(attributePaths = "roles")
+    Optional<UserAccount> findBySubscriptionToken(String subscriptionToken);
+
+    /**
      * Reads an account for a balance or subscription change under a row lock,
      * as the original panel does before opening an order.
      */

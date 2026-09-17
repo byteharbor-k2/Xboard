@@ -1,0 +1,211 @@
+# Xboard - Mihomo (Clash Meta) 订阅模板 v2
+# 基于 net4people/bbs#641 讨论结论 + 实测修复
+#
+# v2 修复记录（2026-08-31）：
+# 1. [DNS泄漏] 移除 fallback/fallback-filter：fake-ip 模式下国外域名由代理远端解析，
+#    本地 fallback 的境外 DoH(Cloudflare/Google) 查询是纯泄漏向量（明文暴露真实IP与
+#    DoH端点的关联），且 tls://8.8.8.8:853 在国内被墙拖慢解析
+# 2. [分流错误] Apple 推送(time.apple.com/courier.push.apple.com)、iCloud(云上贵州)、
+#    TestFlight 被 geolocation-!cn 误送代理 → 增加 apple-cn 规则集 + 显式直连规则
+# 3. [分流错误] Microsoft/Steam 中国 CDN 下载走代理 → 增加 microsoft@cn / steam@cn
+# 4. [NTP] fake-ip-filter 补全 time.* / ntp.* 系列，时间同步不再经代理
+# 5. [嗅探] 增加 sniffer 段（非 Verge 客户端也需要），QUIC/纯IP连接可正确匹配域名规则
+#
+# 分流逻辑：广告拦截 → 局域网 → 在华外企服务直连 → 国内直连 → 国外代理 → 兜底代理
+
+mixed-port: 7890
+allow-lan: true
+bind-address: "*"
+mode: rule
+log-level: info
+ipv6: false
+external-controller: 127.0.0.1:9090
+unified-delay: true
+tcp-concurrent: true
+keep-alive-interval: 15
+
+sniffer:
+  enable: true
+  force-dns-mapping: true
+  parse-pure-ip: true
+  sniff:
+    HTTP:
+      ports: [80, 8080-8880]
+      override-destination: false
+    TLS:
+      ports: [443, 8443]
+    QUIC:
+      ports: [443, 8443]
+
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  use-hosts: true
+  default-nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+  # 仅国内 DoH。fake-ip 模式下：
+  #   - 国外域名 -> fake-ip -> 按域名规则送代理 -> 远端解析（本地零查询，零泄漏）
+  #   - 国内域名/直连域名 -> 本地解析（国内 DoH，快速可靠）
+  #   - 代理节点服务器域名 -> proxy-server-nameserver（国内 DoH）
+  nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  proxy-server-nameserver:
+    - https://doh.pub/dns-query
+    - https://dns.alidns.com/dns-query
+  fake-ip-filter:
+    - "*.lan"
+    - "*.local"
+    - "*.localhost"
+    - "*.test"
+    # NTP 时间同步（直连，不经过代理）
+    - "time.*.com"
+    - "time.*.gov"
+    - "time.*.edu.cn"
+    - "time.*.apple.com"
+    - "time1.*.com"
+    - "time2.*.com"
+    - "time3.*.com"
+    - "time4.*.com"
+    - "time5.*.com"
+    - "time6.*.com"
+    - "time7.*.com"
+    - "ntp.*.com"
+    - "ntp1.*.com"
+    - "ntp2.*.com"
+    - "ntp3.*.com"
+    - "ntp4.*.com"
+    - "ntp5.*.com"
+    - "ntp6.*.com"
+    - "ntp7.*.com"
+    - "*.time.edu.cn"
+    - "+.pool.ntp.org"
+    - "time1.cloud.tencent.com"
+    - "time.windows.com"
+    # WebRTC / 游戏主机
+    - "*.stun.*.*"
+    - "*.stun.*.*.*"
+    - "*.stun.*.*.*.*"
+    - "*.srv.nintendo.net"
+    - "+.stun.playstation.net"
+    - "xbox.*.*.microsoft.com"
+    - "*.*.xboxlive.com"
+    # 网络连通性检测
+    - "+.msftncsi.com"
+    - "+.msftconnecttest.com"
+    # 其他
+    - "localhost.ptlogin2.qq.com"
+    - "+.market.xiaomi.com"
+
+rule-providers:
+  # 反广告（217heidai lite：仅国内广告域名，约 5000 条，8 小时更新）
+  ads:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/217heidai/adblockfilters/main/rules/adblockmihomolite.mrs"
+    path: ./ruleset/ads.mrs
+    format: mrs
+    interval: 86400
+  # Apple 中国服务（App Store 下载/OCSP/地图/Siri 等 164 域名）
+  apple-cn:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/apple-cn.mrs"
+    path: ./ruleset/apple-cn.mrs
+    format: mrs
+    interval: 86400
+  # Microsoft 中国（Office 365 中国版等 188 域名）
+  microsoft-cn:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/microsoft@cn.mrs"
+    path: ./ruleset/microsoft-cn.mrs
+    format: mrs
+    interval: 86400
+  # Steam 中国 CDN（游戏下载）
+  steam-cn:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/steam@cn.mrs"
+    path: ./ruleset/steam-cn.mrs
+    format: mrs
+    interval: 86400
+  # 国内域名（ChinaMax，11W+）
+  geosite-cn:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/cn.mrs"
+    path: ./ruleset/geosite-cn.mrs
+    format: mrs
+    interval: 86400
+  # 国外域名
+  geolocation-!cn:
+    type: http
+    behavior: domain
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geosite/geolocation-!cn.mrs"
+    path: ./ruleset/geolocation-!cn.mrs
+    format: mrs
+    interval: 86400
+  # 国内 IP
+  geoip-cn:
+    type: http
+    behavior: ipcidr
+    url: "https://raw.githubusercontent.com/MetaCubeX/meta-rules-dat/meta/geo/geoip/cn.mrs"
+    path: ./ruleset/geoip-cn.mrs
+    format: mrs
+    interval: 86400
+
+proxies:
+
+proxy-groups:
+  # 主选择组（Xboard 会用站点名替换 $app_name）
+  - { name: "$app_name", type: select, proxies: ["🚀 自动选择", "♻️ 故障转移", "DIRECT"] }
+  # 延迟测速自动选择（proxies 留空 = Xboard 自动填入全部节点）
+  - { name: "🚀 自动选择", type: url-test, proxies: [], url: "http://www.gstatic.com/generate_204", interval: 300, tolerance: 50 }
+  # 故障转移
+  - { name: "♻️ 故障转移", type: fallback, proxies: [], url: "http://www.gstatic.com/generate_204", interval: 300 }
+  # 地区分组（Xboard 会用正则匹配节点名，请按实际节点命名调整）
+  - { name: "🇭🇰 香港", type: select, proxies: ["/香港|HK|HongKong|Hong Kong/i"] }
+  - { name: "🇹🇼 台湾", type: select, proxies: ["/台湾|TW|Taiwan/i"] }
+  - { name: "🇯🇵 日本", type: select, proxies: ["/日本|JP|Japan/i"] }
+  - { name: "🇸🇬 新加坡", type: select, proxies: ["/新加坡|SG|Singapore/i"] }
+  - { name: "🇺🇸 美国", type: select, proxies: ["/美国|US|USA|United States/i"] }
+
+rules:
+  # 广告拦截
+  - RULE-SET,ads,REJECT
+  # 局域网 / 保留地址
+  - DOMAIN-SUFFIX,local,DIRECT
+  - DOMAIN-SUFFIX,localhost,DIRECT
+  - IP-CIDR,127.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,10.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,172.16.0.0/12,DIRECT,no-resolve
+  - IP-CIDR,192.168.0.0/16,DIRECT,no-resolve
+  - IP-CIDR,100.64.0.0/10,DIRECT,no-resolve
+  - IP-CIDR,17.0.0.0/8,DIRECT,no-resolve
+  - IP-CIDR,198.18.0.0/16,DIRECT,no-resolve
+  - IP-CIDR6,::1/128,DIRECT,no-resolve
+  - IP-CIDR6,fc00::/7,DIRECT,no-resolve
+  - IP-CIDR6,fe80::/10,DIRECT,no-resolve
+  # ===== 在华外企服务直连（必须放在 geolocation-!cn 之前，否则会被送代理）=====
+  # Apple 中国（规则集 + 补充：apple-cn 不含推送/NTP/iCloud/TestFlight）
+  - RULE-SET,apple-cn,DIRECT
+  - DOMAIN-SUFFIX,push.apple.com,DIRECT
+  - DOMAIN-SUFFIX,push-apple.com.akadns.net,DIRECT
+  - DOMAIN-SUFFIX,time.apple.com,DIRECT
+  - DOMAIN-SUFFIX,testflight.apple.com,DIRECT
+  - DOMAIN-SUFFIX,icloud.com,DIRECT
+  - DOMAIN-SUFFIX,icloud-content.com,DIRECT
+  # Microsoft / Steam 中国 CDN
+  - RULE-SET,microsoft-cn,DIRECT
+  - RULE-SET,steam-cn,DIRECT
+  # ===== 国内直连 =====
+  - RULE-SET,geosite-cn,DIRECT
+  - RULE-SET,geoip-cn,DIRECT,no-resolve
+  # ===== 国外走代理 =====
+  - RULE-SET,geolocation-!cn,$app_name
+  # 兜底走代理
+  - MATCH,$app_name

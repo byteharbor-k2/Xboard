@@ -21,7 +21,8 @@ class SubscriptionEntitlementTest {
     void explicitUserGroupOverridesThePlanGroupAndPlanIsTheFallback() {
         Instant now = Instant.parse("2026-08-06T03:00:00Z");
         UserAccount user = UserAccount.register(
-            UUID.randomUUID(), "user@example.test", "hash", "User", mock(Role.class), now
+            UUID.randomUUID(), "user@example.test", "hash", "User", mock(Role.class),
+            "subscription-token", now
         );
         ServicePlan plan = ServicePlan.create(
             UUID.randomUUID(), "Basic", "Basic plan", PlanType.SUBSCRIPTION,

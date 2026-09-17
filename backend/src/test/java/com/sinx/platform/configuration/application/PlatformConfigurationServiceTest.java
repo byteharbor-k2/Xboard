@@ -27,6 +27,8 @@ import com.sinx.platform.configuration.domain.PlatformSetting;
 import com.sinx.platform.configuration.repository.PlatformSettingRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 
+import tools.jackson.databind.ObjectMapper;
+
 class PlatformConfigurationServiceTest {
 
     private static final Clock CLOCK = Clock.fixed(
@@ -57,7 +59,12 @@ class PlatformConfigurationServiceTest {
             stored.remove(invocation.getArgument(0));
             return null;
         }).when(repository).deleteById(anyString());
-        service = new PlatformConfigurationService(repository, CLOCK, events);
+        service = new PlatformConfigurationService(
+            repository,
+            CLOCK,
+            events,
+            new SubscriptionTemplates(new ObjectMapper())
+        );
     }
 
     @Test
