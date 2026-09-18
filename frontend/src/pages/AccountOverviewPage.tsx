@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 
 import { AppLink } from "../components/AppLink";
 import { AppShell } from "../components/AppShell";
-import { ConfirmBar } from "../components/ConfirmBar";
 import { SubscriptionClientDialog } from "../components/SubscriptionClientDialog";
 import {
   AnnouncementCarousel,
@@ -68,14 +67,10 @@ const copy = {
     deviceUnit: "台",
     empty:
       "当前账户还没有订阅权益，开通套餐后这里会显示流量和有效期。",
-    subscriptionLink: "订阅链接",
-    subscriptionLinkHint:
+    quickStart: "快速开始使用",
+    quickStartHint:
       "订阅地址不再直接显示。选择客户端后复制链接或扫码导入；链接本身就是凭据，请勿分享。",
-    subscriptionLinkFailed: "订阅链接加载失败",
-    chooseClient: "复制订阅链接",
-    rotateLink: "重置链接",
-    rotateConfirm: "重置后旧链接立即失效，已经导入的客户端需要重新导入。确定继续吗？",
-    rotateFailed: "订阅链接重置失败",
+    chooseClient: "订阅导入",
     networkTitle: "全球节点网络",
     networkDescription: "从地图查看服务覆盖与节点状态。",
     availableNodes: "可用节点",
@@ -109,15 +104,10 @@ const copy = {
     deviceUnit: "devices",
     empty:
       "This account has no subscription benefits yet. Data and validity will appear after you activate a plan.",
-    subscriptionLink: "Subscription link",
-    subscriptionLinkHint:
-      "The address is no longer shown on the page. Choose your client, then copy the link or scan its QR code. The link is the credential itself — do not share it.",
-    subscriptionLinkFailed: "Subscription link could not be loaded",
-    chooseClient: "Copy subscription link",
-    rotateLink: "Reset link",
-    rotateConfirm:
-      "The old link stops working immediately and clients that already imported it must import the new one. Continue?",
-    rotateFailed: "The subscription link could not be reset",
+    quickStart: "Quick start",
+    quickStartHint:
+      "The address is no longer shown here. Choose your client, then copy the link or scan its QR code. The link is the credential itself — do not share it.",
+    chooseClient: "Import subscription",
     networkTitle: "Global node network",
     networkDescription: "Explore service coverage and node availability.",
     availableNodes: "Available nodes",
@@ -141,8 +131,6 @@ export function AccountOverviewPage() {
   const [subscriptionUrl, setSubscriptionUrl] = useState("");
   const [siteName, setSiteName] = useState("");
   const [clientChooserOpen, setClientChooserOpen] = useState(false);
-  const [linkBusy, setLinkBusy] = useState(false);
-  const [confirmRotate, setConfirmRotate] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
     networkPreviewNodes[0]
   );
@@ -248,28 +236,6 @@ export function AccountOverviewPage() {
       active = false;
     };
   }, [accessToken]);
-
-  async function rotateLink() {
-    setLinkBusy(true);
-    setError("");
-    try {
-      const result = await graphQl<{
-        rotateSubscriptionCredential: string | null;
-      }>(
-        accessToken,
-        `mutation RotateSubscriptionCredential {
-          rotateSubscriptionCredential
-        }`
-      );
-      if (result.rotateSubscriptionCredential) {
-        setSubscriptionUrl(result.rotateSubscriptionCredential);
-      }
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : labels.rotateFailed);
-    } finally {
-      setLinkBusy(false);
-    }
-  }
 
   return (
     <AppShell>
@@ -379,17 +345,9 @@ export function AccountOverviewPage() {
           {subscriptionUrl && (
             <div className="subscription-link">
               <div className="subscription-link-heading">
-                <span>{labels.subscriptionLink}</span>
-                <button
-                  className="secondary-button"
-                  disabled={linkBusy}
-                  onClick={() => setConfirmRotate(true)}
-                  type="button"
-                >
-                  {labels.rotateLink}
-                </button>
+                <span>{labels.quickStart}</span>
               </div>
-              <p className="muted">{labels.subscriptionLinkHint}</p>
+              <p className="muted">{labels.quickStartHint}</p>
               <button
                 className="primary-button subscription-chooser-trigger"
                 onClick={() => setClientChooserOpen(true)}
@@ -405,23 +363,6 @@ export function AccountOverviewPage() {
               language={language}
               onClose={() => setClientChooserOpen(false)}
               siteName={siteName}
-            />
-          )}
-          {confirmRotate && (
-            <ConfirmBar
-              busy={linkBusy}
-              language={language}
-              onCancel={() => setConfirmRotate(false)}
-              onConfirm={() => {
-                setConfirmRotate(false);
-                void rotateLink();
-              }}
-              request={{
-                message: labels.rotateConfirm,
-                confirmLabel: labels.rotateLink,
-                danger: true,
-                run: rotateLink
-              }}
             />
           )}
         </section>

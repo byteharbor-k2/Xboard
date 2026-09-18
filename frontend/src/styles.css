@@ -931,6 +931,55 @@ button:disabled {
   box-shadow: 0 16px 45px rgb(38 51 78 / 6%);
 }
 
+/*
+ * The subscription credential's reset lives on the devices page, beside the
+ * session list: both answer the same question, "something I hand out may have
+ * leaked, what do I retire?".
+ */
+.subscription-credential-panel {
+  margin-top: 22px;
+}
+
+.subscription-credential-panel .panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 0;
+}
+
+.subscription-credential-panel .panel-heading h2 {
+  margin: 0;
+  color: #25314a;
+  font-size: 19px;
+}
+
+.subscription-credential-panel .panel-heading p {
+  margin: 8px 0 0;
+  max-width: 64ch;
+  line-height: 1.6;
+}
+
+.subscription-credential-panel .panel-heading .danger-button {
+  flex: 0 0 auto;
+  padding: 12px 18px;
+  border-radius: 11px;
+  white-space: nowrap;
+}
+
+.subscription-credential-panel .account-inline-message {
+  display: block;
+  padding-bottom: 20px;
+}
+
+@media (max-width: 720px) {
+  .subscription-credential-panel .panel-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+}
+
 .session-row {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -5100,6 +5149,7 @@ button:disabled {
 
 .subscription-link-heading > span {
   color: #25314a;
+  font-size: 16px;
   font-weight: 750;
 }
 
