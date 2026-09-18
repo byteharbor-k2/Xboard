@@ -1,0 +1,147 @@
+/*
+ * The client chooser on the account dashboard.
+ *
+ * The overlay itself is `.plan-editor-backdrop` (styles.css), shared with the
+ * other user-side dialogs; only the panel and its rows live here.
+ */
+
+.subscription-client-dialog {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dce3ed;
+  border-radius: 17px;
+  background: #fff;
+  box-shadow: 0 32px 90px rgb(0 0 0 / 28%);
+}
+
+.subscription-client-dialog > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.subscription-client-dialog > header h2 {
+  margin: 0;
+  color: #25314a;
+  font-size: 19px;
+}
+
+.subscription-client-dialog > header p {
+  margin: 6px 0 0;
+  color: #78849a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.subscription-client-dialog > header .text-button {
+  flex: 0 0 auto;
+  width: auto;
+  padding: 6px 10px;
+}
+
+.subscription-client-list {
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.subscription-client-row {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.subscription-client-row:last-child {
+  border-bottom: 0;
+}
+
+.subscription-client-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 22px;
+}
+
+.subscription-client-badge {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.subscription-client-identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.subscription-client-identity strong {
+  color: #25314a;
+  font-size: 14px;
+}
+
+.subscription-client-identity span {
+  color: #78849a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.subscription-client-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* `.secondary-button` is full-width by default; these sit side by side in a row. */
+.subscription-client-actions .secondary-button {
+  width: auto;
+  min-width: 84px;
+  padding: 8px 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.subscription-client-qr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 4px 22px 18px;
+}
+
+.subscription-client-qr .qr-code {
+  padding: 8px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgb(30 64 91 / 10%);
+}
+
+.subscription-client-qr p {
+  margin: 0;
+  color: #78849a;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .subscription-client-main {
+    flex-wrap: wrap;
+  }
+
+  .subscription-client-actions {
+    width: 100%;
+    padding-left: 48px;
+  }
+}

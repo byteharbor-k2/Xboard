@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { AppLink } from "../components/AppLink";
 import { AppShell } from "../components/AppShell";
 import { ConfirmBar } from "../components/ConfirmBar";
-import { QrCode } from "../components/QrCode";
+import { SubscriptionClientDialog } from "../components/SubscriptionClientDialog";
 import {
   AnnouncementCarousel,
   type PortalAnnouncement
@@ -70,10 +70,9 @@ const copy = {
       "当前账户还没有订阅权益，开通套餐后这里会显示流量和有效期。",
     subscriptionLink: "订阅链接",
     subscriptionLinkHint:
-      "把链接或二维码导入客户端即可获取节点配置。链接本身就是凭据，请勿分享。",
+      "订阅地址不再直接显示。选择客户端后复制链接或扫码导入；链接本身就是凭据，请勿分享。",
     subscriptionLinkFailed: "订阅链接加载失败",
-    copyLink: "复制链接",
-    copiedLink: "已复制",
+    chooseClient: "复制订阅链接",
     rotateLink: "重置链接",
     rotateConfirm: "重置后旧链接立即失效，已经导入的客户端需要重新导入。确定继续吗？",
     rotateFailed: "订阅链接重置失败",
@@ -112,10 +111,9 @@ const copy = {
       "This account has no subscription benefits yet. Data and validity will appear after you activate a plan.",
     subscriptionLink: "Subscription link",
     subscriptionLinkHint:
-      "Import the link or the QR code into your client to fetch your node config. The link is the credential itself — do not share it.",
+      "The address is no longer shown on the page. Choose your client, then copy the link or scan its QR code. The link is the credential itself — do not share it.",
     subscriptionLinkFailed: "Subscription link could not be loaded",
-    copyLink: "Copy link",
-    copiedLink: "Copied",
+    chooseClient: "Copy subscription link",
     rotateLink: "Reset link",
     rotateConfirm:
       "The old link stops working immediately and clients that already imported it must import the new one. Continue?",
@@ -141,7 +139,7 @@ export function AccountOverviewPage() {
     useState<SubscriptionEntitlement | null>(null);
   const [entitlementLoading, setEntitlementLoading] = useState(true);
   const [subscriptionUrl, setSubscriptionUrl] = useState("");
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [clientChooserOpen, setClientChooserOpen] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
@@ -246,26 +244,6 @@ export function AccountOverviewPage() {
       active = false;
     };
   }, [accessToken]);
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(subscriptionUrl);
-    } catch {
-      // Clipboard access is refused outside a secure context and in some
-      // browsers even on a click. Falling back to a hidden selection keeps the
-      // button working where the page is served over plain HTTP.
-      const input = document.createElement("textarea");
-      input.value = subscriptionUrl;
-      input.style.position = "fixed";
-      input.style.opacity = "0";
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand("copy");
-      input.remove();
-    }
-    setLinkCopied(true);
-    window.setTimeout(() => setLinkCopied(false), 1_500);
-  }
 
   async function rotateLink() {
     setLinkBusy(true);
@@ -408,26 +386,21 @@ export function AccountOverviewPage() {
                 </button>
               </div>
               <p className="muted">{labels.subscriptionLinkHint}</p>
-              <div className="subscription-link-body">
-                <div className="subscription-link-row">
-                  <code className="subscription-link-value">
-                    {subscriptionUrl}
-                  </code>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void copyLink()}
-                    type="button"
-                  >
-                    {linkCopied ? labels.copiedLink : labels.copyLink}
-                  </button>
-                </div>
-                <QrCode
-                  label={labels.subscriptionLink}
-                  size={148}
-                  value={subscriptionUrl}
-                />
-              </div>
+              <button
+                className="primary-button subscription-chooser-trigger"
+                onClick={() => setClientChooserOpen(true)}
+                type="button"
+              >
+                {labels.chooseClient}
+              </button>
             </div>
+          )}
+          {clientChooserOpen && subscriptionUrl && (
+            <SubscriptionClientDialog
+              baseUrl={subscriptionUrl}
+              language={language}
+              onClose={() => setClientChooserOpen(false)}
+            />
           )}
           {confirmRotate && (
             <ConfirmBar

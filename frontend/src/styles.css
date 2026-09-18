@@ -5103,39 +5103,15 @@ button:disabled {
   font-weight: 750;
 }
 
-.subscription-link-body {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.subscription-link-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1 1 260px;
-  min-width: 0;
-}
-
-.subscription-link-value {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 11px 13px;
-  border: 1px solid #d8e4eb;
-  border-radius: 10px;
-  background: #f6f8fc;
-  color: #25314a;
-  font-size: 12px;
-  overflow-wrap: anywhere;
-}
-
-.subscription-link .qr-code {
-  flex: 0 0 auto;
-  padding: 8px;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgb(30 64 91 / 8%);
+/*
+ * The subscription address is deliberately not rendered on this card any more.
+ * This button opens the client chooser, which copies or draws it per client.
+ */
+.subscription-chooser-trigger {
+  width: max-content;
+  min-width: 180px;
+  padding: 12px 20px;
+  border-radius: 11px;
 }
 
 .network-atlas-card {
