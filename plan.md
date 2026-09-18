@@ -124,6 +124,8 @@ xboard-node ─────→ 节点控制 HTTP API / WebSocket
 
 - 用户业务查询走 `POST /gateway` GraphQL（`offerCatalog`、`viewer`、
   `viewerEntitlement`、`deviceSessions`、`revokeDeviceSession`）。
+  匿名可读的只有 `systemStatus` 与 `siteName`（站点名称用于客户端深链备注名，
+  本就会出现在订阅配置里）。
 - 登录、刷新、退出和安全操作走 `/session/*` 独立会话接口。
 - 管理员控制面沿用 `/api/v2/admin/*` 与 `/control/*`，节点兼容层沿用
   `/api/v2/server`、`/api/v1/server/UniProxy` 与 `/ws`，不与用户接口混用。
@@ -158,7 +160,8 @@ xboard-node ─────→ 节点控制 HTTP API / WebSocket
 - [x] 订单记录页与订单详情页 `/account/orders/{tradeNo}`（已接入后端数据：
   订单列表、支付方式、收银台跳转与取消）
 - [x] 账户页订阅凭据：地址不再明文展示，改为客户端选择面板（十种客户端，逐个
-  复制专属链接或展开二维码），保留自助轮换
+  可深链导入、复制专属链接或展开二维码；不支持当前系统的客户端导入按钮置灰），
+  保留自助轮换
 - [x] 邀请、工单、知识库、流量明细页面骨架（双语空状态，未接后端数据）
 - [ ] 其余用户业务页面
 

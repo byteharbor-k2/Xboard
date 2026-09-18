@@ -1,5 +1,12 @@
 type Query {
     systemStatus: SystemStatus!
+    """
+    The name the operator configured for the site. Public because it is already
+    substituted into every subscription config, and because the account
+    dashboard puts it into the deep link that opens a client - which is the name
+    the client then shows for the imported profile.
+    """
+    siteName: String!
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
     offerCatalog: [PlanOffer!]!

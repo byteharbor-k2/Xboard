@@ -698,6 +698,58 @@ class InfrastructureIntegrationTest {
             .andExpect(jsonPath("$.code").value("TERMS_URL_INVALID"));
     }
 
+    /**
+     * The dashboard's client deep links carry the site name, and a client shows
+     * it as the imported profile's name. It therefore has to come from the
+     * operator's setting: a constant compiled into the bundle would keep naming
+     * profiles after a site that has since been renamed.
+     */
+    @Test
+    void exposesTheConfiguredSiteNameToAnonymousVisitors() throws Exception {
+        var administrator = jwt().authorities(
+            new SimpleGrantedAuthority("ROLE_ADMIN"),
+            new SimpleGrantedAuthority("SCOPE_ADMIN")
+        );
+        String originalName = platformConfiguration.appName();
+
+        try {
+            mockMvc.perform(post("/api/v2/admin/config/save")
+                    .param("key", "site")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"app_name":"SinX Cloud Renamed"}
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").value(true));
+
+            // No Authorization header: the dashboard reads this before the
+            // account's own queries, and the name is not a secret.
+            MvcResult anonymous = mockMvc.perform(post("/gateway")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"query":"{ siteName }"}
+                        """))
+                .andExpect(status().isOk())
+                .andReturn();
+
+            String anonymousName = JsonPath.read(
+                anonymous.getResponse().getContentAsString(),
+                "$.data.siteName"
+            );
+            assertThat(anonymousName).isEqualTo("SinX Cloud Renamed");
+        } finally {
+            mockMvc.perform(post("/api/v2/admin/config/save")
+                    .param("key", "site")
+                    .with(administrator)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"app_name":"%s"}
+                        """.formatted(originalName)))
+                .andExpect(status().isOk());
+        }
+    }
+
     @Test
     void enforcesAdministratorConfiguredRegistrationEmailDomains()
         throws Exception {

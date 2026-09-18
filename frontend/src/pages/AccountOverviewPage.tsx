@@ -139,6 +139,7 @@ export function AccountOverviewPage() {
     useState<SubscriptionEntitlement | null>(null);
   const [entitlementLoading, setEntitlementLoading] = useState(true);
   const [subscriptionUrl, setSubscriptionUrl] = useState("");
+  const [siteName, setSiteName] = useState("");
   const [clientChooserOpen, setClientChooserOpen] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
@@ -194,11 +195,13 @@ export function AccountOverviewPage() {
   useEffect(() => {
     let active = true;
     graphQl<{
+      siteName: string;
       viewerEntitlement: SubscriptionEntitlement | null;
       viewerSubscriptionUrl: string | null;
     }>(
       accessToken,
       `query AccountSnapshot {
+        siteName
         viewerSubscriptionUrl
         viewerEntitlement {
           id
@@ -224,6 +227,7 @@ export function AccountOverviewPage() {
         if (active) {
           setEntitlement(result.viewerEntitlement);
           setSubscriptionUrl(result.viewerSubscriptionUrl ?? "");
+          setSiteName(result.siteName);
         }
       })
       .catch((caught) => {
@@ -400,6 +404,7 @@ export function AccountOverviewPage() {
               baseUrl={subscriptionUrl}
               language={language}
               onClose={() => setClientChooserOpen(false)}
+              siteName={siteName}
             />
           )}
           {confirmRotate && (

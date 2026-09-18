@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 
 import { copyText } from "../lib/clipboard";
 import {
+  canImportOn,
+  clientImportLink,
+  detectVisitorPlatform,
+  platformLabels,
   subscriptionClients,
   subscriptionUrlForClient,
   type SubscriptionClient
@@ -16,7 +20,9 @@ const copy = {
   "zh-CN": {
     title: "选择客户端",
     description:
-      "选择你的代理软件，复制链接或扫描二维码导入。链接本身就是凭据，请勿分享。",
+      "选择你的代理软件：直接导入、复制链接，或扫描二维码。链接本身就是凭据，请勿分享。",
+    import: "导入",
+    importUnsupported: "该客户端没有 {platform} 版本，无法直接导入。",
     copyLink: "复制链接",
     copied: "已复制",
     showQr: "二维码",
@@ -27,7 +33,9 @@ const copy = {
   "en-US": {
     title: "Choose your client",
     description:
-      "Pick your proxy client, then copy the link or scan the QR code. The link is the credential itself — do not share it.",
+      "Pick your proxy client: import it directly, copy the link, or scan the QR code. The link is the credential itself — do not share it.",
+    import: "Import",
+    importUnsupported: "This client has no {platform} build, so it cannot be opened here.",
     copyLink: "Copy link",
     copied: "Copied",
     showQr: "QR code",
@@ -40,6 +48,8 @@ const copy = {
 type SubscriptionClientDialogProps = {
   /** The bare `/sub/{token}` address; each row adds its own `flag`. */
   baseUrl: string;
+  /** The operator's site name, which becomes the imported profile's name. */
+  siteName: string;
   language: Locale;
   onClose: () => void;
 };
@@ -50,19 +60,24 @@ type SubscriptionClientDialogProps = {
  * The subscription address used to sit on the page in plain text, next to a QR
  * of the same string. That put a live credential on screen for anyone looking
  * over a shoulder or at a screenshot, and it only ever offered one format. Here
- * the address is never rendered — each row copies or draws its own.
+ * the address is never rendered — each row imports, copies or draws its own.
  *
  * `plan-editor-backdrop` is reused rather than redefined: it is already this
  * app's shared modal overlay (see OrderDetailPage).
  */
 export function SubscriptionClientDialog({
   baseUrl,
+  siteName,
   language,
   onClose
 }: SubscriptionClientDialogProps) {
   const labels = copy[language];
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [qrId, setQrId] = useState<string | null>(null);
+
+  // Read once: the User-Agent does not change while the dialog is open, and a
+  // deep link offered for the wrong system is a button that does nothing.
+  const platform = detectVisitorPlatform(navigator.userAgent, navigator.maxTouchPoints);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -106,6 +121,8 @@ export function SubscriptionClientDialog({
           {subscriptionClients.map((client) => {
             const url = subscriptionUrlForClient(baseUrl, client);
             const showQr = qrId === client.id;
+            const importLink = clientImportLink(client, url, siteName);
+            const importable = canImportOn(client, platform);
             return (
               <li
                 className={
@@ -128,6 +145,30 @@ export function SubscriptionClientDialog({
                     <span>{client.detail[language]}</span>
                   </div>
                   <div className="subscription-client-actions">
+                    {importLink && (
+                      // The title lives on the wrapper: a disabled button does
+                      // not receive the hover that would show its own tooltip.
+                      <span
+                        className="subscription-client-import"
+                        title={
+                          importable
+                            ? undefined
+                            : labels.importUnsupported.replace(
+                                "{platform}",
+                                platformLabels[language][platform]
+                              )
+                        }
+                      >
+                        <button
+                          className="primary-button"
+                          disabled={!importable}
+                          onClick={() => window.location.assign(importLink)}
+                          type="button"
+                        >
+                          {labels.import}
+                        </button>
+                      </span>
+                    )}
                     <button
                       className="secondary-button"
                       onClick={() => void copyFor(client)}
