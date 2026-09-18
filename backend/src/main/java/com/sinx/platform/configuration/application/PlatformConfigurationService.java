@@ -74,8 +74,6 @@ public class PlatformConfigurationService {
         "server.server_pull_interval";
     private static final String SERVER_PUSH_INTERVAL_KEY =
         "server.server_push_interval";
-    private static final String SERVER_DEVICE_LIMIT_MODE_KEY =
-        "server.device_limit_mode";
     private static final String SERVER_WS_ENABLED_KEY =
         "server.server_ws_enable";
     private static final String SERVER_WS_URL_KEY = "server.server_ws_url";
@@ -170,7 +168,6 @@ public class PlatformConfigurationService {
                     "server_token", node.legacyToken() == null ? "" : node.legacyToken(),
                     "server_pull_interval", node.pullIntervalSeconds(),
                     "server_push_interval", node.pushIntervalSeconds(),
-                    "device_limit_mode", node.deviceLimitMode(),
                     "server_ws_enable", node.webSocketEnabled(),
                     "server_ws_url", node.webSocketUrl() == null ? "" : node.webSocketUrl()
                 );
@@ -278,8 +275,6 @@ public class PlatformConfigurationService {
                 saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue(), 30, 3600);
             case SERVER_PUSH_INTERVAL_KEY ->
                 saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue(), 10, 3600);
-            case SERVER_DEVICE_LIMIT_MODE_KEY ->
-                saveInteger(SERVER_DEVICE_LIMIT_MODE_KEY, entry.getValue(), 0, 1);
             case SERVER_WS_ENABLED_KEY ->
                 saveBoolean(SERVER_WS_ENABLED_KEY, entry.getValue());
             case SERVER_WS_URL_KEY -> saveWebSocketUrl(entry.getValue());
@@ -388,7 +383,6 @@ public class PlatformConfigurationService {
             read(SERVER_TOKEN_KEY).filter(value -> !value.isBlank()).orElse(null),
             readInteger(SERVER_PULL_INTERVAL_KEY, 60),
             readInteger(SERVER_PUSH_INTERVAL_KEY, 60),
-            readInteger(SERVER_DEVICE_LIMIT_MODE_KEY, 0),
             readBoolean(SERVER_WS_ENABLED_KEY, true),
             read(SERVER_WS_URL_KEY).filter(value -> !value.isBlank()).orElse(null)
         );
@@ -907,7 +901,6 @@ public class PlatformConfigurationService {
         String legacyToken,
         int pullIntervalSeconds,
         int pushIntervalSeconds,
-        int deviceLimitMode,
         boolean webSocketEnabled,
         String webSocketUrl
     ) {

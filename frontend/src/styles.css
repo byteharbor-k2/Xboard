@@ -5084,17 +5084,6 @@ button:disabled {
   font-size: 26px;
 }
 
-.ticket-page-heading {
-  display: flex;
-  justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-}
-
-.ticket-page-heading > div {
-  min-width: 0;
-}
-
 .user-dashboard-grid {
   max-width: 1480px;
   display: grid;
@@ -5525,11 +5514,6 @@ button:disabled {
   .knowledge-base-layout,
   .referral-summary-grid {
     grid-template-columns: 1fr;
-  }
-
-  .ticket-page-heading {
-    align-items: flex-start;
-    flex-direction: column;
   }
 
   .support-launcher {

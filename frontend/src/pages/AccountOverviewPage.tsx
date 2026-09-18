@@ -62,9 +62,6 @@ const copy = {
     nextReset: "下次重置",
     speed: "峰值速率",
     unlimitedSpeed: "不限速",
-    devices: "设备数量",
-    unlimitedDevices: "不限制",
-    deviceUnit: "台",
     empty:
       "当前账户还没有订阅权益，开通套餐后这里会显示流量和有效期。",
     quickStart: "快速开始使用",
@@ -99,9 +96,6 @@ const copy = {
     nextReset: "Next reset",
     speed: "Peak speed",
     unlimitedSpeed: "Unlimited",
-    devices: "Devices",
-    unlimitedDevices: "Unlimited",
-    deviceUnit: "devices",
     empty:
       "This account has no subscription benefits yet. Data and validity will appear after you activate a plan.",
     quickStart: "Quick start",
@@ -203,7 +197,6 @@ export function AccountOverviewPage() {
           remainingBytes
           usagePercent
           speedLimitMbps
-          deviceLimit
           resetPolicy
           startsAt
           expiresAt
@@ -326,14 +319,6 @@ export function AccountOverviewPage() {
                     {entitlement.speedLimitMbps
                       ? `${entitlement.speedLimitMbps} Mbps`
                       : labels.unlimitedSpeed}
-                  </dd>
-                </div>
-                <div>
-                  <dt>{labels.devices}</dt>
-                  <dd>
-                    {entitlement.deviceLimit
-                      ? `${entitlement.deviceLimit} ${labels.deviceUnit}`
-                      : labels.unlimitedDevices}
                   </dd>
                 </div>
               </dl>

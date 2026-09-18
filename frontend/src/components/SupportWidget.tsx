@@ -25,7 +25,7 @@ const copy = {
     conversationPreview: "开始对话后，AI 与人工客服的回复会集中显示在这里。",
     sendMessage: "发送消息",
     handoff: "转人工",
-    handoffNotice: "人工客服接管将在服务端工单队列接入后启用。",
+    handoffNotice: "人工客服接管将在接入外部客服系统后启用。",
     placeholder: "输入你的问题…",
     send: "发送",
     pendingReply: "AI 接口接入后，会根据知识库和账户状态在这里回复。",
@@ -46,7 +46,7 @@ const copy = {
     sendMessage: "Send us a message",
     handoff: "Talk to a person",
     handoffNotice:
-      "Human handoff will be enabled after the server-side support queue is connected.",
+      "Human handoff will be enabled once an external support system is connected.",
     placeholder: "Describe your issue…",
     send: "Send",
     pendingReply:

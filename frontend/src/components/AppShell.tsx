@@ -18,7 +18,6 @@ const copy = {
     docs: "使用文档",
     orders: "我的订单",
     invitations: "我的邀请",
-    tickets: "我的工单",
     traffic: "流量明细",
     devices: "安全设备",
     logout: "退出登录",
@@ -35,7 +34,6 @@ const copy = {
     docs: "Guides",
     orders: "My orders",
     invitations: "My invitations",
-    tickets: "My tickets",
     traffic: "Traffic details",
     devices: "Security devices",
     logout: "Sign out",
@@ -55,7 +53,6 @@ function NavigationIcon({
     | "profile"
     | "orders"
     | "invitations"
-    | "tickets"
     | "traffic"
     | "devices";
 }) {
@@ -94,12 +91,6 @@ function NavigationIcon({
         <circle cx="9" cy="9" r="3" />
         <path d="M3.5 20c.5-3.6 2.3-5.5 5.5-5.5 1.5 0 2.7.4 3.6 1.2" />
         <path d="M17 13v7M13.5 16.5h7" />
-      </>
-    ),
-    tickets: (
-      <>
-        <path d="M4 5h16v12H9l-4 3v-3H4z" />
-        <path d="M8 9h8M8 13h5" />
       </>
     ),
     traffic: (
@@ -147,10 +138,8 @@ export function AppShell({ children }: PropsWithChildren) {
           ? labels.orders
           : currentPath === "/account/invitations"
             ? labels.invitations
-            : currentPath === "/account/tickets"
-              ? labels.tickets
-              : currentPath === "/account/traffic"
-                ? labels.traffic
+            : currentPath === "/account/traffic"
+              ? labels.traffic
         : currentPath === "/security/sessions"
           ? labels.devices
           : labels.dashboard;
@@ -264,16 +253,6 @@ export function AppShell({ children }: PropsWithChildren) {
                 href="/account/invitations"
               >
                 {labels.invitations}
-              </AppLink>
-              <AppLink
-                className={
-                  currentPath === "/account/tickets"
-                    ? "active"
-                    : undefined
-                }
-                href="/account/tickets"
-              >
-                {labels.tickets}
               </AppLink>
               <AppLink
                 className={

@@ -99,7 +99,6 @@ type PlanOffer {
     planType: PlanType!
     transferLimitBytes: String!
     speedLimitMbps: Int
-    deviceLimit: Int
     resetPolicy: TrafficResetPolicy!
     renewable: Boolean!
     resettable: Boolean!
@@ -128,7 +127,6 @@ type SubscriptionEntitlement {
     remainingBytes: String!
     usagePercent: Float!
     speedLimitMbps: Int
-    deviceLimit: Int
     resetPolicy: TrafficResetPolicy!
     startsAt: String!
     expiresAt: String

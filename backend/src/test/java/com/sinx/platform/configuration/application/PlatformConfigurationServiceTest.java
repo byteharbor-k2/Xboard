@@ -68,43 +68,13 @@ class PlatformConfigurationServiceTest {
     }
 
     @Test
-    void serverSettingsExposeSafeDefaultsIncludingRelaxedDeviceMode() {
+    void serverSettingsExposeSafeDefaultsForNodeCommunication() {
         PlatformConfigurationService.NodeCommunicationSettings settings =
             service.nodeCommunicationSettings();
 
         assertThat(settings.pullIntervalSeconds()).isEqualTo(60);
         assertThat(settings.pushIntervalSeconds()).isEqualTo(60);
-        assertThat(settings.deviceLimitMode()).isZero();
         assertThat(settings.webSocketEnabled()).isTrue();
-        assertThat(service.sectionSettings("server"))
-            .containsEntry("device_limit_mode", 0);
-    }
-
-    @Test
-    void deviceLimitModeRoundTripsImmediatelyAndRejectsUnknownModes() {
-        service.saveSectionSettings(
-            "server",
-            Map.of("device_limit_mode", 1)
-        );
-
-        assertThat(service.nodeCommunicationSettings().deviceLimitMode())
-            .isEqualTo(1);
-        assertThat(service.sectionSettings("server"))
-            .containsEntry("device_limit_mode", 1);
-        verify(events, never()).publishEvent(any());
-
-        assertThatThrownBy(() -> service.saveSectionSettings(
-            "server",
-            Map.of("device_limit_mode", -1)
-        )).isInstanceOf(ApiProblemException.class);
-        assertThatThrownBy(() -> service.saveSectionSettings(
-            "server",
-            Map.of("device_limit_mode", 2)
-        )).isInstanceOf(ApiProblemException.class);
-        assertThatThrownBy(() -> service.saveSectionSettings(
-            "server",
-            Map.of("device_limit_mode", 0.5)
-        )).isInstanceOf(ApiProblemException.class);
     }
 
     @Test

@@ -141,7 +141,6 @@ class OrderServicePlacementTest {
             PlanType.SUBSCRIPTION,
             5_000,
             50,
-            3,
             TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
             null,
             false,

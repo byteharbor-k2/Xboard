@@ -44,7 +44,7 @@ const copy = {
     loadFailed: "套餐数据加载失败",
     name: "套餐",
     quota: "流量",
-    limits: "限速 / 设备",
+    limits: "限速",
     prices: "价格周期",
     subscribers: "订阅用户",
     state: "发布状态",
@@ -74,7 +74,6 @@ const copy = {
     transferGb: "每周期流量（GB）",
     packageTransferGb: "流量包额度（GB）",
     speed: "限速（Mbps）",
-    devices: "设备数",
     serverGroup: "服务器分组",
     serverGroupPlaceholder: "选择该套餐可使用的节点权限组",
     capacity: "可售容量",
@@ -109,7 +108,7 @@ const copy = {
     loadFailed: "Failed to load plans",
     name: "Plan",
     quota: "Traffic",
-    limits: "Speed / devices",
+    limits: "Speed",
     prices: "Billing",
     subscribers: "Subscribers",
     state: "Availability",
@@ -139,7 +138,6 @@ const copy = {
     transferGb: "Traffic per cycle (GB)",
     packageTransferGb: "Package data (GB)",
     speed: "Speed limit (Mbps)",
-    devices: "Device limit",
     serverGroup: "Server group",
     serverGroupPlaceholder: "Choose the node group available to this plan",
     capacity: "Sales capacity",
@@ -213,7 +211,6 @@ type FormState = {
   tags: string;
   transferGb: string;
   speedLimitMbps: string;
-  deviceLimit: string;
   serverGroupId: string;
   capacityLimit: string;
   resettable: boolean;
@@ -240,7 +237,6 @@ function emptyForm(): FormState {
     tags: "",
     transferGb: "100",
     speedLimitMbps: "",
-    deviceLimit: "",
     serverGroupId: "",
     capacityLimit: "",
     resettable: false,
@@ -267,7 +263,6 @@ function formFromPlan(plan: ManagedPlan): FormState {
     tags: plan.tags.join(", "),
     transferGb: (BigInt(plan.transferLimitBytes) / GIB).toString(),
     speedLimitMbps: plan.speedLimitMbps?.toString() ?? "",
-    deviceLimit: plan.deviceLimit?.toString() ?? "",
     serverGroupId: plan.serverGroupId?.toString() ?? "",
     capacityLimit: plan.capacityLimit?.toString() ?? "",
     resettable: plan.resettable,
@@ -314,7 +309,6 @@ function toDraft(form: FormState): PlanDraft {
       BigInt(form.transferGb.trim() || "0") * GIB
     ).toString(),
     speedLimitMbps: optionalInteger(form.speedLimitMbps),
-    deviceLimit: optionalInteger(form.deviceLimit),
     serverGroupId: optionalInteger(form.serverGroupId),
     capacityLimit: optionalInteger(form.capacityLimit),
     resetPolicy: form.planType === "TRAFFIC_PACKAGE"
@@ -528,11 +522,6 @@ export function AdminPlansPage() {
                           ? `${plan.speedLimitMbps} Mbps`
                           : text.unlimited}
                       </span>
-                      <small>
-                        {plan.deviceLimit
-                          ? `${plan.deviceLimit} devices`
-                          : text.unlimited}
-                      </small>
                     </td>
                     <td>
                       <div className="plan-price-list">
@@ -666,18 +655,6 @@ export function AdminPlansPage() {
                       value={form.speedLimitMbps}
                       onChange={(event) =>
                         updateForm("speedLimitMbps", event.target.value)
-                      }
-                    />
-                  </label>
-                  <label>
-                    <span>{text.devices}</span>
-                    <input
-                      min="1"
-                      placeholder={text.emptyUnlimited}
-                      type="number"
-                      value={form.deviceLimit}
-                      onChange={(event) =>
-                        updateForm("deviceLimit", event.target.value)
                       }
                     />
                   </label>

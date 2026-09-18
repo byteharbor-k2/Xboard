@@ -64,20 +64,16 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     glyph: "▥",
     title: text("站点设置", "Site settings"),
     description: text(
-      "配置站点基本信息，包括站点名称、描述、货币单位等核心设置。",
-      "Configure core site information, including its name, description, and currency."
+      "配置站点基本信息，包括站点名称、站点网址、订阅地址等核心设置。",
+      "Configure core site information: its name, public URL, and subscription address."
     ),
     fields: [
       field("app_name", "站点名称", "Site name", "用于显示需要站点名称的地方。", "Shown wherever the site name is required.", "text", "", {
         placeholder: text("请输入站点名称", "Enter site name")
       }),
-      field("app_description", "站点描述", "Site description", "用于显示需要站点描述的地方。", "Shown wherever the site description is required.", "text", "", {
-        placeholder: text("请输入站点描述", "Enter site description")
-      }),
       field("app_url", "站点网址", "Site URL", "当前网站最新网址，将会在邮件等需要用于网址处体现。", "The current public URL used in emails and other links.", "url", "", {
         placeholder: text("请输入站点URL，末尾不要/", "Enter site URL without a trailing slash")
       }),
-      field("force_https", "强制HTTPS", "Force HTTPS", "当站点没有使用HTTPS，CDN或反代开启强制HTTPS时需要开启。", "Enable when HTTPS is enforced by a CDN or reverse proxy.", "toggle", 0),
       field("logo", "LOGO", "Logo", "用于显示需要LOGO的地方。", "Shown wherever the site logo is required.", "url", "", {
         placeholder: text("请输入LOGO URL，末尾不要/", "Enter logo URL without a trailing slash")
       }),
@@ -89,7 +85,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
         placeholder: text("请输入用户条款URL，末尾不要/", "Enter terms URL without a trailing slash")
       }),
       field("stop_register", "停止新用户注册", "Disable new registrations", "开启后任何人都将无法进行注册。", "No one can register after this is enabled.", "toggle", 0),
-      field("ticket_must_wait_reply", "工单等待回复限制", "Ticket reply restriction", "开启后，用户在管理员回复前无法在同一工单内连续发送消息。", "Users cannot send another message before an administrator replies.", "toggle", false),
       field("try_out_plan_id", "注册试用", "Registration trial", "选择需要试用的订阅，如果没有选项请先前往订阅管理添加。", "Select the trial plan. Add a plan first if no option is available.", "select", 0, {
         options: [option(0, "关闭", "Disabled")]
       }),
@@ -97,12 +92,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
         min: 0,
         placeholder: text("0", "0"),
         visibleWhen: { key: "try_out_plan_id" }
-      }),
-      field("currency", "货币单位", "Currency", "仅用于展示使用，更改后系统中所有的货币单位都将发生变更。", "Display only; changing it updates currency labels throughout the system.", "text", "", {
-        placeholder: text("CNY", "CNY")
-      }),
-      field("currency_symbol", "货币符号", "Currency symbol", "仅用于展示使用，更改后系统中所有的货币单位都将发生变更。", "Display only; changing it updates currency symbols throughout the system.", "text", "", {
-        placeholder: text("¥", "¥")
       })
     ]
   },
@@ -117,10 +106,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     fields: [
       field("email_verify", "邮箱验证", "Email verification", "开启后将会强制要求用户进行邮箱验证。", "Require users to verify their email addresses.", "toggle", false),
       field("email_gmail_limit_enable", "禁止使用Gmail多别名", "Block Gmail aliases", "开启后Gmail多别名将无法注册。", "Prevent registration through Gmail aliases.", "toggle", false),
-      field("safe_mode_enable", "安全模式", "Safe mode", "开启后除了站点URL以外的绑定本站点的域名访问都将会被403。", "Return 403 for bound hostnames other than the configured site URL.", "toggle", false),
-      field("secure_path", "后台路径", "Administrator path", "后台管理路径，修改后将会改变原有的admin路径。", "Changing this replaces the existing administrator path.", "text", "", {
-        placeholder: text("admin", "admin")
-      }),
       field("email_whitelist_enable", "邮箱后缀白名单", "Email suffix allowlist", "开启后在名单中的邮箱后缀才允许进行注册。", "Only listed email suffixes may register.", "toggle", false),
       field("email_whitelist_suffix", "邮箱后缀", "Email suffixes", "输入允许的邮箱后缀，每行一个。", "Enter one allowed email suffix per line.", "list", [], {
         placeholder: text("输入邮箱后缀，每行一个", "Enter one email suffix per line"),
@@ -180,8 +165,8 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     glyph: "↗",
     title: text("订阅设置", "Subscription settings"),
     description: text(
-      "管理用户订阅相关配置，包括订阅链接格式、更新频率、流量统计等设置。",
-      "Manage subscription URL format, update behavior, and traffic settings."
+      "管理用户订阅相关配置，包括套餐变更、流量重置与订单事件。",
+      "Manage plan changes, traffic resets, and order events."
     ),
     fields: [
       field("plan_change_enable", "允许用户更改订阅", "Allow subscription changes", "开启后用户将会可以对订阅计划进行变更。", "Allow users to change subscription plans.", "toggle", false),
@@ -203,12 +188,7 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       }),
       field("change_order_event_id", "当订阅变更时触发事件", "Plan change event", "变更订阅完成时将触发该任务。", "Run after a plan change completes.", "select", 0, {
         options: [option(0, "不执行任何动作", "Do nothing"), option(1, "重置用户流量", "Reset user traffic")]
-      }),
-      field("subscribe_path", "订阅路径", "Subscription path", "订阅路径，修改后将会改变原有的subscribe路径。修改后可能需要重启服务。", "Changing the subscription path may require a service restart.", "text", "s", {
-        placeholder: text("subscribe", "subscribe")
-      }),
-      field("show_info_to_server_enable", "在订阅中展示订阅信息", "Show subscription information", "开启后将会在用户订阅节点时输出订阅信息。", "Output subscription information with user nodes.", "toggle", false),
-      field("show_protocol_to_server_enable", "在订阅中线路名称中显示协议名称", "Show protocol in route names", "开启后订阅线路会附带协议名称（例如: [Hy2]香港）。", "Prefix route names with the protocol, for example [Hy2] Hong Kong.", "toggle", false)
+      })
     ]
   },
   {

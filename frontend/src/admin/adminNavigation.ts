@@ -46,26 +46,6 @@ export const adminNavigation: AdminNavGroup[] = [
         }
       },
       {
-        id: "plugins",
-        href: "/admin/system/plugins",
-        glyph: "◇",
-        label: { "zh-CN": "插件管理", "en-US": "Plugins" },
-        description: {
-          "zh-CN": "管理新系统支持的扩展能力。",
-          "en-US": "Manage extensions supported by the new platform."
-        }
-      },
-      {
-        id: "themes",
-        href: "/admin/system/themes",
-        glyph: "▣",
-        label: { "zh-CN": "主题配置", "en-US": "Themes" },
-        description: {
-          "zh-CN": "管理用户站点视觉配置。",
-          "en-US": "Manage visual settings for the user portal."
-        }
-      },
-      {
         id: "notices",
         href: "/admin/content/notices",
         glyph: "▤",
@@ -196,16 +176,6 @@ export const adminNavigation: AdminNavGroup[] = [
           "zh-CN": "管理折扣、使用范围和有效期。",
           "en-US": "Manage discounts, eligibility, and validity."
         }
-      },
-      {
-        id: "gift-cards",
-        href: "/admin/finance/gift-cards",
-        glyph: "✦",
-        label: { "zh-CN": "礼品卡管理", "en-US": "Gift cards" },
-        description: {
-          "zh-CN": "管理礼品卡模板、兑换码和使用记录。",
-          "en-US": "Manage gift card definitions, codes, and usage."
-        }
       }
     ]
   },
@@ -224,16 +194,6 @@ export const adminNavigation: AdminNavGroup[] = [
         }
       },
       {
-        id: "tickets",
-        href: "/admin/support/tickets",
-        glyph: "▱",
-        label: { "zh-CN": "工单管理", "en-US": "Tickets" },
-        description: {
-          "zh-CN": "查看、回复和关闭用户工单。",
-          "en-US": "Review, reply to, and close support tickets."
-        }
-      },
-      {
         id: "traffic-resets",
         href: "/admin/users/traffic-resets",
         glyph: "↻",
@@ -249,26 +209,6 @@ export const adminNavigation: AdminNavGroup[] = [
     id: "security",
     label: { "zh-CN": "管理员安全", "en-US": "Admin security" },
     items: [
-      {
-        id: "admin-users",
-        href: "/admin/security/administrators",
-        glyph: "♙",
-        label: { "zh-CN": "管理员与角色", "en-US": "Administrators & roles" },
-        description: {
-          "zh-CN": "管理管理员账户和权限角色。",
-          "en-US": "Manage administrator accounts and roles."
-        }
-      },
-      {
-        id: "admin-devices",
-        href: "/admin/security/devices",
-        glyph: "▢",
-        label: { "zh-CN": "登录设备", "en-US": "Login devices" },
-        description: {
-          "zh-CN": "查看和撤销管理员设备会话。",
-          "en-US": "Review and revoke administrator device sessions."
-        }
-      },
       {
         id: "admin-mfa",
         href: "/admin/mfa",

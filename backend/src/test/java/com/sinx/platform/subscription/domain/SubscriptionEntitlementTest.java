@@ -26,7 +26,7 @@ class SubscriptionEntitlementTest {
         );
         ServicePlan plan = ServicePlan.create(
             UUID.randomUUID(), "Basic", "Basic plan", PlanType.SUBSCRIPTION,
-            1_000, 50, 3, TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
+            1_000, 50, TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
             null, false, null, true, true, true, 0, List.of(), now
         );
         plan.assignServerGroup(10L, now);

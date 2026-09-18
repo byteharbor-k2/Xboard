@@ -589,11 +589,11 @@ class SubscriptionEndpointIntegrationTest {
             """
             INSERT INTO service_plans (
                 id, name, description, transfer_limit_bytes,
-                speed_limit_mbps, device_limit, reset_policy,
+                speed_limit_mbps, reset_policy,
                 capacity_limit, published, sellable, renewable,
                 sort_order, server_group_id, created_at, updated_at
             ) VALUES (
-                ?::uuid, ?, ?, ?, ?, ?, ?, NULL, TRUE, TRUE, TRUE,
+                ?::uuid, ?, ?, ?, ?, ?, NULL, TRUE, TRUE, TRUE,
                 1, ?, ?, ?
             )
             """,
@@ -602,7 +602,6 @@ class SubscriptionEndpointIntegrationTest {
             name + " plan",
             TRANSFER_LIMIT,
             200,
-            5,
             "MONTHLY_FROM_ACTIVATION",
             groupId,
             Timestamp.from(now),
@@ -617,12 +616,12 @@ class SubscriptionEndpointIntegrationTest {
             """
             INSERT INTO subscription_entitlements (
                 id, user_id, plan_id, plan_name, transfer_limit_bytes,
-                uploaded_bytes, downloaded_bytes, speed_limit_mbps, device_limit,
+                uploaded_bytes, downloaded_bytes, speed_limit_mbps,
                 reset_policy, starts_at, expires_at, next_reset_at,
                 created_at, updated_at
             ) VALUES (
                 ?::uuid, ?::uuid, ?::uuid, 'Starter', ?,
-                1024, 2048, 200, 5,
+                1024, 2048, 200,
                 'MONTHLY_FROM_ACTIVATION', ?, ?, NULL,
                 ?, ?
             )

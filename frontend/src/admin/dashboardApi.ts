@@ -21,7 +21,6 @@ export type RevenueMetric = "amount" | "count";
 export type DashboardSummary = {
   todayIncome: number;
   monthlyIncome: number;
-  pendingTickets: number;
   pendingCommission: number;
   monthlyUsers: number;
   totalUsers: number;

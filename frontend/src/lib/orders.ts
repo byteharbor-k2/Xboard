@@ -16,7 +16,6 @@ const PLAN_OFFER_FIELDS = `
   planType
   transferLimitBytes
   speedLimitMbps
-  deviceLimit
   resetPolicy
   renewable
   resettable

@@ -572,11 +572,11 @@ class PaymentCheckoutIntegrationTest {
             """
             INSERT INTO service_plans (
                 id, name, description, transfer_limit_bytes,
-                speed_limit_mbps, device_limit, reset_policy,
+                speed_limit_mbps, reset_policy,
                 capacity_limit, published, sellable, renewable,
                 sort_order, created_at, updated_at
             ) VALUES (
-                ?::uuid, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE,
+                ?::uuid, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE,
                 1, ?, ?
             )
             """,
@@ -585,7 +585,6 @@ class PaymentCheckoutIntegrationTest {
             name + " plan",
             60L * 1024 * 1024 * 1024,
             200,
-            5,
             "MONTHLY_FROM_ACTIVATION",
             null,
             Timestamp.from(now),

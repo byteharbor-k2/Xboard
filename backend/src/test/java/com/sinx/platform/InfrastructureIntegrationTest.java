@@ -449,7 +449,6 @@ class InfrastructureIntegrationTest {
                           "planType":"SUBSCRIPTION",
                           "transferLimitBytes":"107374182400",
                           "speedLimitMbps":200,
-                          "deviceLimit":5,
                           "resetPolicy":"MONTHLY_FROM_ACTIVATION",
                           "capacityLimit":20,
                           "resettable":true,
@@ -508,7 +507,6 @@ class InfrastructureIntegrationTest {
                           "planType":"SUBSCRIPTION",
                           "transferLimitBytes":"107374182400",
                           "speedLimitMbps":200,
-                          "deviceLimit":5,
                           "resetPolicy":"MONTHLY_FROM_ACTIVATION",
                           "capacityLimit":20,
                           "resettable":true,
@@ -585,7 +583,6 @@ class InfrastructureIntegrationTest {
                           "planType":"TRAFFIC_PACKAGE",
                           "transferLimitBytes":"53687091200",
                           "speedLimitMbps":100,
-                          "deviceLimit":3,
                           "resetPolicy":"MONTHLY_FROM_ACTIVATION",
                           "capacityLimit":100,
                           "resettable":true,
@@ -1484,11 +1481,11 @@ class InfrastructureIntegrationTest {
             """
             INSERT INTO service_plans (
                 id, name, description, transfer_limit_bytes,
-                speed_limit_mbps, device_limit, reset_policy,
+                speed_limit_mbps, reset_policy,
                 capacity_limit, published, sellable, renewable,
                 sort_order, created_at, updated_at
             ) VALUES (
-                ?::uuid, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE,
+                ?::uuid, ?, ?, ?, ?, ?, ?, TRUE, TRUE, TRUE,
                 1, ?, ?
             )
             """,
@@ -1497,7 +1494,6 @@ class InfrastructureIntegrationTest {
             "Suitable for everyday browsing.",
             transferLimit,
             200,
-            5,
             "MONTHLY_FROM_ACTIVATION",
             10,
             Timestamp.from(now),
@@ -1524,11 +1520,11 @@ class InfrastructureIntegrationTest {
             INSERT INTO subscription_entitlements (
                 id, user_id, plan_id, plan_name,
                 transfer_limit_bytes, uploaded_bytes, downloaded_bytes,
-                speed_limit_mbps, device_limit, reset_policy,
+                speed_limit_mbps, reset_policy,
                 starts_at, expires_at, next_reset_at,
                 created_at, updated_at
             ) VALUES (
-                ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?,
+                ?::uuid, ?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?
             )
             """,
@@ -1540,7 +1536,6 @@ class InfrastructureIntegrationTest {
             uploaded,
             downloaded,
             200,
-            5,
             "MONTHLY_FROM_ACTIVATION",
             Timestamp.from(now.minus(Duration.ofDays(3))),
             Timestamp.from(now.plus(Duration.ofDays(27))),
@@ -1571,7 +1566,7 @@ class InfrastructureIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                     {
-                      "query":"{ viewerEntitlement { planName state transferLimitBytes uploadedBytes downloadedBytes usedBytes remainingBytes usagePercent speedLimitMbps deviceLimit resetPolicy expiresAt nextResetAt } }"
+                      "query":"{ viewerEntitlement { planName state transferLimitBytes uploadedBytes downloadedBytes usedBytes remainingBytes usagePercent speedLimitMbps resetPolicy expiresAt nextResetAt } }"
                     }
                     """))
             .andExpect(status().isOk())

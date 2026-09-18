@@ -46,9 +46,6 @@ public class ServicePlan {
     @Column(name = "speed_limit_mbps")
     private Integer speedLimitMbps;
 
-    @Column(name = "device_limit")
-    private Integer deviceLimit;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "reset_policy", length = 32, nullable = false)
     private TrafficResetPolicy resetPolicy;
@@ -114,7 +111,6 @@ public class ServicePlan {
         PlanType planType,
         long transferLimitBytes,
         Integer speedLimitMbps,
-        Integer deviceLimit,
         TrafficResetPolicy resetPolicy,
         Integer capacityLimit,
         boolean resettable,
@@ -133,7 +129,6 @@ public class ServicePlan {
         plan.planType = planType;
         plan.transferLimitBytes = transferLimitBytes;
         plan.speedLimitMbps = speedLimitMbps;
-        plan.deviceLimit = deviceLimit;
         plan.resetPolicy = resetPolicy;
         plan.capacityLimit = capacityLimit;
         plan.resettable = resettable;
@@ -175,7 +170,6 @@ public class ServicePlan {
         PlanType planType,
         long transferLimitBytes,
         Integer speedLimitMbps,
-        Integer deviceLimit,
         TrafficResetPolicy resetPolicy,
         Integer capacityLimit,
         boolean resettable,
@@ -192,7 +186,6 @@ public class ServicePlan {
         this.planType = planType;
         this.transferLimitBytes = transferLimitBytes;
         this.speedLimitMbps = speedLimitMbps;
-        this.deviceLimit = deviceLimit;
         this.resetPolicy = resetPolicy;
         this.capacityLimit = capacityLimit;
         this.resettable = resettable;
@@ -234,10 +227,6 @@ public class ServicePlan {
 
     public Integer getSpeedLimitMbps() {
         return speedLimitMbps;
-    }
-
-    public Integer getDeviceLimit() {
-        return deviceLimit;
     }
 
     public TrafficResetPolicy getResetPolicy() {

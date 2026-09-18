@@ -50,9 +50,6 @@ public class SubscriptionEntitlement {
     @Column(name = "speed_limit_mbps")
     private Integer speedLimitMbps;
 
-    @Column(name = "device_limit")
-    private Integer deviceLimit;
-
     @Enumerated(EnumType.STRING)
     @Column(name = "reset_policy", length = 32, nullable = false)
     private TrafficResetPolicy resetPolicy;
@@ -99,7 +96,6 @@ public class SubscriptionEntitlement {
         entitlement.planName = plan.getName();
         entitlement.transferLimitBytes = plan.getTransferLimitBytes();
         entitlement.speedLimitMbps = plan.getSpeedLimitMbps();
-        entitlement.deviceLimit = plan.getDeviceLimit();
         entitlement.resetPolicy = plan.getResetPolicy();
         entitlement.startsAt = startsAt;
         entitlement.expiresAt = expiresAt;
@@ -162,7 +158,6 @@ public class SubscriptionEntitlement {
         this.planName = plan.getName();
         this.transferLimitBytes = plan.getTransferLimitBytes();
         this.speedLimitMbps = plan.getSpeedLimitMbps();
-        this.deviceLimit = plan.getDeviceLimit();
         this.resetPolicy = plan.getResetPolicy();
         this.expiresAt = expiresAt;
         // A paid order activates the subscription again, even one that was
@@ -242,10 +237,6 @@ public class SubscriptionEntitlement {
 
     public Integer getSpeedLimitMbps() {
         return speedLimitMbps;
-    }
-
-    public Integer getDeviceLimit() {
-        return deviceLimit;
     }
 
     public TrafficResetPolicy getResetPolicy() {

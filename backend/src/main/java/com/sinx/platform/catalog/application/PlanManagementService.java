@@ -74,7 +74,6 @@ public class PlanManagementService {
             values.planType(),
             values.transferLimitBytes(),
             values.speedLimitMbps(),
-            values.deviceLimit(),
             values.resetPolicy(),
             values.capacityLimit(),
             values.resettable(),
@@ -104,7 +103,6 @@ public class PlanManagementService {
             values.planType(),
             values.transferLimitBytes(),
             values.speedLimitMbps(),
-            values.deviceLimit(),
             values.resetPolicy(),
             values.capacityLimit(),
             values.resettable(),
@@ -196,7 +194,6 @@ public class PlanManagementService {
             throw invalid("Transfer limit is outside the supported range");
         }
         positiveOrNull(draft.speedLimitMbps(), "Speed limit");
-        positiveOrNull(draft.deviceLimit(), "Device limit");
         positiveOrNull(draft.capacityLimit(), "Capacity limit");
         positiveOrNull(
             draft.purchaseLimitPerUser(),
@@ -231,7 +228,6 @@ public class PlanManagementService {
             draft.planType(),
             transfer,
             draft.speedLimitMbps(),
-            draft.deviceLimit(),
             resetPolicy,
             draft.capacityLimit(),
             resettable,
@@ -354,7 +350,6 @@ public class PlanManagementService {
         PlanType planType,
         String transferLimitBytes,
         Integer speedLimitMbps,
-        Integer deviceLimit,
         TrafficResetPolicy resetPolicy,
         Integer capacityLimit,
         boolean resettable,
@@ -382,7 +377,6 @@ public class PlanManagementService {
         PlanType planType,
         long transferLimitBytes,
         Integer speedLimitMbps,
-        Integer deviceLimit,
         TrafficResetPolicy resetPolicy,
         Integer capacityLimit,
         boolean resettable,

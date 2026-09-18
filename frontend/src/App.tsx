@@ -23,7 +23,6 @@ import { HomePage } from "./pages/HomePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
-import { TicketsPage } from "./pages/TicketsPage";
 import { TrafficDetailsPage } from "./pages/TrafficDetailsPage";
 import { AccountOverviewPage } from "./pages/AccountOverviewPage";
 import { AccountProfilePage } from "./pages/AccountProfilePage";
@@ -167,13 +166,6 @@ export function App() {
     return (
       <ProtectedRoute>
         <InvitationsPage />
-      </ProtectedRoute>
-    );
-  }
-  if (path === "/account/tickets") {
-    return (
-      <ProtectedRoute>
-        <TicketsPage />
       </ProtectedRoute>
     );
   }

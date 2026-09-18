@@ -373,7 +373,6 @@ class OrderFulfilmentServiceTest {
             PlanType.SUBSCRIPTION,
             transferLimitBytes,
             50,
-            3,
             TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
             null,
             false,

@@ -29,7 +29,6 @@ const dashboardCopy = {
     endpointPending: "后端端点尚未实现",
     todayIncome: "今日收入",
     monthlyIncome: "月收入",
-    pendingTickets: "待处理工单",
     pendingCommission: "待处理佣金",
     monthlyUsers: "月新增用户",
     totalUsers: "总用户",
@@ -99,7 +98,6 @@ const dashboardCopy = {
     endpointPending: "Backend endpoint is not implemented",
     todayIncome: "Today’s revenue",
     monthlyIncome: "Monthly revenue",
-    pendingTickets: "Pending tickets",
     pendingCommission: "Pending commission",
     monthlyUsers: "New users this month",
     totalUsers: "Total users",
@@ -504,13 +502,6 @@ export function AdminDashboardPage() {
         label: copy.monthlyIncome,
         glyph: "▥",
         value: formatCurrency(summary.data?.monthlyIncome, language)
-      },
-      {
-        id: "pending-tickets",
-        label: copy.pendingTickets,
-        glyph: "▱",
-        value: formatNumber(summary.data?.pendingTickets, language),
-        href: "/admin/support/tickets"
       },
       {
         id: "pending-commission",

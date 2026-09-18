@@ -70,8 +70,7 @@ const copy = {
     settingWebhook: "设置中...",
     webhookSuccess: "Webhook 设置成功",
     wsSupport: "目前支持 WebSocket 通信的节点端：Xboard Node",
-    subscriptionFormat: "当前订阅路径格式：{path}/xxxxxxxxxx",
-    subscriptionRestart: "修改订阅路径后，可能需要重启服务才能生效。",
+    subscriptionFormat: "订阅入口固定为 {path}/xxxxxxxxxx，不可自定义。",
     generateToken: "生成随机通信密钥",
     rangeError: "请输入 {min} 到 {max} 之间的整数。",
     templateName: "邮件模板",
@@ -109,8 +108,8 @@ const copy = {
     settingWebhook: "Setting...",
     webhookSuccess: "Webhook configured",
     wsSupport: "WebSocket communication is currently supported by Xboard Node.",
-    subscriptionFormat: "Current subscription format: {path}/xxxxxxxxxx",
-    subscriptionRestart: "A service restart may be required after changing this path.",
+    subscriptionFormat:
+      "The subscription endpoint is fixed at {path}/xxxxxxxxxx and is not configurable.",
     generateToken: "Generate a random communication key",
     rangeError: "Enter an integer between {min} and {max}.",
     templateName: "Email template",
@@ -621,7 +620,7 @@ export function SystemSettingsPage() {
           onClick={() =>
             updateField(
               field,
-              field.key === "force_https" || field.key === "stop_register"
+              field.key === "stop_register"
                 ? enabled
                   ? 0
                   : 1
@@ -847,20 +846,16 @@ export function SystemSettingsPage() {
                   <span>
                     <strong>{field.label[language]}</strong>
                     <small>{field.description[language]}</small>
-                    {field.key === "subscribe_path" && (
-                      <small>
-                        {labels.subscriptionFormat.replace(
-                          "{path}",
-                          String(draft.subscribe_path || "s")
-                        )}
-                        <br />
-                        {labels.subscriptionRestart}
-                      </small>
-                    )}
                   </span>
                   {renderControl(field)}
                 </label>
               ))}
+
+              {selectedSection === "subscribe" && (
+                <div className="settings-info">
+                  ⓘ {labels.subscriptionFormat.replace("{path}", "/sub")}
+                </div>
+              )}
 
               {selectedSection === "server" &&
                 Boolean(draft.server_ws_enable) && (

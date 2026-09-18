@@ -476,7 +476,6 @@ class NodeWebSocketContractTest {
             "legacy-token",
             60,
             60,
-            0,
             enabled,
             null
         );

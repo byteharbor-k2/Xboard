@@ -108,7 +108,6 @@ export type PlanOffer = {
   planType: PlanType;
   transferLimitBytes: string;
   speedLimitMbps: number | null;
-  deviceLimit: number | null;
   resetPolicy: TrafficResetPolicy;
   renewable: boolean;
   resettable: boolean;
@@ -202,7 +201,6 @@ export type ManagedPlan = {
   planType: PlanType;
   transferLimitBytes: string;
   speedLimitMbps: number | null;
-  deviceLimit: number | null;
   resetPolicy: TrafficResetPolicy;
   capacityLimit: number | null;
   resettable: boolean;
@@ -240,7 +238,6 @@ export type SubscriptionEntitlement = {
   remainingBytes: string;
   usagePercent: number;
   speedLimitMbps: number | null;
-  deviceLimit: number | null;
   resetPolicy: TrafficResetPolicy;
   startsAt: string;
   expiresAt: string | null;

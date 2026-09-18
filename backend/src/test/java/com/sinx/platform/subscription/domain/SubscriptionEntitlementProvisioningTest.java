@@ -25,12 +25,12 @@ class SubscriptionEntitlementProvisioningTest {
     void aPeriodicPlanTakesItsLimitsFromThePlanAndKeepsTheCounters() {
         UserAccount user = user();
         SubscriptionEntitlement entitlement = entitlement(
-            user, plan("Basic", 1_000, 50, 3)
+            user, plan("Basic", 1_000, 50)
         );
         entitlement.recordUsage(400, 100, NOW);
 
         entitlement.provisionPeriodic(
-            plan("Pro", 5_000, 200, 8),
+            plan("Pro", 5_000, 200),
             NOW.plusSeconds(86_400),
             false,
             NOW
@@ -39,7 +39,6 @@ class SubscriptionEntitlementProvisioningTest {
         assertThat(entitlement.getPlanName()).isEqualTo("Pro");
         assertThat(entitlement.getTransferLimitBytes()).isEqualTo(5_000);
         assertThat(entitlement.getSpeedLimitMbps()).isEqualTo(200);
-        assertThat(entitlement.getDeviceLimit()).isEqualTo(8);
         assertThat(entitlement.getExpiresAt()).isEqualTo(NOW.plusSeconds(86_400));
         assertThat(entitlement.usedBytes()).isEqualTo(500);
     }
@@ -48,12 +47,12 @@ class SubscriptionEntitlementProvisioningTest {
     void startingFreshZeroesTheCounters() {
         UserAccount user = user();
         SubscriptionEntitlement entitlement = entitlement(
-            user, plan("Basic", 1_000, 50, 3)
+            user, plan("Basic", 1_000, 50)
         );
         entitlement.recordUsage(400, 100, NOW);
 
         entitlement.provisionPeriodic(
-            plan("Pro", 5_000, 200, 8),
+            plan("Pro", 5_000, 200),
             NOW.plusSeconds(86_400),
             true,
             NOW
@@ -67,11 +66,11 @@ class SubscriptionEntitlementProvisioningTest {
     void aPackageReplacesThePlanAndDropsTheExpiry() {
         UserAccount user = user();
         SubscriptionEntitlement entitlement = entitlement(
-            user, plan("Basic", 1_000, 50, 3)
+            user, plan("Basic", 1_000, 50)
         );
         entitlement.recordUsage(900, 100, NOW);
 
-        entitlement.provisionPackage(plan("Top-up", 20_000, null, null), NOW);
+        entitlement.provisionPackage(plan("Top-up", 20_000, null), NOW);
 
         assertThat(entitlement.getPlanName()).isEqualTo("Top-up");
         assertThat(entitlement.getTransferLimitBytes()).isEqualTo(20_000);
@@ -83,7 +82,7 @@ class SubscriptionEntitlementProvisioningTest {
     void aTrafficResetClearsTheCountersAndNothingElse() {
         UserAccount user = user();
         SubscriptionEntitlement entitlement = entitlement(
-            user, plan("Basic", 1_000, 50, 3)
+            user, plan("Basic", 1_000, 50)
         );
         entitlement.recordUsage(900, 100, NOW);
         Instant expiry = entitlement.getExpiresAt();
@@ -97,10 +96,10 @@ class SubscriptionEntitlementProvisioningTest {
 
     @Test
     void aPeriodicPlanMustEndAtSomePoint() {
-        SubscriptionEntitlement entitlement = entitlement(user(), plan("Basic", 1_000, 50, 3));
+        SubscriptionEntitlement entitlement = entitlement(user(), plan("Basic", 1_000, 50));
 
         assertThatThrownBy(() ->
-            entitlement.provisionPeriodic(plan("Basic", 1_000, 50, 3), null, false, NOW)
+            entitlement.provisionPeriodic(plan("Basic", 1_000, 50), null, false, NOW)
         ).isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -122,8 +121,7 @@ class SubscriptionEntitlementProvisioningTest {
     private ServicePlan plan(
         String name,
         long transferLimitBytes,
-        Integer speedLimitMbps,
-        Integer deviceLimit
+        Integer speedLimitMbps
     ) {
         return ServicePlan.create(
             UUID.randomUUID(),
@@ -132,7 +130,6 @@ class SubscriptionEntitlementProvisioningTest {
             PlanType.SUBSCRIPTION,
             transferLimitBytes,
             speedLimitMbps,
-            deviceLimit,
             TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
             null,
             false,

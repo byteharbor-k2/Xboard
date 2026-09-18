@@ -54,7 +54,6 @@ class NodeProtocolServiceTest {
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
         when(entitlement.getSpeedLimitMbps()).thenReturn(50);
-        when(entitlement.getDeviceLimit()).thenReturn(3);
         when(fixture.entitlements().findAllWithUserAndPlan()).thenReturn(List.of(entitlement));
 
         NodeProtocolService.UsersPayload payload = fixture.service().users(1, 9, "token");
@@ -63,7 +62,7 @@ class NodeProtocolServiceTest {
             "id", 101L,
             "uuid", userId.toString(),
             "speed_limit", 50,
-            "device_limit", 3
+            "device_limit", 0
         ));
     }
 
@@ -259,21 +258,28 @@ class NodeProtocolServiceTest {
     }
 
     @Test
-    void legacyAliveListOnlyIncludesDeviceLimitedUsersAndReturnsCounts() {
+    void legacyAliveListReportsEveryUserThisNodeServes() {
         Fixture fixture = fixture("[10]", "[]");
         when(fixture.nodes().findFirstByCode("9")).thenReturn(Optional.empty());
-        SubscriptionEntitlement limited = entitlement(101L, 3);
-        SubscriptionEntitlement unlimited = entitlement(102L, 0);
+        SubscriptionEntitlement first = entitlement(101L);
+        SubscriptionEntitlement second = entitlement(102L);
         when(fixture.entitlements().findAllWithUserAndPlan())
-            .thenReturn(List.of(limited, unlimited));
-        when(fixture.deviceStates().snapshotForUsers(Set.of(101L), NOW))
-            .thenReturn(Map.of(101L, List.of("198.51.100.1", "2001:db8::1")));
+            .thenReturn(List.of(first, second));
+        when(fixture.deviceStates().snapshotForUsers(Set.of(101L, 102L), NOW))
+            .thenReturn(Map.of(
+                101L, List.of("198.51.100.1", "2001:db8::1"),
+                102L, List.of("203.0.113.7")
+            ));
 
         Map<Long, Integer> result = fixture.service()
             .aliveListLegacy(9L, "legacy-token");
 
-        assertThat(result).containsExactly(Map.entry(101L, 2));
-        verify(fixture.deviceStates()).snapshotForUsers(Set.of(101L), NOW);
+        assertThat(result).containsExactlyInAnyOrderEntriesOf(Map.of(
+            101L, 2,
+            102L, 1
+        ));
+        verify(fixture.deviceStates())
+            .snapshotForUsers(Set.of(101L, 102L), NOW);
     }
 
     @Test
@@ -344,7 +350,7 @@ class NodeProtocolServiceTest {
         when(trafficRates.charge(7L, BigDecimal.ONE)).thenReturn(7L);
         when(configuration.nodeCommunicationSettings()).thenReturn(
             new PlatformConfigurationService.NodeCommunicationSettings(
-                "legacy-token", 17, 19, 0, true, null
+                "legacy-token", 17, 19, true, null
             )
         );
 
@@ -375,7 +381,7 @@ class NodeProtocolServiceTest {
         return entitlement;
     }
 
-    private SubscriptionEntitlement entitlement(long nodeUserId, int deviceLimit) {
+    private SubscriptionEntitlement entitlement(long nodeUserId) {
         UserAccount user = mock(UserAccount.class);
         SubscriptionEntitlement entitlement = mock(SubscriptionEntitlement.class);
         when(user.getStatus()).thenReturn(UserStatus.ACTIVE);
@@ -384,7 +390,6 @@ class NodeProtocolServiceTest {
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
-        when(entitlement.getDeviceLimit()).thenReturn(deviceLimit);
         return entitlement;
     }
 

@@ -59,7 +59,7 @@ class LegacyUniProxyControllerTest {
                     "id", 101L,
                     "uuid", "00000000-0000-0000-0000-000000000101",
                     "speed_limit", 50,
-                    "device_limit", 3
+                    "device_limit", 0
                 )),
                 "\"users-etag\""
             )
@@ -71,7 +71,7 @@ class LegacyUniProxyControllerTest {
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.ETAG, "\"users-etag\""))
             .andExpect(jsonPath("$.users[0].id").value(101))
-            .andExpect(jsonPath("$.users[0].device_limit").value(3));
+            .andExpect(jsonPath("$.users[0].device_limit").value(0));
     }
 
     @Test

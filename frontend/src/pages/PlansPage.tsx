@@ -22,7 +22,6 @@ const offerQuery = `
       planType
       transferLimitBytes
       speedLimitMbps
-      deviceLimit
       resetPolicy
       renewable
       resettable
@@ -50,9 +49,6 @@ const copy = {
     data: "套餐流量",
     speed: "峰值速率",
     unlimitedSpeed: "不限速",
-    devices: "设备数量",
-    unlimitedDevices: "不限制",
-    deviceUnit: "台",
     reset: "流量重置",
     trafficPackage: "流量包",
     subscription: "月订阅",
@@ -70,9 +66,6 @@ const copy = {
     data: "Data allowance",
     speed: "Peak speed",
     unlimitedSpeed: "Unlimited",
-    devices: "Devices",
-    unlimitedDevices: "Unlimited",
-    deviceUnit: "devices",
     reset: "Data reset",
     trafficPackage: "Traffic package",
     subscription: "Monthly subscription",
@@ -174,14 +167,6 @@ export function PlansPage() {
                   {offer.speedLimitMbps
                     ? `${offer.speedLimitMbps} Mbps`
                     : labels.unlimitedSpeed}
-                </dd>
-              </div>
-              <div>
-                <dt>{labels.devices}</dt>
-                <dd>
-                  {offer.deviceLimit
-                    ? `${offer.deviceLimit} ${labels.deviceUnit}`
-                    : labels.unlimitedDevices}
                 </dd>
               </div>
               <div>

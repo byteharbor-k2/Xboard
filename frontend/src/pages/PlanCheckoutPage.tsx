@@ -31,9 +31,6 @@ const copy = {
     traffic: "流量",
     speed: "速度限制",
     unlimitedSpeed: "不限速",
-    devices: "同时在线设备",
-    unlimitedDevices: "不限制",
-    deviceUnit: "台",
     reset: "流量重置",
     periodTitle: "付款周期",
     couponPlaceholder: "有优惠券?",
@@ -68,9 +65,6 @@ const copy = {
     traffic: "Traffic",
     speed: "Speed limit",
     unlimitedSpeed: "Unmetered",
-    devices: "Concurrent devices",
-    unlimitedDevices: "Unlimited",
-    deviceUnit: "",
     reset: "Traffic reset",
     periodTitle: "Billing period",
     couponPlaceholder: "Have a coupon?",
@@ -255,14 +249,6 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                 {offer.speedLimitMbps
                   ? `${offer.speedLimitMbps} Mbps`
                   : text.unlimitedSpeed}
-              </strong>
-            </li>
-            <li>
-              <span>{text.devices}</span>
-              <strong>
-                {offer.deviceLimit
-                  ? `${offer.deviceLimit} ${text.deviceUnit}`.trim()
-                  : text.unlimitedDevices}
               </strong>
             </li>
             <li>

@@ -245,14 +245,17 @@ public class NodeProtocolService {
 
     public Map<Long, Integer> aliveListLegacy(long nodeId, String token) {
         ProxyNode node = authenticateLegacy(nodeId, token).node();
-        Set<Long> limitedUserIds = new java.util.LinkedHashSet<>();
+        // Every user that this node serves is asked about, not only the ones that
+        // used to sit under a device ceiling. There is no ceiling any more, but
+        // administrators still want to see how many devices an account is using,
+        // so the panel keeps collecting the observation.
+        Set<Long> trackedUserIds = new java.util.LinkedHashSet<>();
         for (Map<String, Object> user : users(node).users()) {
-            if (number(user.get("device_limit")) <= 0) continue;
             Long nodeUserId = positiveLong(user.get("id"));
-            if (nodeUserId != null) limitedUserIds.add(nodeUserId);
+            if (nodeUserId != null) trackedUserIds.add(nodeUserId);
         }
         Map<Long, Integer> counts = new LinkedHashMap<>();
-        deviceStates.snapshotForUsers(limitedUserIds, clock.instant())
+        deviceStates.snapshotForUsers(trackedUserIds, clock.instant())
             .forEach((userId, addresses) -> {
                 if (addresses != null && !addresses.isEmpty()) {
                     counts.put(userId, addresses.size());
@@ -395,7 +398,10 @@ public class NodeProtocolService {
         value.put("id", user.getNodeUserId());
         value.put("uuid", user.getId().toString());
         value.put("speed_limit", entitlement.getSpeedLimitMbps() == null ? 0 : entitlement.getSpeedLimitMbps());
-        value.put("device_limit", entitlement.getDeviceLimit() == null ? 0 : entitlement.getDeviceLimit());
+        // Always zero: the per-plan device ceiling was removed, so no plan caps
+        // how many devices may connect. The key itself stays on the wire because
+        // node agents parse a fixed payload shape.
+        value.put("device_limit", 0);
         return value;
     }
 
