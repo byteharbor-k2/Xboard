@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -73,6 +74,30 @@ public class GlobalExceptionHandler {
             HttpStatus.NOT_FOUND,
             "NOT_FOUND",
             "The requested endpoint does not exist",
+            request
+        );
+    }
+
+    /**
+     * The other half of the same problem as the unmatched path above: a route
+     * that exists but not for this verb. Left to the catch-all it answered 500
+     * and logged a stack trace, so a probe with the wrong method looked like a
+     * failure of ours and drowned out the ones that were.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    ProblemDetail handleUnsupportedMethod(
+        HttpRequestMethodNotSupportedException exception,
+        HttpServletRequest request
+    ) {
+        LOGGER.debug(
+            "Method {} is not supported for {}",
+            request.getMethod(),
+            request.getRequestURI()
+        );
+        return baseProblem(
+            HttpStatus.METHOD_NOT_ALLOWED,
+            "METHOD_NOT_ALLOWED",
+            "The requested endpoint does not accept this method",
             request
         );
     }
