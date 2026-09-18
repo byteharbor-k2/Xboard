@@ -133,12 +133,19 @@ export function SubscriptionClientDialog({
                 key={client.id}
               >
                 <div className="subscription-client-main">
-                  <span
-                    aria-hidden="true"
-                    className="subscription-client-badge"
-                    style={{ background: client.accent }}
-                  >
-                    {client.monogram}
+                  <span aria-hidden="true" className="subscription-client-icon">
+                    <img
+                      alt=""
+                      height={36}
+                      loading="lazy"
+                      onError={(event) => {
+                        // A missing asset should leave a quiet tile rather than
+                        // the browser's broken-image glyph next to the name.
+                        event.currentTarget.style.visibility = "hidden";
+                      }}
+                      src={client.icon}
+                      width={36}
+                    />
                   </span>
                   <div className="subscription-client-identity">
                     <strong>{client.name[language]}</strong>

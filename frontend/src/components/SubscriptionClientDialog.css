@@ -67,17 +67,26 @@
   padding: 11px 22px;
 }
 
-.subscription-client-badge {
+/*
+ * The app's own icon on a neutral tile. The tile stays a fixed size so a row
+ * whose icon is a different aspect ratio — or missing — still lines up with
+ * its neighbours.
+ */
+.subscription-client-icon {
   flex: 0 0 auto;
   width: 36px;
   height: 36px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border-radius: 10px;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
+  background: #f4f7fb;
+}
+
+.subscription-client-icon img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
 .subscription-client-identity {

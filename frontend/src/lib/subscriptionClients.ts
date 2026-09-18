@@ -17,87 +17,115 @@ type ImportScheme =
   | "surfboard"
   | "singbox"
   | "hiddify"
+  | "v2rayng"
   | "shadowrocket";
 
 /**
  * One row of the client chooser on the account dashboard.
  *
- * The list mirrors the original panel's subscribe popup, minus QuantumultX:
- * this backend has no renderer for its format, and an entry that hands out a
- * config the client cannot read is worse than no entry at all. Shadowrocket is
- * kept because it reads the generic base64 URI list, which this backend does
- * serve — the row says so in its detail line rather than pretending otherwise.
+ * Two deliberate omissions. There is no "Clash" row: that name selects the
+ * original Clash core's narrow protocol set, which cannot carry vless,
+ * hysteria, tuic or anytls, and everyone on that core has a concrete app named
+ * below instead. There is no universal row either — a row that hands out
+ * whatever the User-Agent resolves to reads as a safe default to a newcomer and
+ * is not one. Every row is now a named app, so the link a user copies is the
+ * one they asked for.
+ *
+ * QuantumultX is still absent for a different reason: this backend has no
+ * renderer for its format, and an entry that hands out a config the client
+ * cannot read is worse than no entry.
  */
 export type SubscriptionClient = {
   id: string;
-  /** Brand names are not translated; the universal row is. */
+  /** Brand names are not translated. */
   name: Record<Locale, string>;
-  /** One or two characters for the badge, unique across the list. */
-  monogram: string;
-  /** Badge colour, picked so no two neighbours read as the same client. */
-  accent: string;
+  /** Path under `public/`, served from the site root. */
+  icon: string;
   /**
-   * The `flag` this client's format is served under, or null to send the bare
-   * URL and let the client identify itself from its User-Agent.
+   * The `flag` this client's format is served under.
    */
-  flag: string | null;
-  /** Where it runs, plus the one caveat a user would otherwise be surprised by. */
+  flag: string;
+  /** Where it runs, plus any caveat a user would otherwise be surprised by. */
   detail: Record<Locale, string>;
-  /** Systems the client has a build for. Empty when it cannot import at all. */
+  /** Systems the client has a build for. */
   platforms: VisitorPlatform[];
-  /** How to open the client with a subscription, or null for no import. */
+  /**
+   * How to open the client with a subscription, or null when the app has no
+   * such scheme. V2rayN is the null case: it reads a subscription from the
+   * clipboard, and the only `v2rayn://` it registers imports a single profile
+   * (`v2rayn://{type}/{base64}`), not a subscription.
+   */
   importScheme: ImportScheme | null;
 };
 
 export const subscriptionClients: SubscriptionClient[] = [
   {
-    id: "universal",
-    name: { "zh-CN": "通用订阅", "en-US": "Universal" },
-    monogram: "＊",
-    accent: "#64748b",
-    flag: null,
-    detail: {
-      "zh-CN": "任意客户端 · 由客户端自行识别格式",
-      "en-US": "Any client · format detected from its user agent"
-    },
-    platforms: [],
-    importScheme: null
-  },
-  {
-    id: "clash",
-    name: { "zh-CN": "Clash", "en-US": "Clash" },
-    monogram: "CL",
-    accent: "#2f6fed",
-    flag: "clash",
-    detail: { "zh-CN": "Windows", "en-US": "Windows" },
-    platforms: ["windows"],
-    importScheme: "clash"
-  },
-  {
     id: "meta",
     name: { "zh-CN": "Clash Meta", "en-US": "Clash Meta" },
-    monogram: "CM",
-    accent: "#7c3aed",
+    icon: "/clients/clash-meta.webp",
     flag: "meta",
-    detail: { "zh-CN": "macOS · Android", "en-US": "macOS · Android" },
+    detail: {
+      "zh-CN": "macOS · Android · mihomo 内核",
+      "en-US": "macOS · Android · mihomo core"
+    },
     platforms: ["mac", "android"],
     importScheme: "clash"
   },
   {
+    id: "cfw",
+    name: { "zh-CN": "Clash for Windows", "en-US": "Clash for Windows" },
+    icon: "/clients/cfw.png",
+    flag: "clash",
+    detail: {
+      "zh-CN": "Windows · 旧版 Clash 内核，无 vless / hysteria",
+      "en-US": "Windows · legacy Clash core, no vless / hysteria"
+    },
+    platforms: ["windows"],
+    importScheme: "clash"
+  },
+  {
+    id: "v2rayn",
+    name: { "zh-CN": "V2rayN", "en-US": "V2rayN" },
+    icon: "/clients/v2rayn.png",
+    flag: "general",
+    detail: {
+      "zh-CN": "Windows · 通用 v2ray 链接，需手动粘贴订阅",
+      "en-US": "Windows · generic v2ray links, paste the subscription manually"
+    },
+    platforms: ["windows"],
+    importScheme: null
+  },
+  {
+    id: "v2rayng",
+    name: { "zh-CN": "V2rayNG", "en-US": "V2rayNG" },
+    icon: "/clients/v2rayng.png",
+    flag: "general",
+    detail: { "zh-CN": "Android", "en-US": "Android" },
+    platforms: ["android"],
+    importScheme: "v2rayng"
+  },
+  {
     id: "nekobox",
     name: { "zh-CN": "NekoBox", "en-US": "NekoBox" },
-    monogram: "NB",
-    accent: "#db2777",
+    icon: "/clients/nekobox.jpg",
     flag: "meta",
-    detail: { "zh-CN": "Android", "en-US": "Android" },
+    detail: { "zh-CN": "Android · mihomo 内核", "en-US": "Android · mihomo core" },
     platforms: ["android"],
     importScheme: "clash"
   },
   {
+    id: "surfboard",
+    name: { "zh-CN": "Surfboard", "en-US": "Surfboard" },
+    icon: "/clients/surfboard.png",
+    flag: "surfboard",
+    detail: { "zh-CN": "Android", "en-US": "Android" },
+    platforms: ["android"],
+    importScheme: "surfboard"
+  },
+  {
     id: "stash",
     name: { "zh-CN": "Stash", "en-US": "Stash" },
-    monogram: "ST",
-    accent: "#0d9488",
+    icon: "/clients/stash.png",
     flag: "stash",
     detail: { "zh-CN": "macOS · iOS", "en-US": "macOS · iOS" },
     platforms: ["mac", "ios"],
@@ -106,28 +134,16 @@ export const subscriptionClients: SubscriptionClient[] = [
   {
     id: "surge",
     name: { "zh-CN": "Surge", "en-US": "Surge" },
-    monogram: "SG",
-    accent: "#ea580c",
+    icon: "/clients/surge.png",
     flag: "surge",
     detail: { "zh-CN": "macOS · iOS", "en-US": "macOS · iOS" },
     platforms: ["mac", "ios"],
     importScheme: "surge"
   },
   {
-    id: "surfboard",
-    name: { "zh-CN": "Surfboard", "en-US": "Surfboard" },
-    monogram: "SF",
-    accent: "#0891b2",
-    flag: "surfboard",
-    detail: { "zh-CN": "Android", "en-US": "Android" },
-    platforms: ["android"],
-    importScheme: "surfboard"
-  },
-  {
     id: "singbox",
     name: { "zh-CN": "sing-box", "en-US": "sing-box" },
-    monogram: "SI",
-    accent: "#16a34a",
+    icon: "/clients/singbox.png",
     flag: "sing-box",
     detail: { "zh-CN": "macOS · iOS · Android", "en-US": "macOS · iOS · Android" },
     platforms: ["mac", "ios", "android"],
@@ -136,8 +152,7 @@ export const subscriptionClients: SubscriptionClient[] = [
   {
     id: "hiddify",
     name: { "zh-CN": "Hiddify", "en-US": "Hiddify" },
-    monogram: "HD",
-    accent: "#ca8a04",
+    icon: "/clients/hiddify.png",
     flag: "sing-box",
     detail: {
       "zh-CN": "macOS · Windows · iOS · Android",
@@ -149,8 +164,7 @@ export const subscriptionClients: SubscriptionClient[] = [
   {
     id: "shadowrocket",
     name: { "zh-CN": "Shadowrocket", "en-US": "Shadowrocket" },
-    monogram: "SR",
-    accent: "#be123c",
+    icon: "/clients/shadowrocket.png",
     flag: "general",
     detail: {
       "zh-CN": "macOS · iOS · 通用 v2ray 链接",
@@ -164,18 +178,13 @@ export const subscriptionClients: SubscriptionClient[] = [
 /**
  * The address to hand a specific client.
  *
- * A flagged link is the point of the chooser: the client gets the config built
- * for it rather than whatever its User-Agent happens to resolve to, and the row
- * the user clicked is the row they get. The universal row passes null so its
- * link stays format-agnostic.
+ * The flag is what makes the row the user clicked the format they get, rather
+ * than whatever their User-Agent happens to resolve to.
  */
 export function subscriptionUrlForClient(
   baseUrl: string,
   client: SubscriptionClient
 ): string {
-  if (!client.flag) {
-    return baseUrl;
-  }
   const separator = baseUrl.includes("?") ? "&" : "?";
   return `${baseUrl}${separator}flag=${encodeURIComponent(client.flag)}`;
 }
@@ -200,11 +209,13 @@ function base64Url(value: string): string {
 /**
  * The deep link that opens a client with this subscription.
  *
- * Ported from the original's client list, one scheme at a time, because the
- * differences are not cosmetic: Clash and Surge take the address percent-encoded
- * in a query parameter, sing-box and Hiddify take it in the fragment, Hiddify
- * wants it *unencoded*, and Shadowrocket wants it base64url-encoded in the path.
- * Returns null for a client that has no import at all (the universal row).
+ * Ported from the original's client list plus two apps it does not carry, one
+ * scheme at a time, because the differences are not cosmetic: Clash and Surge
+ * take the address percent-encoded in a query parameter, sing-box and V2rayNG
+ * take it in the fragment, Hiddify wants it *unencoded*, and Shadowrocket wants
+ * it base64url-encoded in the path.
+ *
+ * Returns null for an app with no subscription scheme (V2rayN).
  */
 export function clientImportLink(
   client: SubscriptionClient,
@@ -226,6 +237,11 @@ export function clientImportLink(
       return `sing-box://import-remote-profile?url=${encoded}#${name}`;
     case "hiddify":
       return `hiddify://import/${url}#${name}`;
+    // V2rayNG's UrlSchemeActivity reads the `url` query parameter and the
+    // fragment, then URL-decodes the parameter a second time — so the address
+    // is percent-encoded here and the name rides in the fragment.
+    case "v2rayng":
+      return `v2rayng://install-config?url=${encoded}#${name}`;
     case "shadowrocket":
       return `shadowrocket://add/sub://${base64Url(url)}?remark=${name}`;
     default:
@@ -249,10 +265,7 @@ export function detectVisitorPlatform(
   if (ua.includes("windows")) {
     return "windows";
   }
-  if (ua.includes("iphone") || ua.includes("ipod")) {
-    return "ios";
-  }
-  if (ua.includes("ipad")) {
+  if (ua.includes("iphone") || ua.includes("ipod") || ua.includes("ipad")) {
     return "ios";
   }
   if (ua.includes("macintosh") || ua.includes("mac os x")) {
