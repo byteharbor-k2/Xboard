@@ -56,6 +56,17 @@ public class UserAccount {
     @Column(name = "node_user_id", insertable = false, updatable = false)
     private Long nodeUserId;
 
+    /** An operator's note about this account. Never shown to the customer. */
+    @Column(name = "remarks")
+    private String remarks;
+
+    /**
+     * An operator's speed cap for this account, in Mbps. Null - the normal
+     * case - means whatever the plan allows.
+     */
+    @Column(name = "speed_limit_mbps")
+    private Integer speedLimitMbps;
+
     /**
      * What the customer's subscription link is addressed by.
      *
@@ -186,6 +197,55 @@ public class UserAccount {
         return nodeUserId;
     }
 
+    public String getRemarks() {
+        return remarks;
+    }
+
+    public Integer getSpeedLimitMbps() {
+        return speedLimitMbps;
+    }
+
+    /**
+     * Suspends or restores the account.
+     *
+     * Suspension is the whole of what the panel calls a ban, and it is already
+     * enforced in the two places that matter: sign-in refuses a suspended
+     * account, and the subscription endpoint stops handing out a config. There
+     * is nothing else to revoke, so this needs no companion call.
+     */
+    public void setSuspended(boolean suspended, Instant now) {
+        UserStatus next = suspended ? UserStatus.SUSPENDED : UserStatus.ACTIVE;
+        if (status != next) {
+            status = next;
+            updatedAt = now;
+        }
+    }
+
+    public void updateEmail(String email, Instant now) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("An email address cannot be blank");
+        }
+        this.email = email;
+        // The new address has not been proven, so the old proof no longer holds.
+        this.emailVerifiedAt = null;
+        this.updatedAt = now;
+    }
+
+    public void updateRemarks(String remarks, Instant now) {
+        this.remarks = remarks == null || remarks.isBlank() ? null : remarks;
+        this.updatedAt = now;
+    }
+
+    public void updateSpeedLimitMbps(Integer speedLimitMbps, Instant now) {
+        if (speedLimitMbps != null && speedLimitMbps <= 0) {
+            throw new IllegalArgumentException(
+                "A speed limit must be greater than zero"
+            );
+        }
+        this.speedLimitMbps = speedLimitMbps;
+        this.updatedAt = now;
+    }
+
     public String getSubscriptionToken() {
         return subscriptionToken;
     }
@@ -213,6 +273,10 @@ public class UserAccount {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public Instant getLastLoginAt() {
+        return lastLoginAt;
     }
 
     public long getBalanceMinor() {

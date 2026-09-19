@@ -15,6 +15,7 @@ import { AdminNodesPage } from "./pages/AdminNodesPage";
 import { AdminNodeGroupsPage } from "./pages/AdminNodeGroupsPage";
 import { AdminOrdersPage } from "./pages/AdminOrdersPage";
 import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminNodeRoutesPage } from "./pages/AdminNodeRoutesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
@@ -226,6 +227,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminPaymentsPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/users") {
+    return (
+      <AdminProtectedRoute>
+        <AdminUsersPage />
       </AdminProtectedRoute>
     );
   }

@@ -153,6 +153,43 @@ public class SubscriptionEntitlement {
         clearCounters(now);
     }
 
+    /**
+     * Applies an administrator's corrections to the allowance, the expiry and
+     * optionally the plan behind them.
+     *
+     * Usage counters are deliberately left alone. An operator adjusting an
+     * allowance is correcting what the customer is entitled to, not erasing
+     * what they have already used - resetting traffic is a separate, explicit
+     * action.
+     *
+     * Passing a null plan keeps the current one, which is the common case: most
+     * corrections are to the numbers, not to which plan they came from.
+     */
+    public void administrate(
+        ServicePlan plan,
+        long transferLimitBytes,
+        Instant expiresAt,
+        Instant now
+    ) {
+        if (transferLimitBytes <= 0) {
+            throw new IllegalArgumentException(
+                "A traffic allowance must be greater than zero"
+            );
+        }
+        if (plan != null) {
+            this.plan = plan;
+            this.planName = plan.getName();
+            this.speedLimitMbps = plan.getSpeedLimitMbps();
+            this.resetPolicy = plan.getResetPolicy();
+        }
+        this.transferLimitBytes = transferLimitBytes;
+        this.expiresAt = expiresAt;
+        // An operator granting a subscription is reactivating it, the same way
+        // a paid order does.
+        this.canceledAt = null;
+        this.updatedAt = now;
+    }
+
     private void applyPlan(ServicePlan plan, Instant expiresAt, Instant now) {
         this.plan = plan;
         this.planName = plan.getName();

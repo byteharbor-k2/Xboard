@@ -1,6 +1,7 @@
 package com.sinx.platform.subscription.repository;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +31,20 @@ public interface SubscriptionEntitlementRepository
      */
     @EntityGraph(attributePaths = {"user", "plan"})
     Optional<SubscriptionEntitlement> findByUserId(UUID userId);
+
+    /**
+     * The entitlements behind a page of accounts, in one query. The admin list
+     * needs a plan name and a usage figure per row, and asking per row would be
+     * one query per account on every page.
+     */
+    @EntityGraph(attributePaths = {"user", "plan"})
+    @Query("""
+        select entitlement from SubscriptionEntitlement entitlement
+        where entitlement.user.id in :userIds
+        """)
+    List<SubscriptionEntitlement> findByUserIdIn(
+        @Param("userIds") Collection<UUID> userIds
+    );
 
     @EntityGraph(attributePaths = {"user", "plan"})
     @Query("select entitlement from SubscriptionEntitlement entitlement")
