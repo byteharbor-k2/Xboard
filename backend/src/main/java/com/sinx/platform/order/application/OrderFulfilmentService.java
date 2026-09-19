@@ -30,17 +30,27 @@ import tools.jackson.databind.ObjectMapper;
  *
  * This is the second half of an order's life: {@link OrderService} prices it
  * and takes the money, this provisions the entitlement and closes the order
- * out. It mirrors the original panel's {@code paid()} and {@code open()}, with
- * one deliberate omission - the original settled an order whose deductions
- * brought the total to zero straight from its checkout ("free process"), which
- * hands out a subscription for nothing. Here every order waits for a real
- * settlement, whether that is a payment callback or an administrator.
+ * out. It mirrors the original panel's {@code paid()} and {@code open()}.
+ *
+ * An order the customer's balance covered in full settles itself here instead
+ * of waiting for a gateway. The money for it has already been received - a
+ * balance is a prepaid account, not a discount - so there is nothing left to
+ * collect, and parking it as pending is what stranded those orders: the gateway
+ * list is empty for a zero total by design, so the customer could neither pay
+ * it nor have it opened.
  */
 @Service
 public class OrderFulfilmentService {
 
     /** Recorded on orders an administrator settled by hand, as the original does. */
     public static final String MANUAL_CALLBACK_NO = "manual_operation";
+
+    /**
+     * Recorded on orders the customer's own balance covered in full. Kept
+     * distinct from {@link #MANUAL_CALLBACK_NO} so the two stay tellable apart
+     * in an order's history.
+     */
+    public static final String BALANCE_CALLBACK_NO = "balance_paid";
 
     private static final TypeReference<List<String>> STRING_LIST =
         new TypeReference<>() {
@@ -99,6 +109,26 @@ public class OrderFulfilmentService {
             );
         }
         return settle(order, MANUAL_CALLBACK_NO);
+    }
+
+    /**
+     * Settles an order the customer's balance already covered in full.
+     *
+     * Nothing is collected here because nothing is owed: the balance was
+     * debited when the order was placed. This is a settlement, not a
+     * free process - an order whose total is zero because a coupon discounted
+     * it to nothing never reaches here, and would not be opened by this.
+     *
+     * Returns the order untouched when it is no longer pending, so a retry
+     * after a successful settlement is harmless.
+     */
+    @Transactional
+    public ServiceOrder settleFromBalance(String tradeNo) {
+        ServiceOrder order = requireOrderForUpdate(tradeNo);
+        if (!order.isPending()) {
+            return order;
+        }
+        return settle(order, BALANCE_CALLBACK_NO);
     }
 
     private ServiceOrder settle(ServiceOrder order, String callbackNo) {

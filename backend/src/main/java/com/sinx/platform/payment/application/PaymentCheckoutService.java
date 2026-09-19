@@ -9,6 +9,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sinx.platform.order.application.OrderFulfilmentService;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.payment.domain.PaymentContext;
@@ -35,6 +36,7 @@ public class PaymentCheckoutService {
     private final PaymentMethodService methodService;
     private final PaymentGatewayRegistry gateways;
     private final PaymentConfigCodec codec;
+    private final OrderFulfilmentService fulfilment;
     private final Clock clock;
 
     public PaymentCheckoutService(
@@ -43,6 +45,7 @@ public class PaymentCheckoutService {
         PaymentMethodService methodService,
         PaymentGatewayRegistry gateways,
         PaymentConfigCodec codec,
+        OrderFulfilmentService fulfilment,
         Clock clock
     ) {
         this.orders = orders;
@@ -50,6 +53,7 @@ public class PaymentCheckoutService {
         this.methodService = methodService;
         this.gateways = gateways;
         this.codec = codec;
+        this.fulfilment = fulfilment;
         this.clock = clock;
     }
 
@@ -57,14 +61,28 @@ public class PaymentCheckoutService {
      * The methods this order may be paid with, each priced for it.
      *
      * Empty for an order that is already settled, and for one whose deductions
-     * brought it to nothing: neither can be or needs to be paid for through a
-     * gateway, and the original's habit of opening such an order for free is
-     * deliberately not reproduced.
+     * brought it to nothing. An order the balance covered in full is opened
+     * here rather than being offered methods, since there is nothing left for a
+     * gateway to collect; the caller learns that from the empty list.
+     *
+     * The opening happens here as well as at checkout because orders placed
+     * before this rule existed are still sitting pending with nothing the
+     * customer could do about them. Settling is idempotent, so an order that is
+     * no longer pending is simply left alone.
+     *
+     * A coupon that discounted the order to nothing does not qualify: nobody
+     * paid for it, so it waits for an administrator as before.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public List<PaymentOptionView> options(UUID userId, String tradeNo) {
         ServiceOrder order = requireOwnOrder(userId, tradeNo);
+        // The fee is quoted against the order's own total, never against a
+        // total that already carries a fee, or re-opening a checked-out order
+        // would charge the surcharge twice.
         if (order.getTotalAmount() <= 0) {
+            if (order.isPending() && order.getBalanceAmount() > 0) {
+                fulfilment.settleFromBalance(order.getTradeNo());
+            }
             return List.of();
         }
         return methods.findByEnabledTrueOrderBySortOrderAscCreatedAtAsc().stream()

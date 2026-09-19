@@ -2,6 +2,7 @@ package com.sinx.platform.order.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,6 +14,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,8 +38,8 @@ import com.sinx.platform.subscription.repository.SubscriptionEntitlementReposito
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * What placing an order produces - in particular an order the deductions
- * covered in full, which is still an order nobody has paid for.
+ * What placing an order produces - in particular an order the balance covered
+ * in full, which is opened straight away because nothing is left to collect.
  */
 class OrderServicePlacementTest {
 
@@ -47,7 +49,11 @@ class OrderServicePlacementTest {
     private ServiceOrderRepository orders;
     private UserAccountRepository users;
     private SubscriptionEntitlementRepository entitlements;
+    private OrderFulfilmentService fulfilment;
     private OrderService service;
+
+    /** The order the repository last accepted, so settlement can find it. */
+    private final AtomicReference<ServiceOrder> saved = new AtomicReference<>();
 
     private UserAccount user;
     private ServicePlan plan;
@@ -58,6 +64,7 @@ class OrderServicePlacementTest {
         orders = mock(ServiceOrderRepository.class);
         users = mock(UserAccountRepository.class);
         entitlements = mock(SubscriptionEntitlementRepository.class);
+        fulfilment = mock(OrderFulfilmentService.class);
         service = new OrderService(
             plans,
             orders,
@@ -67,6 +74,7 @@ class OrderServicePlacementTest {
             mock(CouponRedemptionRepository.class),
             mock(CouponRepository.class),
             mock(SurplusValuation.class),
+            fulfilment,
             new ObjectMapper(),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );
@@ -84,14 +92,27 @@ class OrderServicePlacementTest {
         when(plans.findById(plan.getId())).thenReturn(Optional.of(plan));
         when(entitlements.findByUserId(user.getId())).thenReturn(Optional.empty());
         when(orders.existsByUserIdAndStatusIn(any(), any())).thenReturn(false);
-        when(orders.save(any(ServiceOrder.class)))
-            .thenAnswer(call -> call.getArgument(0));
+        when(orders.save(any(ServiceOrder.class))).thenAnswer(call -> {
+            ServiceOrder placed = call.getArgument(0);
+            saved.set(placed);
+            return placed;
+        });
+        // The real settlement opens the order; here it marks the very order
+        // place() just saved, which is the one it hands back.
+        when(fulfilment.settleFromBalance(anyString())).thenAnswer(call -> {
+            ServiceOrder placed = saved.get();
+            placed.markPaid(OrderFulfilmentService.BALANCE_CALLBACK_NO, NOW);
+            placed.complete(NOW);
+            return placed;
+        });
     }
 
     @Test
-    void anOrderTheBalanceCoversCompletelyStillWaitsToBePaid() {
-        // 10.00 plan, 50.00 balance: the account owes nothing, and the original
-        // panel would have opened the subscription straight from checkout.
+    void anOrderTheBalanceCoversCompletelyIsSettledStraightAway() {
+        // 10.00 plan, 50.00 balance: the account owes nothing. The balance is
+        // money already received, so the order is handed to settlement rather
+        // than parked in a state where the gateway list is empty and the
+        // customer can neither pay it nor have it opened.
         user.creditBalance(5_000, NOW);
 
         ServiceOrder order = service.place(
@@ -101,27 +122,16 @@ class OrderServicePlacementTest {
             null
         );
 
-        assertThat(order.getTotalAmount()).isZero();
-        assertThat(order.getBalanceAmount()).isEqualTo(1_000);
-        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
-        assertThat(order.getPaidAt()).isNull();
-        assertThat(order.getCallbackNo()).isNull();
+        // The balance was still taken at placement, before anything was opened.
         assertThat(user.getBalanceMinor()).isEqualTo(4_000);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(order.getCallbackNo())
+            .isEqualTo(OrderFulfilmentService.BALANCE_CALLBACK_NO);
+        verify(fulfilment).settleFromBalance(order.getTradeNo());
     }
 
     @Test
-    void placingAnOrderProvisionsNothingOnItsOwn() {
-        user.creditBalance(5_000, NOW);
-
-        service.place(user.getId(), plan.getId(), BillingPeriod.MONTHLY, null);
-
-        // Granting the subscription is the settlement's job, so an order that
-        // owes nothing waits for one exactly like any other.
-        verify(entitlements, never()).save(any(SubscriptionEntitlement.class));
-    }
-
-    @Test
-    void anOrderThatIsStillPayableAlsoWaitsToBePaid() {
+    void anOrderThatIsStillPayableWaitsForItsPayment() {
         ServiceOrder order = service.place(
             user.getId(),
             plan.getId(),
@@ -131,6 +141,7 @@ class OrderServicePlacementTest {
 
         assertThat(order.getTotalAmount()).isEqualTo(1_000);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
+        verify(fulfilment, never()).settleFromBalance(anyString());
     }
 
     private ServicePlan plan() {

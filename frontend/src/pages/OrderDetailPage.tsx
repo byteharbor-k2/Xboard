@@ -54,6 +54,7 @@ const copy = {
     payable: "应付总额",
     method: "支付方式",
     methodEmpty: "暂无可用支付方式，请联系管理员。",
+    methodCoveredByBalance: "该订单已由账户余额全额抵扣，无需再支付，正在为你开通。",
     methodLoading: "正在读取支付方式…",
     pay: "立即支付",
     paying: "正在跳转…",
@@ -96,6 +97,8 @@ const copy = {
     payable: "Total to pay",
     method: "Payment method",
     methodEmpty: "No payment method is available; please contact an administrator.",
+    methodCoveredByBalance:
+      "This order was covered in full by your account balance, so there is nothing left to pay. It is being opened for you.",
     methodLoading: "Loading payment methods…",
     pay: "Pay now",
     paying: "Redirecting…",
@@ -153,7 +156,10 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
   const methods = useQuery({
     queryKey: ["payment-options", tradeNo],
     queryFn: () => fetchPaymentOptions(accessToken, tradeNo),
-    enabled: order?.status === "PENDING" && Number(order.totalAmount) > 0
+    // Asked for even when the balance already covers the order: that call is
+    // what settles such an order, and the empty list it answers with is how the
+    // customer learns there is nothing left to pay.
+    enabled: order?.status === "PENDING"
   });
 
   const checkout = useMutation({
@@ -347,7 +353,11 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                   </p>
                 )}
                 {methods.data?.length === 0 && (
-                  <p className="muted">{labels.methodEmpty}</p>
+                  <p className="muted">
+                    {Number(order.totalAmount) <= 0
+                      ? labels.methodCoveredByBalance
+                      : labels.methodEmpty}
+                  </p>
                 )}
                 <ul className="checkout-periods">
                   {methods.data?.map((method) => (

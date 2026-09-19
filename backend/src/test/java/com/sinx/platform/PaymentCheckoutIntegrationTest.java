@@ -487,6 +487,15 @@ class PaymentCheckoutIntegrationTest {
         UUID planId,
         String couponCode
     ) throws Exception {
+        return placeOrder(accessToken, planId, couponCode, "PENDING");
+    }
+
+    private String placeOrder(
+        String accessToken,
+        UUID planId,
+        String couponCode,
+        String expectedStatus
+    ) throws Exception {
         String coupon = couponCode == null
             ? ""
             : ", couponCode: \\\"" + couponCode + "\\\"";
@@ -494,7 +503,7 @@ class PaymentCheckoutIntegrationTest {
                 {"query":"mutation { placeOrder(planId: \\"%s\\", period: MONTHLY%s) { tradeNo status } }"}
                 """.formatted(planId, coupon)))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.data.placeOrder.status").value("PENDING"))
+            .andExpect(jsonPath("$.data.placeOrder.status").value(expectedStatus))
             .andReturn();
         return JsonPath.read(
             placed.getResponse().getContentAsString(),
@@ -535,6 +544,57 @@ class PaymentCheckoutIntegrationTest {
             );
         }
         return query;
+    }
+
+    /**
+     * An order the customer's own balance covered in full is opened without
+     * touching a gateway. The balance is money already received, so nothing is
+     * left to collect; leaving such an order pending stranded it, because the
+     * gateway list is empty for a zero total by design.
+     */
+    @Test
+    void opensAnOrderTheBalanceCoveredInFull() throws Exception {
+        String accessToken = register("payment-balance@example.com");
+        UUID planId = seedMonthlyPlan("Starter", 1200);
+        creditBalance("payment-balance@example.com", 5_000);
+
+        // No payment method is configured: the balance covers the order, so
+        // none is needed and none is offered.
+        String tradeNo = placeOrder(accessToken, planId, null, "COMPLETED");
+
+        assertThat(entitlementCount(planId)).isEqualTo(1);
+        assertThat(balanceMinor("payment-balance@example.com"))
+            .isEqualTo(3_800);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "SELECT status, callback_no FROM orders WHERE trade_no = ?",
+            tradeNo
+        );
+        assertThat(row.get("status")).isEqualTo("COMPLETED");
+        assertThat(row.get("callback_no")).isEqualTo("balance_paid");
+
+        mockMvc.perform(graphQl(accessToken, """
+                {"query":"{ paymentOptions(tradeNo: \\"%s\\") { id } }"}
+                """.formatted(tradeNo)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.paymentOptions").isEmpty());
+    }
+
+    private void creditBalance(String email, long amountMinor) {
+        jdbcTemplate.update(
+            "UPDATE users SET balance_minor = ? WHERE email = ?",
+            amountMinor,
+            email
+        );
+    }
+
+    private long balanceMinor(String email) {
+        Long balance = jdbcTemplate.queryForObject(
+            "SELECT balance_minor FROM users WHERE email = ?",
+            Long.class,
+            email
+        );
+        return balance == null ? 0 : balance;
     }
 
     private String register(String email) throws Exception {

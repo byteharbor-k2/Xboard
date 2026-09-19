@@ -69,6 +69,7 @@ public class OrderService {
     private final CouponRedemptionRepository redemptions;
     private final CouponRepository coupons;
     private final SurplusValuation surplusValuation;
+    private final OrderFulfilmentService fulfilment;
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
@@ -82,6 +83,7 @@ public class OrderService {
         CouponRedemptionRepository redemptions,
         CouponRepository coupons,
         SurplusValuation surplusValuation,
+        OrderFulfilmentService fulfilment,
         ObjectMapper objectMapper,
         Clock clock
     ) {
@@ -93,6 +95,7 @@ public class OrderService {
         this.redemptions = redemptions;
         this.coupons = coupons;
         this.surplusValuation = surplusValuation;
+        this.fulfilment = fulfilment;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -227,6 +230,19 @@ public class OrderService {
                 now
             ));
         });
+
+        // The balance already covered this in full, so there is nothing for a
+        // gateway to collect and the customer should not be left holding an
+        // order they cannot act on. Opened here rather than left pending.
+        //
+        // Deliberately keyed on the balance having paid, not merely on the
+        // total reaching zero: an order a coupon discounted to nothing is a
+        // giveaway, not a payment, and stays pending for an administrator to
+        // decide on - the original's habit of opening those for free is still
+        // not reproduced.
+        if (order.getTotalAmount() <= 0 && order.getBalanceAmount() > 0) {
+            return fulfilment.settleFromBalance(order.getTradeNo());
+        }
 
         return order;
     }
