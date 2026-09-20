@@ -69,6 +69,15 @@ public class ConfiguredNotificationMailSender
         );
     }
 
+    /**
+     * Delivers a fully rendered message, the seam the admin mail-template
+     * test endpoint uses: the subject and body already carry every
+     * placeholder substitution, so this only transports.
+     */
+    public void sendHtml(String recipient, String subject, String html) {
+        deliver(recipient, subject, html, subject);
+    }
+
     public void sendTestEmail(String recipient) {
         if (!configuration.mailSettings().configured()) {
             throw new ApiProblemException(
