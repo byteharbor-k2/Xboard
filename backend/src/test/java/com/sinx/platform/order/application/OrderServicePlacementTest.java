@@ -99,9 +99,9 @@ class OrderServicePlacementTest {
         });
         // The real settlement opens the order; here it marks the very order
         // place() just saved, which is the one it hands back.
-        when(fulfilment.settleFromBalance(anyString())).thenAnswer(call -> {
+        when(fulfilment.settleCovered(anyString())).thenAnswer(call -> {
             ServiceOrder placed = saved.get();
-            placed.markPaid(OrderFulfilmentService.BALANCE_CALLBACK_NO, NOW);
+            placed.markPaid(OrderFulfilmentService.AUTO_SETTLED_CALLBACK_NO, NOW);
             placed.complete(NOW);
             return placed;
         });
@@ -126,8 +126,8 @@ class OrderServicePlacementTest {
         assertThat(user.getBalanceMinor()).isEqualTo(4_000);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
         assertThat(order.getCallbackNo())
-            .isEqualTo(OrderFulfilmentService.BALANCE_CALLBACK_NO);
-        verify(fulfilment).settleFromBalance(order.getTradeNo());
+            .isEqualTo(OrderFulfilmentService.AUTO_SETTLED_CALLBACK_NO);
+        verify(fulfilment).settleCovered(order.getTradeNo());
     }
 
     @Test
@@ -141,7 +141,7 @@ class OrderServicePlacementTest {
 
         assertThat(order.getTotalAmount()).isEqualTo(1_000);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
-        verify(fulfilment, never()).settleFromBalance(anyString());
+        verify(fulfilment, never()).settleCovered(anyString());
     }
 
     private ServicePlan plan() {

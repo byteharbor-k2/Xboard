@@ -32,12 +32,11 @@ import tools.jackson.databind.ObjectMapper;
  * and takes the money, this provisions the entitlement and closes the order
  * out. It mirrors the original panel's {@code paid()} and {@code open()}.
  *
- * An order the customer's balance covered in full settles itself here instead
- * of waiting for a gateway. The money for it has already been received - a
- * balance is a prepaid account, not a discount - so there is nothing left to
- * collect, and parking it as pending is what stranded those orders: the gateway
- * list is empty for a zero total by design, so the customer could neither pay
- * it nor have it opened.
+ * An order with nothing left to pay settles itself here instead of waiting for
+ * a gateway. Whatever covered it - the account balance, an upgrade's surplus,
+ * or a coupon - there is nothing for a gateway to collect, and the payment
+ * method list is empty for a zero total by design. Parking such an order as
+ * pending stranded it: the customer could neither pay it nor have it opened.
  */
 @Service
 public class OrderFulfilmentService {
@@ -46,11 +45,11 @@ public class OrderFulfilmentService {
     public static final String MANUAL_CALLBACK_NO = "manual_operation";
 
     /**
-     * Recorded on orders the customer's own balance covered in full. Kept
-     * distinct from {@link #MANUAL_CALLBACK_NO} so the two stay tellable apart
-     * in an order's history.
+     * Recorded on orders that had nothing left to pay, whatever covered them.
+     * Kept distinct from {@link #MANUAL_CALLBACK_NO} so an operator can tell an
+     * order the system opened from one they opened by hand.
      */
-    public static final String BALANCE_CALLBACK_NO = "balance_paid";
+    public static final String AUTO_SETTLED_CALLBACK_NO = "auto_settled";
 
     private static final TypeReference<List<String>> STRING_LIST =
         new TypeReference<>() {
@@ -112,23 +111,24 @@ public class OrderFulfilmentService {
     }
 
     /**
-     * Settles an order the customer's balance already covered in full.
+     * Settles an order that has nothing left to pay.
      *
-     * Nothing is collected here because nothing is owed: the balance was
-     * debited when the order was placed. This is a settlement, not a
-     * free process - an order whose total is zero because a coupon discounted
-     * it to nothing never reaches here, and would not be opened by this.
+     * Nothing is collected because nothing is owed: the balance was debited and
+     * the surplus applied when the order was placed, and a coupon was spent on
+     * it. Any of those can bring the total to zero, and none of them leaves a
+     * gateway anything to do - so the order is opened rather than left pending
+     * with an empty payment list.
      *
      * Returns the order untouched when it is no longer pending, so a retry
      * after a successful settlement is harmless.
      */
     @Transactional
-    public ServiceOrder settleFromBalance(String tradeNo) {
+    public ServiceOrder settleCovered(String tradeNo) {
         ServiceOrder order = requireOrderForUpdate(tradeNo);
         if (!order.isPending()) {
             return order;
         }
-        return settle(order, BALANCE_CALLBACK_NO);
+        return settle(order, AUTO_SETTLED_CALLBACK_NO);
     }
 
     private ServiceOrder settle(ServiceOrder order, String callbackNo) {

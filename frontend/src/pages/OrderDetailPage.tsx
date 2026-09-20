@@ -55,6 +55,8 @@ const copy = {
     method: "支付方式",
     methodEmpty: "暂无可用支付方式，请联系管理员。",
     methodCoveredByBalance: "该订单已由账户余额全额抵扣，无需再支付，正在为你开通。",
+    methodCoveredBySurplus: "该订单已由套餐升级折抵全额覆盖，无需再支付，正在为你开通。",
+    methodCoveredByCoupon: "该订单已由优惠券全额抵扣，无需再支付，正在为你开通。",
     methodLoading: "正在读取支付方式…",
     pay: "立即支付",
     paying: "正在跳转…",
@@ -99,6 +101,10 @@ const copy = {
     methodEmpty: "No payment method is available; please contact an administrator.",
     methodCoveredByBalance:
       "This order was covered in full by your account balance, so there is nothing left to pay. It is being opened for you.",
+    methodCoveredBySurplus:
+      "This order was covered in full by the credit from your previous plan, so there is nothing left to pay. It is being opened for you.",
+    methodCoveredByCoupon:
+      "This order was covered in full by a coupon, so there is nothing left to pay. It is being opened for you.",
     methodLoading: "Loading payment methods…",
     pay: "Pay now",
     paying: "Redirecting…",
@@ -123,6 +129,29 @@ const copy = {
 };
 
 type CloseTarget = { tradeNo: string };
+
+type Labels = (typeof copy)["zh-CN"];
+
+/**
+ * Which deduction emptied the order.
+ *
+ * The three are not interchangeable to a customer - one is money on their
+ * account, one is credit carried over from the plan they are leaving, one is a
+ * coupon - so the message names whichever actually applied rather than always
+ * claiming the balance.
+ */
+function coveredByLabel(order: ServiceOrder, labels: Labels) {
+  if (Number(order.balanceAmount) > 0) {
+    return labels.methodCoveredByBalance;
+  }
+  if (Number(order.surplusAmount) > 0) {
+    return labels.methodCoveredBySurplus;
+  }
+  if (Number(order.discountAmount) > 0) {
+    return labels.methodCoveredByCoupon;
+  }
+  return labels.methodCoveredByBalance;
+}
 
 export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
   const accessToken = useAuthStore((state) => state.accessToken)!;
@@ -161,6 +190,21 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
     // customer learns there is nothing left to pay.
     enabled: order?.status === "PENDING"
   });
+
+  // The surcharge the customer will actually be charged.
+  //
+  // Before checkout that is whatever the server quotes for the method they
+  // picked; afterwards the order carries it. Taking the quote into the total
+  // matters: the gateway is asked for the total *plus* the fee, so leaving the
+  // fee out of the headline figure shows the customer one price and charges
+  // them another.
+  const selectedOption = methods.data?.find(
+    (method) => method.id === selectedMethod
+  );
+  const handling =
+    order !== undefined && Number(order.handlingAmount) > 0
+      ? Number(order.handlingAmount)
+      : Number(selectedOption?.handlingFee ?? 0);
 
   const checkout = useMutation({
     mutationFn: (paymentMethodId: string) =>
@@ -312,13 +356,13 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                     </dd>
                   </div>
                 )}
-                {Number(order.handlingAmount) > 0 && (
+                {handling > 0 && (
                   <div>
                     <dt>{labels.handling}</dt>
                     <dd>
                       +
                       {formatMoney(
-                        order.handlingAmount,
+                        String(handling),
                         order.currency,
                         language
                       )}
@@ -329,9 +373,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
               <p className="checkout-total-label">{labels.payable}</p>
               <p className="checkout-total">
                 {formatMoney(
-                  String(
-                    Number(order.totalAmount) + Number(order.handlingAmount)
-                  ),
+                  String(Number(order.totalAmount) + handling),
                   order.currency,
                   language
                 )}{" "}
@@ -355,7 +397,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 {methods.data?.length === 0 && (
                   <p className="muted">
                     {Number(order.totalAmount) <= 0
-                      ? labels.methodCoveredByBalance
+                      ? coveredByLabel(order, labels)
                       : labels.methodEmpty}
                   </p>
                 )}

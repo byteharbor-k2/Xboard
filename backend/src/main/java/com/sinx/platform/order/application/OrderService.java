@@ -231,17 +231,12 @@ public class OrderService {
             ));
         });
 
-        // The balance already covered this in full, so there is nothing for a
-        // gateway to collect and the customer should not be left holding an
-        // order they cannot act on. Opened here rather than left pending.
-        //
-        // Deliberately keyed on the balance having paid, not merely on the
-        // total reaching zero: an order a coupon discounted to nothing is a
-        // giveaway, not a payment, and stays pending for an administrator to
-        // decide on - the original's habit of opening those for free is still
-        // not reproduced.
-        if (order.getTotalAmount() <= 0 && order.getBalanceAmount() > 0) {
-            return fulfilment.settleFromBalance(order.getTradeNo());
+        // Nothing is left to pay, so there is nothing for a gateway to collect
+        // and the customer should not be left holding an order they cannot act
+        // on. Whichever deduction emptied it - coupon, upgrade surplus or
+        // balance - it is opened here rather than left pending.
+        if (order.getTotalAmount() <= 0) {
+            return fulfilment.settleCovered(order.getTradeNo());
         }
 
         return order;

@@ -61,17 +61,14 @@ public class PaymentCheckoutService {
      * The methods this order may be paid with, each priced for it.
      *
      * Empty for an order that is already settled, and for one whose deductions
-     * brought it to nothing. An order the balance covered in full is opened
-     * here rather than being offered methods, since there is nothing left for a
-     * gateway to collect; the caller learns that from the empty list.
+     * brought it to nothing. Such an order is opened here rather than being
+     * offered methods, since there is nothing left for a gateway to collect;
+     * the caller learns that from the empty list.
      *
      * The opening happens here as well as at checkout because orders placed
      * before this rule existed are still sitting pending with nothing the
      * customer could do about them. Settling is idempotent, so an order that is
      * no longer pending is simply left alone.
-     *
-     * A coupon that discounted the order to nothing does not qualify: nobody
-     * paid for it, so it waits for an administrator as before.
      */
     @Transactional
     public List<PaymentOptionView> options(UUID userId, String tradeNo) {
@@ -80,8 +77,8 @@ public class PaymentCheckoutService {
         // total that already carries a fee, or re-opening a checked-out order
         // would charge the surcharge twice.
         if (order.getTotalAmount() <= 0) {
-            if (order.isPending() && order.getBalanceAmount() > 0) {
-                fulfilment.settleFromBalance(order.getTradeNo());
+            if (order.isPending()) {
+                fulfilment.settleCovered(order.getTradeNo());
             }
             return List.of();
         }

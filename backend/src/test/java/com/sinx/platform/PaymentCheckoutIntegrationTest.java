@@ -257,32 +257,53 @@ class PaymentCheckoutIntegrationTest {
         assertThat(entitlementCount(planId)).isZero();
     }
 
+    /**
+     * A coupon that covers the whole order leaves nothing to collect, so the
+     * order is opened without a gateway rather than parked pending with an
+     * empty payment list. Nobody can reach this on their own: only an
+     * administrator creates coupons, so a 100%-off one is a deliberate gift.
+     */
     @Test
-    void willNotCheckOutAnOrderThatHasNothingLeftToPay() throws Exception {
+    void opensAnOrderACouponCoveredInFull() throws Exception {
         String accessToken = register("payment-freebie@example.com");
         UUID planId = seedMonthlyPlan("Starter", 1200);
-        Method epay = configureEpay("微信支付", null, null);
 
-        // A coupon that covers the whole order is the shape the original's
-        // "free process" branch paid out on. It must not be payable here.
+        // No payment method is configured: a fully discounted order needs none,
+        // and adding one here would shift the method list other tests index
+        // into.
         UUID couponId = seedFullDiscountCoupon("ALL");
-        String tradeNo = placeOrder(accessToken, planId, "ALL");
+        String tradeNo = placeOrder(accessToken, planId, "ALL", "COMPLETED");
 
+        // Opened and granted, with nothing charged.
+        assertThat(entitlementCount(planId)).isEqualTo(1);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "SELECT status, callback_no, total_amount, discount_amount FROM orders WHERE trade_no = ?",
+            tradeNo
+        );
+        assertThat(row.get("status")).isEqualTo("COMPLETED");
+        assertThat(row.get("callback_no")).isEqualTo("auto_settled");
+        assertThat(((Number) row.get("total_amount")).longValue()).isZero();
+        assertThat(((Number) row.get("discount_amount")).longValue())
+            .isPositive();
+
+        // And there is still nothing to pay, so no methods are offered.
         mockMvc.perform(graphQl(accessToken, """
                 {"query":"{ paymentOptions(tradeNo: \\"%s\\") { id } }"}
                 """.formatted(tradeNo)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.paymentOptions").isEmpty());
 
+        // A settled order cannot then be checked out against a gateway. The
+        // method is never consulted, so a freshly minted id is fine.
         mockMvc.perform(graphQl(accessToken, """
                 {"query":"mutation { checkoutOrder(tradeNo: \\"%s\\", paymentMethodId: \\"%s\\") { type data } }"}
-                """.formatted(tradeNo, epay.id())))
+                """.formatted(tradeNo, UUID.randomUUID())))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.checkoutOrder").doesNotExist())
             .andExpect(jsonPath("$.errors[0].extensions.code")
-                .value("ORDER_NOT_PAYABLE"));
+                .value("ORDER_NOT_PENDING"));
 
-        assertThat(entitlementCount(planId)).isZero();
         assertThat(couponId).isNotNull();
     }
 
@@ -571,7 +592,7 @@ class PaymentCheckoutIntegrationTest {
             tradeNo
         );
         assertThat(row.get("status")).isEqualTo("COMPLETED");
-        assertThat(row.get("callback_no")).isEqualTo("balance_paid");
+        assertThat(row.get("callback_no")).isEqualTo("auto_settled");
 
         mockMvc.perform(graphQl(accessToken, """
                 {"query":"{ paymentOptions(tradeNo: \\"%s\\") { id } }"}
