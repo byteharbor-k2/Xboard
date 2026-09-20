@@ -181,6 +181,10 @@ export type PaymentOption = {
   handlingFee: string;
   payableAmount: string;
   currency: string;
+  /** The fixed part of the fee in minor units; null when none is charged. */
+  handlingFeeFixed: string | null;
+  /** The percentage part of the fee (2.5 means 2.5%); null when none. */
+  handlingFeePercent: number | null;
 };
 
 /** Where to send the browser to pay. 1 is a URL, 0 is a QR payload. */

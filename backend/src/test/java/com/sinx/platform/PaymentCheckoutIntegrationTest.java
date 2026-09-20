@@ -117,7 +117,7 @@ class PaymentCheckoutIntegrationTest {
         // Nothing is chargeable until a method is chosen, and the fee is priced
         // by the server for this particular order.
         mockMvc.perform(graphQl(accessToken, """
-                {"query":"{ paymentOptions(tradeNo: \\"%s\\") { id name handlingFee payableAmount currency } }"}
+                {"query":"{ paymentOptions(tradeNo: \\"%s\\") { id name handlingFee payableAmount currency handlingFeeFixed handlingFeePercent } }"}
                 """.formatted(tradeNo)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.paymentOptions[0].name")
@@ -127,7 +127,13 @@ class PaymentCheckoutIntegrationTest {
             .andExpect(jsonPath("$.data.paymentOptions[0].payableAmount")
                 .value("1330"))
             .andExpect(jsonPath("$.data.paymentOptions[0].currency")
-                .value("CNY"));
+                .value("CNY"))
+            // The fee's own parts, so the customer can see how the 130 comes
+            // out: 1200 at 2.5 percent, plus 100 fixed.
+            .andExpect(jsonPath("$.data.paymentOptions[0].handlingFeeFixed")
+                .value("100"))
+            .andExpect(jsonPath("$.data.paymentOptions[0].handlingFeePercent")
+                .value(2.5));
 
         MvcResult checkout = mockMvc.perform(graphQl(accessToken, """
                 {"query":"mutation { checkoutOrder(tradeNo: \\"%s\\", paymentMethodId: \\"%s\\") { type data } }"}

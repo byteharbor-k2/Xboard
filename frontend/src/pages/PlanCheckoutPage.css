@@ -110,6 +110,20 @@
   background: #f2f7ff;
 }
 
+/* The name and the recipe of the fee: what the surcharge is made of. */
+.checkout-period-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.checkout-period-fee {
+  color: #707c92;
+  font-size: 12px;
+}
+
 .checkout-coupon {
   display: flex;
   gap: 10px;

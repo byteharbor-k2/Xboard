@@ -4989,6 +4989,14 @@ button:disabled {
   white-space: nowrap;
 }
 
+/* The address is one a remote gateway cannot reach: saved, but warned about. */
+.payment-notify-warning {
+  margin: 8px 0 0;
+  color: #8c1d18;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
 .payment-field-required {
   color: #b3261e;
   font-size: 11px;

@@ -34,6 +34,8 @@ const copy = {
     notifyUrl: "通知地址",
     notifyHint:
       "支付网关将会把数据通知到本地址，请通过防火墙放行本地址。",
+    notifyUnreachableWarning:
+      "通知地址是 {url}，远程支付网关无法访问它，回调不会到达，订单不会自动开通。请把 PAYMENT_PUBLIC_BASE_URL 设成公网可访问的地址，或把面板部署到公网。",
     copy: "复制",
     copied: "已复制",
     enabled: "已启用",
@@ -86,6 +88,8 @@ const copy = {
     notifyUrl: "Notify URL",
     notifyHint:
       "The payment gateway will report payments to this address; allow it through your firewall.",
+    notifyUnreachableWarning:
+      "The notify address {url} cannot be reached from the payment gateway's servers, so its callbacks will never arrive and orders will not be activated automatically. Set PAYMENT_PUBLIC_BASE_URL to a publicly reachable address, or deploy the panel to a public server.",
     copy: "Copy",
     copied: "Copied",
     enabled: "Enabled",
@@ -167,6 +171,22 @@ function feeSummary(method: AdminPaymentMethod, language: "zh-CN" | "en-US") {
     : language === "zh-CN"
       ? copy["zh-CN"].noFee
       : copy["en-US"].noFee;
+}
+
+/**
+ * The warning for a notify address a remote gateway cannot reach.
+ *
+ * The save is still allowed - a local address is exactly what local testing
+ * wants - but the administrator has to see the consequence: money would be
+ * taken and the order would sit unpaid forever.
+ */
+function notifyUnreachableWarning(
+  method: AdminPaymentMethod,
+  language: "zh-CN" | "en-US"
+): string {
+  return copy[language].notifyUnreachableWarning
+    .split("{url}")
+    .join(method.notify_url);
 }
 
 export function AdminPaymentsPage() {
@@ -414,6 +434,11 @@ export function AdminPaymentsPage() {
                           {copiedId === method.id ? text.copied : text.copy}
                         </button>
                       </div>
+                      {method.notify_unreachable && (
+                        <p className="payment-notify-warning">
+                          ⚠️ {notifyUnreachableWarning(method, language)}
+                        </p>
+                      )}
                     </td>
                     <td>
                       <div className="plan-status-stack">

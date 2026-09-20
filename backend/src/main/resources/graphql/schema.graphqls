@@ -60,6 +60,10 @@ type PaymentOption {
     """The order's total plus that fee: what will actually be charged."""
     payableAmount: String!
     currency: String!
+    """The fixed part of the fee, in the currency's minor units; null when the method charges no fixed amount."""
+    handlingFeeFixed: String
+    """The percentage part of the fee, where 2.5 means 2.5 percent; null when the method charges no percentage."""
+    handlingFeePercent: Float
 }
 
 type PaymentRedirect {

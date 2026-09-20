@@ -148,6 +148,8 @@ export async function fetchPaymentOptions(
          handlingFee
          payableAmount
          currency
+         handlingFeeFixed
+         handlingFeePercent
        }
      }`,
     { tradeNo }

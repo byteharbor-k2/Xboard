@@ -24,6 +24,11 @@ export type AdminPaymentMethod = {
   notify_domain: string | null;
   /** Where the gateway should report a payment; computed server-side. */
   notify_url: string;
+  /**
+   * True when that address is one a remote gateway cannot reach (a local name
+   * or a private network): payments would be taken but never confirmed.
+   */
+  notify_unreachable: boolean;
   /** Minor units for the fixed part, whole percent for the other. */
   handling_fee_fixed: number | null;
   handling_fee_percent: number | null;

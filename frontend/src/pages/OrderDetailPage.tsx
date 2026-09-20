@@ -18,8 +18,8 @@ import {
   orderTypeLabel
 } from "../lib/subscription";
 import { useAuthStore } from "../store/auth";
-import { useUserPreferences } from "../store/userPreferences";
-import type { ServiceOrder } from "../types";
+import { useUserPreferences, type UserLanguage } from "../store/userPreferences";
+import type { PaymentOption, ServiceOrder } from "../types";
 
 import "./PlanCheckoutPage.css";
 
@@ -51,6 +51,8 @@ const copy = {
     surplusCredit: "返还余额",
     total: "订单金额",
     handling: "支付手续费",
+    feePartsPrefix: "手续费：",
+    noFee: "免手续费",
     payable: "应付总额",
     method: "支付方式",
     methodEmpty: "暂无可用支付方式，请联系管理员。",
@@ -96,6 +98,8 @@ const copy = {
     surplusCredit: "Balance returned",
     total: "Order total",
     handling: "Payment fee",
+    feePartsPrefix: "Fee: ",
+    noFee: "No fee",
     payable: "Total to pay",
     method: "Payment method",
     methodEmpty: "No payment method is available; please contact an administrator.",
@@ -153,6 +157,29 @@ function coveredByLabel(order: ServiceOrder, labels: Labels) {
   return labels.methodCoveredByBalance;
 }
 
+/**
+ * How this method's fee is made up, in words: a percentage, a fixed amount,
+ * or both.
+ *
+ * Shown next to the result (the method's quoted fee) so the customer sees
+ * where the surcharge comes from - and so a zero quote reads as "no fee"
+ * rather than as an amount to pay.
+ */
+function feeParts(method: PaymentOption, language: UserLanguage): string | undefined {
+  const parts: string[] = [];
+  if (method.handlingFeePercent != null) {
+    parts.push(`${stripTrailingZeros(Number(method.handlingFeePercent).toFixed(2))}%`);
+  }
+  if (method.handlingFeeFixed != null) {
+    parts.push(formatMoney(method.handlingFeeFixed, method.currency, language));
+  }
+  return parts.length > 0 ? parts.join(" + ") : undefined;
+}
+
+function stripTrailingZeros(value: string): string {
+  return value.replace(/\.?0+$/, "");
+}
+
 export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
   const accessToken = useAuthStore((state) => state.accessToken)!;
   const language = useUserPreferences((state) => state.language);
@@ -205,6 +232,18 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
     order !== undefined && Number(order.handlingAmount) > 0
       ? Number(order.handlingAmount)
       : Number(selectedOption?.handlingFee ?? 0);
+
+  // How the fee the summary line is quoting is made up, when the method the
+  // customer picked charges one. After checkout the order only carries the
+  // amount, so the line then names the fee without its recipe.
+  const selectedParts = selectedOption
+    ? feeParts(selectedOption, language)
+    : undefined;
+  const handlingLabel = selectedParts
+    ? language === "zh-CN"
+      ? `${labels.handling}（${selectedParts}）`
+      : `${labels.handling} (${selectedParts})`
+    : labels.handling;
 
   const checkout = useMutation({
     mutationFn: (paymentMethodId: string) =>
@@ -358,7 +397,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 )}
                 {handling > 0 && (
                   <div>
-                    <dt>{labels.handling}</dt>
+                    <dt>{handlingLabel}</dt>
                     <dd>
                       +
                       {formatMoney(
@@ -402,36 +441,52 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                   </p>
                 )}
                 <ul className="checkout-periods">
-                  {methods.data?.map((method) => (
-                    <li key={method.id}>
-                      <button
-                        aria-pressed={method.id === selectedMethod}
-                        className={
-                          method.id === selectedMethod
-                            ? "checkout-period is-selected"
-                            : "checkout-period"
-                        }
-                        disabled={checkout.isPending}
-                        onClick={() => setSelectedMethod(method.id)}
-                        type="button"
-                      >
-                        <span>
-                          {method.icon && (
-                            <span aria-hidden="true">{method.icon} </span>
-                          )}
-                          {method.name}
-                        </span>
-                        <strong>
-                          {Number(method.handlingFee) > 0 ? "+" : ""}
-                          {formatMoney(
-                            method.handlingFee,
-                            method.currency,
-                            language
-                          )}
-                        </strong>
-                      </button>
-                    </li>
-                  ))}
+                  {methods.data?.map((method) => {
+                    const parts = feeParts(method, language);
+                    return (
+                      <li key={method.id}>
+                        <button
+                          aria-pressed={method.id === selectedMethod}
+                          className={
+                            method.id === selectedMethod
+                              ? "checkout-period is-selected"
+                              : "checkout-period"
+                          }
+                          disabled={checkout.isPending}
+                          onClick={() => setSelectedMethod(method.id)}
+                          type="button"
+                        >
+                          <span className="checkout-period-info">
+                            <span>
+                              {method.icon && (
+                                <span aria-hidden="true">
+                                  {method.icon}{" "}
+                                </span>
+                              )}
+                              {method.name}
+                            </span>
+                            {parts && (
+                              <small className="checkout-period-fee">
+                                {labels.feePartsPrefix}
+                                {parts}
+                              </small>
+                            )}
+                          </span>
+                          <strong>
+                            {Number(method.handlingFee) > 0 ? (
+                              `+${formatMoney(
+                                method.handlingFee,
+                                method.currency,
+                                language
+                              )}`
+                            ) : (
+                              labels.noFee
+                            )}
+                          </strong>
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 {checkout.isError && (

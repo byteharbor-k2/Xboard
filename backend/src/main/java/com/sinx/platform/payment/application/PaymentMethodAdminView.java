@@ -26,6 +26,12 @@ public record PaymentMethodAdminView(
     @JsonProperty("notify_domain") String notifyDomain,
     /** Where the gateway should send the payment result, computed server-side. */
     @JsonProperty("notify_url") String notifyUrl,
+    /**
+     * True when that address is one a remote gateway cannot reach - a local
+     * name or a private network - so a payment would be taken and its callback
+     * never arrive. A warning for the administrator, not a refusal to save.
+     */
+    @JsonProperty("notify_unreachable") boolean notifyUnreachable,
     @JsonProperty("handling_fee_fixed") Long handlingFeeFixed,
     @JsonProperty("handling_fee_percent") BigDecimal handlingFeePercent,
     @JsonProperty("enable") boolean enable,
@@ -47,6 +53,7 @@ public record PaymentMethodAdminView(
             method.getIcon(),
             method.getNotifyDomain(),
             notifyUrl,
+            !NotifyUrlReachability.reachableByRemoteGateway(notifyUrl),
             method.getHandlingFeeFixed(),
             method.getHandlingFeePercent(),
             method.isEnabled(),
