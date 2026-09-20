@@ -487,11 +487,17 @@ function EditUserDialog({
           ).toString();
         }
       }
-      // Epoch seconds, matching the admin surface. An empty box clears the
-      // expiry, which is how an operator makes an account permanent.
-      update.expires_at = expiresAt
-        ? Math.floor(new Date(`${expiresAt}T23:59:59Z`).getTime() / 1000)
-        : null;
+      // Epoch seconds, matching the admin surface. Three intents from one
+      // box: a value sets the expiry; empty with a current expiry clears it
+      // (the operator's way of making an account permanent, which a null
+      // "leave alone" field cannot express); empty with none sends nothing.
+      if (expiresAt) {
+        update.expires_at = Math.floor(
+          new Date(`${expiresAt}T23:59:59Z`).getTime() / 1000
+        );
+      } else if (user.expires_at !== null) {
+        update.clear_expiry = true;
+      }
       return updateUser(accessToken, user.id, update);
     },
     onSuccess: onSaved,

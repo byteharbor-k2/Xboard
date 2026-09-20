@@ -63,7 +63,8 @@ public class AdminUserController {
                 request.transferLimitBytes(),
                 request.expiresAt() == null
                     ? null
-                    : Instant.ofEpochSecond(request.expiresAt())
+                    : Instant.ofEpochSecond(request.expiresAt()),
+                request.clearExpiry()
             )
         ));
     }
@@ -108,6 +109,8 @@ public class AdminUserController {
      * editing a single thing cannot blank the rest.
      *
      * {@code expiresAt} is epoch seconds, matching the original's admin shape.
+     * An absent {@code expiresAt} leaves the expiry untouched; clearing it to
+     * make the account permanent is the explicit {@code clearExpiry} flag.
      */
     record UpdateRequest(
         UUID id,
@@ -118,7 +121,8 @@ public class AdminUserController {
         Boolean banned,
         @JsonProperty("plan_id") UUID planId,
         @JsonProperty("transfer_limit_bytes") Long transferLimitBytes,
-        @JsonProperty("expires_at") Long expiresAt
+        @JsonProperty("expires_at") Long expiresAt,
+        @JsonProperty("clear_expiry") Boolean clearExpiry
     ) {
     }
 

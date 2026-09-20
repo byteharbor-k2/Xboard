@@ -49,7 +49,18 @@ public class SubscriptionLinkService {
      * itself and never written to a log.
      */
     public String subscriptionUrl(UserAccount user) {
-        return base() + SUBSCRIPTION_PATH + user.getSubscriptionToken();
+        return subscriptionUrl(user.getSubscriptionToken());
+    }
+
+    /**
+     * The subscription address for a bare credential.
+     *
+     * Same base-address selection as the account form, so an admin action that
+     * rotates the credential can hand the operator the full address without
+     * re-deriving it.
+     */
+    public String subscriptionUrl(String token) {
+        return base() + SUBSCRIPTION_PATH + token;
     }
 
     private String base() {

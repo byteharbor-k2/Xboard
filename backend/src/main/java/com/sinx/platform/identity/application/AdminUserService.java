@@ -25,6 +25,7 @@ import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.node.application.NodeDeviceStateService;
 import com.sinx.platform.shared.web.ApiProblemException;
+import com.sinx.platform.subscription.application.SubscriptionLinkService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
@@ -55,6 +56,7 @@ public class AdminUserService {
     private final NodeDeviceStateService deviceStates;
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokens;
+    private final SubscriptionLinkService subscriptionLinks;
     private final java.time.Clock clock;
 
     public AdminUserService(
@@ -64,6 +66,7 @@ public class AdminUserService {
         NodeDeviceStateService deviceStates,
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokens,
+        SubscriptionLinkService subscriptionLinks,
         java.time.Clock clock
     ) {
         this.users = users;
@@ -72,6 +75,7 @@ public class AdminUserService {
         this.deviceStates = deviceStates;
         this.passwordEncoder = passwordEncoder;
         this.tokens = tokens;
+        this.subscriptionLinks = subscriptionLinks;
         this.clock = clock;
     }
 
@@ -138,6 +142,10 @@ public class AdminUserService {
      * thing cannot silently blank another. A new allowance or expiry is written
      * to the entitlement; when the account has none yet, one is created so an
      * operator can grant a subscription by hand.
+     *
+     * Clearing the expiry is the one field that "set it to nothing" is an
+     * intent, and a null {@code expiresAt} means "leave it alone" - so the
+     * intent travels in its own flag, {@code clearExpiry}.
      */
     @Transactional
     public AdminUserView update(UUID userId, AdminUserUpdate update) {
@@ -184,7 +192,8 @@ public class AdminUserService {
 
         boolean touchesSubscription = update.planId() != null
             || update.transferLimitBytes() != null
-            || update.expiresAt() != null;
+            || update.expiresAt() != null
+            || Boolean.TRUE.equals(update.clearExpiry());
         if (touchesSubscription) {
             applySubscription(account, update, now);
         }
@@ -203,13 +212,16 @@ public class AdminUserService {
     /**
      * Retires the subscription link and answers with its replacement, for a
      * link that has been handed around.
+     *
+     * The answer is the full address, not the bare credential: the operator
+     * pastes it back to the customer, and only an address pastes into a client.
      */
     @Transactional
     public String resetSubscriptionToken(UUID userId) {
         UserAccount account = requireForUpdate(userId);
         String token = tokens.newOpaqueToken();
         account.rotateSubscriptionToken(token, clock.instant());
-        return token;
+        return subscriptionLinks.subscriptionUrl(token);
     }
 
     /** Zeroes the usage counters, leaving the allowance and expiry alone. */
@@ -276,9 +288,14 @@ public class AdminUserService {
                 "A traffic allowance is required to grant a subscription"
             );
         }
-        Instant expiresAt = update.expiresAt() != null
-            ? update.expiresAt()
-            : entitlement != null ? entitlement.getExpiresAt() : null;
+        // Clearing wins over a supplied value when both arrive; the form
+        // cannot produce that, and a contradictory API call should resolve in
+        // the direction of the explicit act.
+        Instant expiresAt = Boolean.TRUE.equals(update.clearExpiry())
+            ? null
+            : update.expiresAt() != null
+                ? update.expiresAt()
+                : entitlement != null ? entitlement.getExpiresAt() : null;
 
         if (entitlement == null) {
             if (plan == null) {
@@ -373,7 +390,11 @@ public class AdminUserService {
         return new ApiProblemException(status, code, detail);
     }
 
-    /** What an operator may change. A null field is left untouched. */
+    /**
+     * What an operator may change. A null field is left untouched, except
+     * {@code clearExpiry}: a null expiry is not an intent, so the intent to
+     * make the account permanent rides this flag instead.
+     */
     public record AdminUserUpdate(
         String email,
         String password,
@@ -382,7 +403,8 @@ public class AdminUserService {
         Boolean banned,
         UUID planId,
         Long transferLimitBytes,
-        Instant expiresAt
+        Instant expiresAt,
+        Boolean clearExpiry
     ) {
     }
 }

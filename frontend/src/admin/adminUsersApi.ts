@@ -47,7 +47,13 @@ export type AdminUserUpdate = {
   banned?: boolean;
   plan_id?: string | null;
   transfer_limit_bytes?: string | null;
+  /** Epoch seconds. Absent (or null) leaves the current expiry untouched. */
   expires_at?: number | null;
+  /**
+   * Make the account permanent. An absent expiry cannot express this on its
+   * own (absent = "leave alone"), so clearing rides this flag.
+   */
+  clear_expiry?: boolean;
 };
 
 async function request<T>(
