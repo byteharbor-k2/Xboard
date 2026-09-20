@@ -1,12 +1,12 @@
 import type { ManagedPlan, PlanDraft, ProblemDetails } from "../types";
-import { ApiError } from "../lib/http";
+import { ApiError, adminSessionGuard } from "../lib/http";
 
 async function request<T>(
   path: string,
   accessToken: string,
   init?: RequestInit
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await adminSessionGuard.authorizedFetch(path, {
     ...init,
     credentials: "include",
     headers: {

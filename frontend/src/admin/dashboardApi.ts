@@ -1,4 +1,4 @@
-import { ApiError } from "../lib/http";
+import { ApiError, adminSessionGuard } from "../lib/http";
 
 const adminApiPrefix =
   import.meta.env.VITE_ADMIN_API_PREFIX ?? "/api/v2/admin";
@@ -80,7 +80,7 @@ async function adminGet<T>(
   for (const [key, value] of Object.entries(parameters ?? {})) {
     url.searchParams.set(key, String(value));
   }
-  const response = await fetch(`${url.pathname}${url.search}`, {
+  const response = await adminSessionGuard.authorizedFetch(`${url.pathname}${url.search}`, {
     credentials: "include",
     headers: {
       Accept: "application/json",

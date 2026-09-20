@@ -1,4 +1,4 @@
-import { ApiError } from "../lib/http";
+import { ApiError, adminSessionGuard } from "../lib/http";
 import type { ProblemDetails } from "../types";
 
 const adminApiPrefix =
@@ -61,7 +61,7 @@ async function request<T>(
   accessToken: string,
   init?: RequestInit
 ): Promise<T> {
-  const response = await fetch(path, {
+  const response = await adminSessionGuard.authorizedFetch(path, {
     ...init,
     credentials: "include",
     headers: {

@@ -38,5 +38,8 @@ jobs:
       - name: Build production bundle
         run: npm run build
 
+      - name: Run 401 recovery gate checks
+        run: npm run check
+
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high

@@ -1,4 +1,4 @@
-import { ApiError } from "../lib/http";
+import { ApiError, adminSessionGuard } from "../lib/http";
 
 const adminApiPrefix =
   import.meta.env.VITE_ADMIN_API_PREFIX ?? "/api/v2/admin";
@@ -62,7 +62,7 @@ async function settingsRequest<T>(
   endpoint: string,
   init?: RequestInit
 ) {
-  const response = await fetch(endpoint, {
+  const response = await adminSessionGuard.authorizedFetch(endpoint, {
     ...init,
     credentials: "include",
     headers: {

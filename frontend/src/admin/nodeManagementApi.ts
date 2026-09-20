@@ -1,4 +1,4 @@
-import { ApiError } from "../lib/http";
+import { ApiError, adminSessionGuard } from "../lib/http";
 import type { ProblemDetails } from "../types";
 
 export const NODE_PROTOCOLS = [
@@ -89,7 +89,7 @@ export type NodeBatchUpdate = {
 export type EchKeyPair = { key: string; config: string };
 
 async function request<T>(path: string, accessToken: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const response = await adminSessionGuard.authorizedFetch(path, {
     ...init,
     credentials: "include",
     headers: {

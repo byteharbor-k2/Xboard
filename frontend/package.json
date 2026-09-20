@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "check": "node --experimental-strip-types scripts/authorizedFetch.check.ts",
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
