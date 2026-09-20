@@ -5,6 +5,8 @@ export type Viewer = {
   emailVerified: boolean;
   roles: string[];
   createdAt: string;
+  /** Prepaid balance in minor units. */
+  balanceMinor: string;
 };
 
 export type SessionGrant = {

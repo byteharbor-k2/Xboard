@@ -80,6 +80,8 @@ type Viewer {
     emailVerified: Boolean!
     roles: [String!]!
     createdAt: String!
+    """Prepaid balance in minor units: money the customer has already paid in."""
+    balanceMinor: String!
 }
 
 type DeviceSession {

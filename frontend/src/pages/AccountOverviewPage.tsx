@@ -19,6 +19,7 @@ import {
   entitlementStateLabel,
   formatBytes,
   formatDateTime,
+  formatMoney,
   trafficResetLabel
 } from "../lib/subscription";
 import { useAuthStore } from "../store/auth";
@@ -62,6 +63,7 @@ const copy = {
     nextReset: "下次重置",
     speed: "峰值速率",
     unlimitedSpeed: "不限速",
+    balance: "账户余额",
     empty:
       "当前账户还没有订阅权益，开通套餐后这里会显示流量和有效期。",
     quickStart: "快速开始使用",
@@ -96,6 +98,7 @@ const copy = {
     nextReset: "Next reset",
     speed: "Peak speed",
     unlimitedSpeed: "Unlimited",
+    balance: "Account balance",
     empty:
       "This account has no subscription benefits yet. Data and validity will appear after you activate a plan.",
     quickStart: "Quick start",
@@ -124,6 +127,7 @@ export function AccountOverviewPage() {
   const [entitlementLoading, setEntitlementLoading] = useState(true);
   const [subscriptionUrl, setSubscriptionUrl] = useState("");
   const [siteName, setSiteName] = useState("");
+  const [balanceMinor, setBalanceMinor] = useState<string>();
   const [clientChooserOpen, setClientChooserOpen] = useState(false);
   const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
     networkPreviewNodes[0]
@@ -178,12 +182,14 @@ export function AccountOverviewPage() {
     let active = true;
     graphQl<{
       siteName: string;
+      viewer: { balanceMinor: string };
       viewerEntitlement: SubscriptionEntitlement | null;
       viewerSubscriptionUrl: string | null;
     }>(
       accessToken,
       `query AccountSnapshot {
         siteName
+        viewer { balanceMinor }
         viewerSubscriptionUrl
         viewerEntitlement {
           id
@@ -209,6 +215,7 @@ export function AccountOverviewPage() {
           setEntitlement(result.viewerEntitlement);
           setSubscriptionUrl(result.viewerSubscriptionUrl ?? "");
           setSiteName(result.siteName);
+          setBalanceMinor(result.viewer.balanceMinor);
         }
       })
       .catch((caught) => {
@@ -267,6 +274,12 @@ export function AccountOverviewPage() {
               </AppLink>
             )}
           </div>
+          <p className="muted dashboard-balance">
+            {labels.balance}:{" "}
+            {balanceMinor === undefined
+              ? labels.loading
+              : formatMoney(balanceMinor, "CNY", language)}
+          </p>
           {entitlement && (
             <>
               <div className="traffic-usage">

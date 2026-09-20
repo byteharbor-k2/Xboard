@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
 
 import { AppShell } from "../components/AppShell";
 import { ApiError, changePassword, graphQl } from "../lib/http";
+import { formatMoney } from "../lib/subscription";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import type { Viewer } from "../types";
@@ -15,8 +17,19 @@ function formatDate(value: string, locale: "zh-CN" | "en-US") {
 const updateProfileMutation = `
   mutation UpdateViewerProfile($displayName: String!) {
     updateViewerProfile(displayName: $displayName) {
-      id email displayName emailVerified roles createdAt
+      id email displayName emailVerified roles createdAt balanceMinor
     }
+  }
+`;
+
+/**
+ * The balance is money, so it is read fresh rather than taken from the session
+ * the app booted with: a purchase made in this tab changes it, and a stale
+ * figure on an account page is worse than none.
+ */
+const balanceQuery = `
+  query ViewerBalance {
+    viewer { balanceMinor }
   }
 `;
 
@@ -29,6 +42,8 @@ const copy = {
     accountEmail: "账户邮箱",
     identity: "账户身份",
     user: "用户",
+    balance: "账户余额",
+    balanceUnavailable: "读取中…",
     joined: "加入时间",
     profile: "个人资料",
     email: "邮箱",
@@ -53,6 +68,8 @@ const copy = {
     accountEmail: "Account email",
     identity: "Account role",
     user: "User",
+    balance: "Account balance",
+    balanceUnavailable: "Loading…",
     joined: "Joined",
     profile: "Profile",
     email: "Email",
@@ -85,6 +102,13 @@ export function AccountProfilePage() {
   const [passwordMessage, setPasswordMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const balance = useQuery({
+    queryKey: ["viewer-balance"],
+    queryFn: () =>
+      graphQl<{ viewer: { balanceMinor: string } }>(accessToken, balanceQuery)
+  });
+  const balanceMinor = balance.data?.viewer.balanceMinor;
 
   async function updateProfile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -150,6 +174,14 @@ export function AccountProfilePage() {
           <div>
             <dt>{labels.identity}</dt>
             <dd>{labels.user}</dd>
+          </div>
+          <div>
+            <dt>{labels.balance}</dt>
+            <dd>
+              {balanceMinor === undefined
+                ? labels.balanceUnavailable
+                : formatMoney(balanceMinor, "CNY", language)}
+            </dd>
           </div>
           <div>
             <dt>{labels.joined}</dt>

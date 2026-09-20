@@ -13,7 +13,13 @@ public record ViewerView(
     String displayName,
     boolean emailVerified,
     List<String> roles,
-    Instant createdAt
+    Instant createdAt,
+    /**
+     * The account's prepaid balance, in minor units. It is money the customer
+     * has already paid in, so it belongs on their own pages rather than only
+     * being discoverable at checkout.
+     */
+    String balanceMinor
 ) {
     public static ViewerView forScope(
         UserAccount user,
@@ -25,7 +31,8 @@ public record ViewerView(
             user.getDisplayName(),
             user.isEmailVerified(),
             List.of(scope.name()),
-            user.getCreatedAt()
+            user.getCreatedAt(),
+            Long.toString(user.getBalanceMinor())
         );
     }
 }
