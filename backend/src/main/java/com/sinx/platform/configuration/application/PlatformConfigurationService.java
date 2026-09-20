@@ -107,7 +107,10 @@ public class PlatformConfigurationService {
             case "site" -> Map.of(
                 "app_name", appName(),
                 "app_url", appUrl().orElse(""),
-                "subscribe_url", subscribeUrl().orElse(""),
+                // Every saved entry point, not just the first: an editor that
+                // read back a shortened list would silently overwrite the rest
+                // on its next save.
+                "subscribe_url", String.join(",", subscribeUrls()),
                 "tos_url", termsUrl().orElse("")
             );
             case "safe" -> {

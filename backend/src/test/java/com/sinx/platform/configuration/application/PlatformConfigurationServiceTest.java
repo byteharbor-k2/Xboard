@@ -127,6 +127,34 @@ class PlatformConfigurationServiceTest {
     }
 
     @Test
+    void siteSettingsReadBackEverySavedSubscribeUrl() {
+        service.saveSectionSettings(
+            "site",
+            Map.of(
+                "subscribe_url",
+                "https://a.example.com, https://b.example.com"
+            )
+        );
+
+        Object readBack = service.sectionSettings("site").get("subscribe_url");
+        assertThat(readBack)
+            .isEqualTo("https://a.example.com,https://b.example.com");
+        assertThat(service.subscribeUrls()).containsExactly(
+            "https://a.example.com",
+            "https://b.example.com"
+        );
+
+        // An editor resaving what it was handed back must not drop any entry.
+        service.saveSectionSettings(
+            "site",
+            Map.of("subscribe_url", String.valueOf(readBack))
+        );
+
+        assertThat(service.sectionSettings("site").get("subscribe_url"))
+            .isEqualTo("https://a.example.com,https://b.example.com");
+    }
+
+    @Test
     void legacyTokenRejectsWeakOrMalformedValues() {
         assertThatThrownBy(() -> service.saveSectionSettings(
             "server",
