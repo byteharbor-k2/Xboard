@@ -145,6 +145,52 @@ class SurgeRendererTest {
     }
 
     /**
+     * A Hysteria 2 node with obfs on is unusable without its password: the
+     * server demands the salamander handshake, so a client that does not
+     * obfuscate is dropped.
+     *
+     * Surge folds the mode into the parameter name, which is why this asserts
+     * {@code salamander-password} rather than the {@code obfs=salamander} and
+     * {@code obfs-password=} pair the Clash and URI grammars use.
+     */
+    @Test
+    void hysteriaTwoCarriesTheSalamanderPasswordWhenObfsIsOpen() {
+        assertThat(line(surge(), "hy2"))
+            .contains(",salamander-password=obfspw,")
+            .doesNotContain("obfs=")
+            .doesNotContain("obfs-password=");
+    }
+
+    /** Obfs off means no obfuscation parameter at all, not an empty one. */
+    @Test
+    void hysteriaTwoOmitsTheSalamanderPasswordWhenObfsIsClosed() {
+        NodeClientView closed = SubscriptionFixtures.node(
+            "hy2-closed", "hysteria", "h.example.com", 443, SubscriptionFixtures.IDENTITY,
+            Map.of(
+                "version", 2,
+                "tls", Map.of("server_name", "sni.example.com", "allow_insecure", false),
+                "obfs", Map.of("open", false, "type", "salamander", "password", "obfspw"),
+                "bandwidth", Map.of("up", 100, "down", 200)
+            )
+        );
+
+        assertThat(line(render(false, List.of(closed)), "hy2-closed"))
+            .doesNotContain("salamander-password");
+    }
+
+    /**
+     * Surge documents one bandwidth parameter for Hysteria 2, and refuses a
+     * line carrying an option it does not know. The original writes
+     * {@code upload-bandwidth} as well, which this deliberately does not.
+     */
+    @Test
+    void hysteriaTwoWritesOnlyTheDownloadBandwidth() {
+        assertThat(line(surge(), "hy2"))
+            .contains("download-bandwidth=200")
+            .doesNotContain("upload-bandwidth");
+    }
+
+    /**
      * Surge refuses a proxy line carrying options it does not know, and its own
      * sample for AnyTLS lists neither flag; Surfboard takes both.
      */

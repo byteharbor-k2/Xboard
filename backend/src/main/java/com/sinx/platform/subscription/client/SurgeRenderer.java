@@ -367,6 +367,7 @@ final class SurgeRenderer implements ClientConfigRenderer {
             lines.add("sni=" + serverName);
         }
         lines.add("udp-relay=true");
+        appendSalamander(lines, settings);
         appendBandwidth(lines, settings);
         if (settings.flag("tls.allow_insecure")) {
             lines.add("skip-cert-verify=true");
@@ -375,16 +376,47 @@ final class SurgeRenderer implements ClientConfigRenderer {
     }
 
     /**
-     * The bandwidth hints, in the units the node stored them in.
+     * Hysteria 2's salamander obfuscation.
      *
-     * Surge reads both as Mbps and the panel's node form asks for Mbps, so the
+     * Surge spells this with a password-carrying parameter of its own,
+     * {@code salamander-password}, rather than the {@code obfs=salamander},
+     * {@code obfs-password=...} pair that the Clash and URI grammars use. Both
+     * the Surge manual and Surfboard's list exactly one such parameter per mode,
+     * with the type folded into the name, so the node's stored type is not
+     * written out - and only salamander has a spelling in common between the two
+     * clients, since {@code gecko-password} arrived later and neither template's
+     * requirements gate it.
+     *
+     * This is the one field whose absence makes the entry unusable rather than
+     * merely suboptimal: with {@code obfs.open} set the server demands the
+     * obfuscated handshake, so a client without the password cannot connect at
+     * all.
+     */
+    private static void appendSalamander(List<String> lines, SettingsView settings) {
+        if (!settings.flag("obfs.open")) {
+            return;
+        }
+        String password = settings.text("obfs.password");
+        if (password != null) {
+            lines.add("salamander-password=" + password);
+        }
+    }
+
+    /**
+     * The bandwidth hint, in the units the node stored them in.
+     *
+     * Surge reads this as Mbps and the panel's node form asks for Mbps, so the
      * value is passed through rather than converted.
+     *
+     * Only the download direction is written. Surge documents exactly one
+     * bandwidth parameter for Hysteria 2 - {@code download-bandwidth} - and
+     * refuses a proxy line carrying options it does not know, so the original's
+     * {@code upload-bandwidth} is not a harmless extra: every node renders a
+     * line Surge is entitled to reject. Hysteria's client config has no upload
+     * hint to express here in any case; the local rate limit is a Brutal-only
+     * setting, and Surge exposes no parameter for it.
      */
     private static void appendBandwidth(List<String> lines, SettingsView settings) {
-        String up = settings.scalar("bandwidth.up");
-        if (up != null) {
-            lines.add("upload-bandwidth=" + up);
-        }
         String down = settings.scalar("bandwidth.down");
         if (down != null) {
             lines.add("download-bandwidth=" + down);
