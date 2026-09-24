@@ -266,6 +266,17 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   不影响连通（实测可用），暂留观；若日后 AnyTLS 出现握手问题，此处是第一嫌疑。
 - **`mieru` 协议没有任何订阅渲染分支**（Surge/SingBox/URI 渲染器 `entry()` 均无 case），
   但后台 UI 允许创建 mieru 节点。属既存缺口，已知未修。
+- **测试机磁盘会被镜像撑满，且有陷阱。** 每部署一次落一个约 540MB 的后端镜像，而根分区
+  只有 10GB。这台机器的 Docker 用的是 **containerd snapshotter**（`overlayfs` /
+  `io.containerd.snapshotter.v1`），**`docker image prune` 清不到 containerd 的
+  content store** —— 手动清理时曾因此少释放一大半空间。机器上已装
+  `sinx-docker-prune.timer`（每周日 04:23，`/usr/local/sbin/sinx-docker-prune`）自动清理，
+  同时清 Docker 与 containerd 两侧，并保留一周内的旧镜像作为回滚路径。
+- **私有 GHCR 镜像无法用公共 registry mirror 加速。** mirror 只代理 Docker Hub 的
+  `library/*`，不会代理 `ghcr.io/<org>/<pkg>`。实测 GHCR 到新加坡有 **8 MB/s**，
+  本身不是瓶颈——**部署慢的真因是磁盘满导致解压失败重试**，不是网络。
+  （另：不要用 `https://ghcr.io/v2/` 的响应速度估算镜像下载速度，那只有 19 字节的
+  401 挑战体，会得出荒谬的数字。）
 
 ## 8. 计划维护规则
 
