@@ -74,6 +74,9 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - ByteVirt-SG 测试环境：面板 Docker 部署 + xboard-node 机器模式**全链路验证通过**
   （后台建节点 → WebSocket 实时下发 → 内核启动 → 订阅下发 → 外部机器真实出网 →
   流量入账精确对账）
+- **五种协议同时在 SG 上跑通并逐一实测**：shadowsocks 2022、VLESS-Reality（XTLS-Vision）、
+  Hysteria2、TUIC v5、AnyTLS。每个协议都用 sing-box 从**外部机器**真实建连出网
+  （出口 IP 与地理位置均为 SG），且流量逐字节精确计入发起用户、无串号。
 
 ## 4. 待办
 
@@ -240,6 +243,29 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - **节点域名需要真实 DNS 记录。** 测试期 host 只能填裸 IP。注意 `198.18.0.0/15` 是
   代理工具的 fake-IP 段：在装有 Clash/Surge 类工具的机器上解析节点域名会得到
   `198.18.x.x`，据此判断「公网不可达」是错的——可达性必须在**无代理的机器**上判断。
+- **节点机器要有一张有效证书，`cert_config` 必须配。** agent 会给每个节点下发证书；
+  测试机上原指向的 `*.node.sinx.it.com` 已于 2026-09-05 过期，导致所有 TLS 协议
+  握手失败（症状是客户端全部报错，而非面板报错）。现指向 `dev.sinx.it.com`
+  （真实 LE 证书，自动续期）。**给节点开 TLS 协议前先确认证书有效期。**
+- **Hysteria2 / TUIC 走 QUIC，`ss -tlnp` 看不到监听。** 必须用 `ss -ulnp` 查，
+  否则会误判成"节点没起来"。
+- **sing-box 客户端版本影响协议支持。** v1.11.x **不支持 anytls** outbound（报
+  `unknown outbound type: anytls`），会被误判成服务端故障；v1.12.x 起支持。
+  另 v1.12.x 的 macOS 二进制在 macOS 26 上可能被系统 kill（exit 137），
+  需 `codesign --force --sign -` 临时签名。
+- **Surge 的 Hysteria2 混淆参数是 `salamander-password`，不是 `obfs=`/`obfs-password=`。**
+  Surge 把模式折进参数名（`salamander-password` / `gecko-password`），Clash 与 URI
+  语法才是 `obfs=salamander` + `obfs-password=`。Surge 的 Hysteria2 **只文档化
+  `download-bandwidth`，没有 `upload-bandwidth`**（原版 `Surge.php:249` 写了它，
+  属上游缺陷，本仓库已移除）。
+- **`bandwidth.down = 0` 会在 Surge 里渲染成 `download-bandwidth=0`。** Hysteria2
+  服务端文档说 0 表示不限速，但 Surge 客户端是否同样解释**未经验证**；若日后有
+  Surge 用户反馈被限速，先查这里。
+- **AnyTLS 在 sing-box 渲染器里会带 `alpn:["h3"]`。** 来源是上游 PHP 默认值的字面
+  移植（校验器只为 hysteria/tuic 定义 alpn，AnyTLS 无该字段故默认必然触发）。已确认
+  不影响连通（实测可用），暂留观；若日后 AnyTLS 出现握手问题，此处是第一嫌疑。
+- **`mieru` 协议没有任何订阅渲染分支**（Surge/SingBox/URI 渲染器 `entry()` 均无 case），
+  但后台 UI 允许创建 mieru 节点。属既存缺口，已知未修。
 
 ## 8. 计划维护规则
 
