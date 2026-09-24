@@ -147,10 +147,26 @@ public class NodeProtocolService {
         Object networkSettings = settings.containsKey("networkSettings")
             ? settings.get("networkSettings") : settings.getOrDefault("network_settings", Map.of());
         config.put("networkSettings", networkSettings);
+        // "tls" carries two different shapes. For vless and trojan the settings
+        // hold it as the integer mode the agent expects (0/1/2) and the generic
+        // copy is right. For hysteria, tuic and anytls the validator requires it
+        // to be an object holding server_name/allow_insecure/ech, and the agent
+        // still declares that wire field as an int - copying the object makes it
+        // refuse the whole config ("expected type 'int', got unconvertible type
+        // 'map[string]interface {}'") and the kernel never starts. Those three
+        // are handled explicitly in applyProtocolMapping below, which lifts the
+        // object into tls_settings and server_name, so the object must not also
+        // travel under the "tls" key.
+        boolean tlsIsObject = Set.of("hysteria", "tuic", "anytls").contains(node.getType());
         settings.forEach((key, value) -> {
-            if (!"network".equals(key) && !"networkSettings".equals(key) && !"network_settings".equals(key)) {
-                config.put(key, value);
+            if ("network".equals(key) || "networkSettings".equals(key)
+                || "network_settings".equals(key)) {
+                return;
             }
+            if (tlsIsObject && "tls".equals(key)) {
+                return;
+            }
+            config.put(key, value);
         });
         applyProtocolMapping(config, node, settings);
         PlatformConfigurationService.NodeCommunicationSettings communication =

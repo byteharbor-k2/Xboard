@@ -321,6 +321,51 @@ class NodeProtocolServiceTest {
             .isInstanceOf(ApiProblemException.class);
     }
 
+    /**
+     * The three protocols whose validator wants {@code tls} as an object must
+     * not ship that object under the {@code tls} key: the agent declares the
+     * wire field as an int, and refuses the entire node with "expected type
+     * 'int', got unconvertible type 'map[string]interface {}'" - which is a
+     * kernel that never starts, not a degraded one. The object belongs in
+     * {@code tls_settings} only.
+     */
+    @Test
+    void liftsTheTlsObjectIntoItsOwnKeyForTheProtocolsThatDeclareItAsAnObject() {
+        for (String protocol : List.of("hysteria", "tuic", "anytls")) {
+            Fixture fixture = fixture("[10]", "[]");
+            when(fixture.node().getType()).thenReturn(protocol);
+            when(fixture.node().getProtocolSettings()).thenReturn(
+                "{\"tls\":{\"server_name\":\"node.example.test\","
+                    + "\"allow_insecure\":false}}"
+            );
+
+            Map<String, Object> wire = fixture.service().config(1, 9, "token").data();
+
+            assertThat(wire)
+                .as("%s must not send the tls object as an int field", protocol)
+                .doesNotContainKey("tls");
+            assertThat(wire)
+                .as("%s keeps the object where the agent expects it", protocol)
+                .containsEntry("server_name", "node.example.test")
+                .hasEntrySatisfying("tls_settings", value ->
+                    assertThat(value).isInstanceOf(Map.class));
+        }
+    }
+
+    /**
+     * vless is the opposite case: the settings hold the integer mode the agent
+     * wants, so it has to survive the generic copy untouched.
+     */
+    @Test
+    void keepsTheIntegerTlsModeForVless() {
+        Fixture fixture = fixture("[10]", "[]");
+        when(fixture.node().getType()).thenReturn("vless");
+        when(fixture.node().getProtocolSettings()).thenReturn("{\"tls\":2}");
+
+        assertThat(fixture.service().config(1, 9, "token").data())
+            .containsEntry("tls", 2);
+    }
+
     private Fixture fixture(String groupIds, String routeIds) {
         NodeMachineService machines = mock(NodeMachineService.class);
         ProxyNodeRepository nodes = mock(ProxyNodeRepository.class);
