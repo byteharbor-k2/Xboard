@@ -1,8 +1,12 @@
 package com.sinx.platform.identity.web;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -58,7 +62,6 @@ public class AdminUserController {
                 request.password(),
                 request.remarks(),
                 request.speedLimitMbps(),
-                request.banned(),
                 request.planId(),
                 request.transferLimitBytes(),
                 request.expiresAt() == null
@@ -98,10 +101,60 @@ public class AdminUserController {
         return XboardResponse.of(true);
     }
 
+    /**
+     * The whole customer base as a downloadable CSV.
+     *
+     * Deliberately not wrapped in {@code XboardResponse}: the payload is a
+     * file an operator's browser saves, not data the panel's own client
+     * renders, so it travels as {@code text/csv} with an attachment header
+     * and the column names the fetched rows already use.
+     */
+    @GetMapping("/exportCsv")
+    ResponseEntity<byte[]> exportCsv() {
+        byte[] body = adminUsers.exportCsv().getBytes(StandardCharsets.UTF_8);
+        return ResponseEntity.ok()
+            .contentType(new MediaType(MediaType.parseMediaType("text/csv"),
+                StandardCharsets.UTF_8))
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                "attachment; filename=\"users.csv\"")
+            .body(body);
+    }
+
+    /**
+     * Sends one mail the administrator wrote, straight to the account's
+     * address. Nothing is stored, so the answer is a plain success flag.
+     */
+    @PostMapping("/sendMail")
+    XboardResponse<Boolean> sendMail(@RequestBody SendMailRequest request) {
+        adminUsers.sendMail(request.userId(), request.subject(), request.body());
+        return XboardResponse.of(true);
+    }
+
+    /** Assigns or clears (a null {@code inviter_user_id}) the inviter. */
+    @PostMapping("/assignInviter")
+    XboardResponse<AdminUserView> assignInviter(@RequestBody AssignInviterRequest request) {
+        return XboardResponse.of(
+            adminUsers.assignInviter(request.userId(), request.inviterUserId())
+        );
+    }
+
     record IdRequest(UUID id) {
     }
 
     record BanRequest(UUID id, boolean banned) {
+    }
+
+    record SendMailRequest(
+        @JsonProperty("user_id") UUID userId,
+        String subject,
+        String body
+    ) {
+    }
+
+    record AssignInviterRequest(
+        @JsonProperty("user_id") UUID userId,
+        @JsonProperty("inviter_user_id") UUID inviterUserId
+    ) {
     }
 
     /**
@@ -111,6 +164,10 @@ public class AdminUserController {
      * {@code expiresAt} is epoch seconds, matching the original's admin shape.
      * An absent {@code expiresAt} leaves the expiry untouched; clearing it to
      * make the account permanent is the explicit {@code clearExpiry} flag.
+     *
+     * Banning is deliberately not an update field: it is its own act on
+     * {@code /ban}, because it revokes device sessions and pushes the node
+     * user list, which a "harmless" form save must never do by accident.
      */
     record UpdateRequest(
         UUID id,
@@ -118,7 +175,6 @@ public class AdminUserController {
         String password,
         String remarks,
         @JsonProperty("speed_limit_mbps") Integer speedLimitMbps,
-        Boolean banned,
         @JsonProperty("plan_id") UUID planId,
         @JsonProperty("transfer_limit_bytes") Long transferLimitBytes,
         @JsonProperty("expires_at") Long expiresAt,

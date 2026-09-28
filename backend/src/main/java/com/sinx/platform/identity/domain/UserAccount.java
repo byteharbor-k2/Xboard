@@ -210,8 +210,11 @@ public class UserAccount {
      *
      * Suspension is the whole of what the panel calls a ban, and it is already
      * enforced in the two places that matter: sign-in refuses a suspended
-     * account, and the subscription endpoint stops handing out a config. There
-     * is nothing else to revoke, so this needs no companion call.
+     * account, and the subscription endpoint stops handing out a config. The
+     * remaining acts of a ban - revoking device sessions and pushing the new
+     * user list to the nodes - belong to the calling boundary
+     * ({@code AdminUserService}), because the password-hash owner cannot
+     * reach the node module; this method only records the status.
      */
     public void setSuspended(boolean suspended, Instant now) {
         UserStatus next = suspended ? UserStatus.SUSPENDED : UserStatus.ACTIVE;

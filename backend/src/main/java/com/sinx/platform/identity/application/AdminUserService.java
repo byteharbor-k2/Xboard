@@ -3,27 +3,34 @@ package com.sinx.platform.identity.application;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
+import com.sinx.platform.identity.repository.DeviceSessionRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.node.application.NodeDeviceStateService;
+import com.sinx.platform.notification.email.ConfiguredNotificationMailSender;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.application.SubscriptionLinkService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
@@ -40,7 +47,10 @@ import com.sinx.platform.subscription.repository.SubscriptionEntitlementReposito
  *
  * Banning likewise reuses what is already enforced: {@code users.status} is
  * read by the sign-in path and by the subscription endpoint, so suspending an
- * account closes both doors without anything else having to be revoked.
+ * account closes both doors. It then does the rest of what a real ban means:
+ * every still-active device session and refresh token is revoked, and an
+ * after-commit event pushes the new user list to the nodes serving the
+ * account, so xboard-node drops it at once rather than on its next poll.
  */
 @Service
 @Transactional(readOnly = true)
@@ -57,6 +67,12 @@ public class AdminUserService {
     private final PasswordEncoder passwordEncoder;
     private final IdentityTokenService tokens;
     private final SubscriptionLinkService subscriptionLinks;
+    private final DeviceSessionRepository deviceSessions;
+    private final ConfiguredNotificationMailSender mail;
+    private final PlatformConfigurationService configuration;
+    /** The delivery mode the configured mail sender falls back on. */
+    private final String mailDelivery;
+    private final ApplicationEventPublisher events;
     private final java.time.Clock clock;
 
     public AdminUserService(
@@ -67,6 +83,11 @@ public class AdminUserService {
         PasswordEncoder passwordEncoder,
         IdentityTokenService tokens,
         SubscriptionLinkService subscriptionLinks,
+        DeviceSessionRepository deviceSessions,
+        ConfiguredNotificationMailSender mail,
+        PlatformConfigurationService configuration,
+        @Value("${sinx.mail.delivery:log}") String mailDelivery,
+        ApplicationEventPublisher events,
         java.time.Clock clock
     ) {
         this.users = users;
@@ -76,6 +97,11 @@ public class AdminUserService {
         this.passwordEncoder = passwordEncoder;
         this.tokens = tokens;
         this.subscriptionLinks = subscriptionLinks;
+        this.deviceSessions = deviceSessions;
+        this.mail = mail;
+        this.configuration = configuration;
+        this.mailDelivery = mailDelivery;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -186,9 +212,6 @@ public class AdminUserService {
                 now
             );
         }
-        if (update.banned() != null) {
-            account.setSuspended(update.banned(), now);
-        }
 
         boolean touchesSubscription = update.planId() != null
             || update.transferLimitBytes() != null
@@ -201,11 +224,36 @@ public class AdminUserService {
         return detail(userId);
     }
 
-    /** Suspends or restores an account, on its own because it is its own act. */
+    /**
+     * Suspends or restores an account, on its own because it is its own act.
+     *
+     * The status change alone stops sign-in and the subscription endpoint, but
+     * device sessions would go on minting fresh access tokens until their
+     * refresh token expired, and the nodes would carry the account in their
+     * user lists until their next poll. A ban therefore also revokes every
+     * still-active device session and publishes an after-commit event so the
+     * serving nodes get the corrected list pushed to them; lifting the ban
+     * revokes nothing, it only pushes so the nodes let the account back in.
+     */
     @Transactional
     public AdminUserView setBanned(UUID userId, boolean banned) {
         UserAccount account = requireForUpdate(userId);
-        account.setSuspended(banned, clock.instant());
+        Instant now = clock.instant();
+        account.setSuspended(banned, now);
+        if (banned) {
+            deviceSessions.revokeAllActiveForUser(userId, now);
+        }
+        SubscriptionEntitlement entitlement =
+            entitlements.findByUserId(userId).orElse(null);
+        events.publishEvent(new UserSuspensionChangedEvent(
+            userId,
+            entitlement == null
+                || entitlement.getEffectiveServerGroupId() == null
+                ? List.of()
+                : List.of(entitlement.getEffectiveServerGroupId()),
+            banned,
+            now
+        ));
         return detail(userId);
     }
 
@@ -259,6 +307,223 @@ public class AdminUserService {
                     + "Suspend it instead."
             );
         }
+    }
+
+    /**
+     * The whole customer base as CSV, one row per account in the shape of an
+     * {@code AdminUserView} row.
+     *
+     * Cells that could be read as a formula by spreadsheet software are
+     * prefixed with an apostrophe, so a harmless remark cannot become a
+     * command executed on the operator's desktop the moment the export is
+     * opened - the guard the original's own export lacked is applied to
+     * every column here.
+     */
+    public String exportCsv() {
+        List<UserAccount> accounts = users.adminSearch(
+            "%",
+            EnumSet.allOf(UserStatus.class),
+            Pageable.unpaged()
+        ).getContent();
+        Map<UUID, SubscriptionEntitlement> byUser = entitlementsByUser(accounts);
+        Map<Long, Integer> devices = deviceCounts(accounts);
+        Instant now = clock.instant();
+        StringBuilder csv = new StringBuilder()
+            .append(HEADER).append('\n');
+        for (UserAccount account : accounts) {
+            csv.append(csvRow(AdminUserView.of(
+                account,
+                byUser.get(account.getId()),
+                devices.getOrDefault(account.getNodeUserId(), 0),
+                now
+            ))).append('\n');
+        }
+        return csv.toString();
+    }
+
+    /**
+     * Sends one mail an administrator wrote, straight to the account's
+     * address. Nothing is stored: the mail template machinery stays in its own
+     * section, and a one-off letter is not correspondence history.
+     *
+     * The failure codes are separated up front: missing SMTP settings answer
+     * {@code 503 SMTP_NOT_CONFIGURED} (mirroring the SMTP test mail so the
+     * settings page recognizes it), while a delivery that fails after the
+     * settings were complete - a refused connection, an unbuilt message -
+     * answers {@code 500 MAIL_SEND_FAILED}.
+     */
+    public void sendMail(UUID userId, String subject, String body) {
+        if (subject == null || subject.isBlank()) {
+            throw problem(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "MAIL_SUBJECT_REQUIRED",
+                "A subject is required to send mail"
+            );
+        }
+        if (body == null || body.isBlank()) {
+            throw problem(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "MAIL_BODY_REQUIRED",
+                "A body is required to send mail"
+            );
+        }
+        // Development log delivery succeeds without SMTP settings, so it
+        // counts as configured here; only a required-but-absent configuration
+        // is the 503. The mode is read with the same property the configured
+        // sender falls back on.
+        boolean logDelivery = "log".equalsIgnoreCase(mailDelivery);
+        if (!logDelivery && !configuration.mailSettings().configured()) {
+            throw problem(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "SMTP_NOT_CONFIGURED",
+                "Complete the SMTP settings before sending mail"
+            );
+        }
+        UserAccount account = require(userId);
+        try {
+            mail.sendHtml(account.getEmail(), subject, body);
+        } catch (ApiProblemException exception) {
+            throw exception;
+        } catch (IllegalStateException | MailException exception) {
+            // The settings were complete; the transport or the message
+            // construction failed, which is a server fault, not a missing
+            // configuration.
+            throw problem(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "MAIL_SEND_FAILED",
+                "The mail could not be sent: " + exception.getMessage()
+            );
+        } catch (RuntimeException exception) {
+            throw problem(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "MAIL_SEND_FAILED",
+                "The mail could not be sent: " + exception.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Assigns or clears the account's inviter.
+     *
+     * The relation is the single {@code inviter_user_id} column an
+     * invitation-filled registration also writes, so there is nothing to
+     * create - only the value to place. Refusals mirror what registration
+     * could never produce: an inviter that does not exist, the account
+     * naming itself, and a chain that would loop (which the bare foreign key
+     * would allow).
+     *
+     * When an inviter is set, both rows are locked in one deterministic order
+     * (UUID-sorted, so concurrent opposite-direction assignments cannot
+     * deadlock), and the cycle walk runs over the re-read locked rows with a
+     * visited guard, so a chain that already loops refuses instead of
+     * spinning.
+     */
+    @Transactional
+    public AdminUserView assignInviter(UUID userId, UUID inviterUserId) {
+        Instant now = clock.instant();
+        if (inviterUserId == null) {
+            // Clearing is a first-class intent: an assignment can be a
+            // mistake and the column is nullable for exactly that reason.
+            UserAccount account = requireForUpdate(userId);
+            account.assignInviter(null, now);
+            return detail(userId);
+        }
+        if (inviterUserId.equals(userId)) {
+            throw problem(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "INVITER_INVALID",
+                "An account cannot be its own inviter"
+            );
+        }
+        if (!users.existsById(inviterUserId)) {
+            throw problem(
+                HttpStatus.NOT_FOUND,
+                "INVITER_NOT_FOUND",
+                "The inviter account does not exist"
+            );
+        }
+        // Lock both rows in one order regardless of which direction this
+        // call walks the edge, so two concurrent inverse assignments order
+        // their locks identically instead of deadlocking.
+        boolean subjectFirst = userId.compareTo(inviterUserId) < 0;
+        UserAccount firstLocked = requireForUpdate(
+            subjectFirst ? userId : inviterUserId
+        );
+        UserAccount secondLocked = requireForUpdate(
+            subjectFirst ? inviterUserId : userId
+        );
+        UserAccount account = subjectFirst ? firstLocked : secondLocked;
+        UserAccount inviter = subjectFirst ? secondLocked : firstLocked;
+
+        Set<UUID> visited = new HashSet<>();
+        UUID hop = inviter.getInviterUserId();
+        while (hop != null) {
+            if (hop.equals(userId)) {
+                throw problem(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "INVITER_CYCLE",
+                    "Inviter chains may not form a cycle"
+                );
+            }
+            if (!visited.add(hop)) {
+                // The stored chain already loops before this assignment
+                // touches it; without the guard the walk below would spin.
+                throw problem(
+                    HttpStatus.UNPROCESSABLE_CONTENT,
+                    "INVITER_CYCLE",
+                    "Inviter chains may not form a cycle"
+                );
+            }
+            hop = users.findById(hop)
+                .map(UserAccount::getInviterUserId)
+                .orElse(null);
+        }
+        account.assignInviter(inviterUserId, now);
+        return detail(userId);
+    }
+
+    private static final String HEADER =
+        "id,node_user_id,email,status,banned,email_verified,remarks,"
+            + "speed_limit_mbps,balance,plan_id,plan_name,"
+            + "transfer_limit_bytes,used_bytes,online_devices,expires_at,"
+            + "last_login_at,created_at";
+
+    private String csvRow(AdminUserView view) {
+        return new StringBuilder()
+            .append(cell(view.id().toString())).append(',')
+            .append(cell(view.nodeUserId() == null
+                ? "" : view.nodeUserId().toString())).append(',')
+            .append(cell(view.email())).append(',')
+            .append(cell(view.status().name())).append(',')
+            .append(cell(Boolean.toString(view.banned()))).append(',')
+            .append(cell(Boolean.toString(view.emailVerified()))).append(',')
+            .append(cell(view.remarks() == null ? "" : view.remarks())).append(',')
+            .append(cell(view.speedLimitMbps() == null
+                ? "" : view.speedLimitMbps().toString())).append(',')
+            .append(cell(Long.toString(view.balance()))).append(',')
+            .append(cell(view.planId() == null ? "" : view.planId().toString())).append(',')
+            .append(cell(view.planName() == null ? "" : view.planName())).append(',')
+            .append(cell(view.transferLimitBytes())).append(',')
+            .append(cell(view.usedBytes())).append(',')
+            .append(cell(Integer.toString(view.onlineDevices()))).append(',')
+            .append(cell(view.expiresAt() == null
+                ? "" : view.expiresAt().toString())).append(',')
+            .append(cell(view.lastLoginAt() == null
+                ? "" : view.lastLoginAt().toString())).append(',')
+            .append(cell(Long.toString(view.createdAt())))
+            .toString();
+    }
+
+    private String cell(String raw) {
+        String guarded = raw;
+        if (!guarded.isEmpty() && "=+-@".indexOf(guarded.charAt(0)) >= 0) {
+            guarded = "'" + guarded;
+        }
+        if (guarded.indexOf(',') >= 0 || guarded.indexOf('"') >= 0
+            || guarded.indexOf('\n') >= 0 || guarded.indexOf('\r') >= 0) {
+            return '"' + guarded.replace("\"", "\"\"") + '"';
+        }
+        return guarded;
     }
 
     private void applySubscription(
@@ -400,7 +665,6 @@ public class AdminUserService {
         String password,
         String remarks,
         Integer speedLimitMbps,
-        Boolean banned,
         UUID planId,
         Long transferLimitBytes,
         Instant expiresAt,

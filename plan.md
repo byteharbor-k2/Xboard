@@ -64,6 +64,11 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - 套餐、订单、支付配置、节点、机器、访问组、路由管理页
 - **用户管理**：列表 / 搜索 / 分页、详情、封禁解封、改邮箱密码流量额度有效期限速备注、
   重置订阅链接、重置流量、删除
+- **用户管理补全**：导出 CSV（全量、防注入）、发信（未配置 503 / 发送失败 500 分流）、
+  指定邀请人（含环检测）、分配订单（订单与订阅一并迁移到目标账号）
+- **封号真正断开**：封禁即撤销全部设备会话并按权益组实时推送节点用户表（解封同推）；
+  已签发 access JWT 残留 ≤10 分钟（stateless，原版同款）；封禁入口只有 `/user/ban`，
+  `/user/update` 不再接受 `banned`
 
 **节点与订阅**
 
@@ -80,25 +85,17 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ## 4. 待办
 
-### P0
-
-- [ ] 用户管理剩余项：导出 CSV、发信、指定邀请人、分配订单
-
 ### P1
 
-- [ ] **封号要真正断开**（2026-09-19 定）：节点用户表按 `user.status` 过滤（`NodeProtocolService.users`）、
-      踢掉已连接代理、撤销全部设备会话与已签发 token。现状只挡了登录与订阅入口
-- [ ] **管理员重置订阅链接返回的是裸 token 而非链接**（前端当链接显示）
-- [ ] **管理员编辑用户改不了有效期**：前端留空发 `null` ＝清除，后端 `null` ＝不改动，语义相反
-- [ ] **独立订阅域名后台字段会截断**：`sectionSettings("site")` 只回第一个域名，再保存即丢其余
 - [ ] 优惠券管理 CRUD（后端 + 页面）。表和折抵逻辑已实现，只缺创建入口
 - [ ] 安全开关接线：`stop_register`、`register_limit_*`、`password_limit_*`；
       `captcha_type` 要么实现 reCAPTCHA，要么从 UI 移除选项（**误选 reCAPTCHA 会让注册校验静默失效**）
 - [ ] `email_gmail_limit_enable`：只在 `gmail.com` / `googlemail.com` 校验，
       且只拒 `+`、不拒 `.`
-- [ ] 邮件模板端点 `mail/template/*` + 订单事件邮件
+- [ ] 订单事件邮件（模板端点与编辑页已完成，缺事件触发）
 - [ ] 续费与流量提醒：`remind_mail_enable` 目前只存储不消费
-- [ ] **节点同步实时性**：`pushUserDelta` 是死代码，用户变更只靠轮询（最长 `pull_interval`）
+- [ ] **节点同步实时性**：`pushUserDelta` 是死代码，用户权益变更（开通/重置）只靠轮询
+      （封禁/解封已实时推送：`UserSuspensionChangedEvent` → 节点 `sync.users`）
 
 ### P2
 

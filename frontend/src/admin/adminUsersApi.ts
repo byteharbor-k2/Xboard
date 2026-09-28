@@ -170,3 +170,87 @@ export function deleteUser(accessToken: string, id: string) {
     body: JSON.stringify({ id })
   });
 }
+
+/**
+ * Downloads the whole customer base as CSV.
+ *
+ * The answer is a file, not JSON, so it is fetched as a blob with the admin
+ * session guard (an expired token still gets its one refresh); the caller
+ * turns the blob into a browser download.
+ */
+export async function exportUserCsv(accessToken: string): Promise<Blob> {
+  const response = await adminSessionGuard.authorizedFetch(
+    `${adminApiPrefix}/user/exportCsv`,
+    {
+      credentials: "include",
+      headers: { Authorization: `Bearer ${accessToken}` }
+    }
+  );
+  if (!response.ok) {
+    let problem: ProblemDetails = {};
+    try {
+      problem = (await response.json()) as ProblemDetails;
+    } catch {
+      problem = { detail: "请求未能完成" };
+    }
+    throw new ApiError(response.status, problem);
+  }
+  return await response.blob();
+}
+
+/** Sends one mail the admin wrote, straight to the account's address. */
+export function sendUserMail(
+  accessToken: string,
+  userId: string,
+  subject: string,
+  body: string
+) {
+  return dataRequest<boolean>(`${adminApiPrefix}/user/sendMail`, accessToken, {
+    method: "POST",
+    body: JSON.stringify({
+      user_id: userId,
+      subject,
+      body
+    })
+  });
+}
+
+/** Assigns an account's inviter; null clears the current one. */
+export function assignUserInviter(
+  accessToken: string,
+  userId: string,
+  inviterUserId: string | null
+) {
+  return dataRequest<AdminUser>(
+    `${adminApiPrefix}/user/assignInviter`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        user_id: userId,
+        inviter_user_id: inviterUserId
+      })
+    }
+  );
+}
+
+/**
+ * Hands one order to another account. Backend contract owned by the order
+ * module: 404 when the order is unknown, business error when the target
+ * account is missing or suspended, otherwise the order (and its
+ * entitlement) belongs to the target.
+ */
+export function assignUserOrder(
+  accessToken: string,
+  tradeNo: string,
+  userId: string
+) {
+  return dataRequest<boolean>(
+    `${adminApiPrefix}/order/assign`,
+    accessToken,
+    {
+      method: "POST",
+      body: JSON.stringify({ trade_no: tradeNo, user_id: userId })
+    }
+  );
+}

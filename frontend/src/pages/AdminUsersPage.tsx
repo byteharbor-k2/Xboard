@@ -2,10 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+  assignUserInviter,
+  assignUserOrder,
   deleteUser,
+  exportUserCsv,
   listUsers,
   resetUserSecret,
   resetUserTraffic,
+  sendUserMail,
   setUserBanned,
   updateUser,
   type AdminUser,
@@ -76,7 +80,32 @@ const copy = {
     secretTitle: "新的订阅链接",
     secretHint: "请复制并发给用户，关闭后无法再次查看。",
     copy: "复制",
-    copied: "已复制"
+    copied: "已复制",
+    exportCsv: "导出 CSV",
+    exportFailed: "CSV 导出失败",
+    sendMail: "发信",
+    mailTitle: "发送邮件",
+    mailTo: "收件人",
+    mailSubject: "主题",
+    mailSubjectHint: "邮件主题，不能为空",
+    mailBody: "正文",
+    mailBodyHint: "支持 HTML",
+    mailSent: "邮件已发送",
+    send: "发送",
+    inviter: "指定邀请人",
+    inviterTitle: "指定邀请人",
+    inviterLabel: "邀请人用户 ID（UUID）",
+    inviterHint:
+      "可为账号指定或更换邀请人；清除后该账号将不再有邀请人。",
+    clearInviter: "清除邀请人",
+    inviterCleared: "已清除邀请人",
+    inviterSaved: "已指定邀请人",
+    assignOrder: "分配订单",
+    assignOrderTitle: "分配订单",
+    tradeNoLabel: "订单号",
+    tradeNoHint: "将被转移订单的编号",
+    assign: "确认分配",
+    assigned: "订单已分配"
   },
   "en-US": {
     eyebrow: "Users & support",
@@ -137,7 +166,32 @@ const copy = {
     secretHint:
       "Copy it to the customer now; it cannot be shown again after closing.",
     copy: "Copy",
-    copied: "Copied"
+    copied: "Copied",
+    exportCsv: "Export CSV",
+    exportFailed: "CSV export failed",
+    sendMail: "Send mail",
+    mailTitle: "Send mail",
+    mailTo: "Recipient",
+    mailSubject: "Subject",
+    mailSubjectHint: "Required",
+    mailBody: "Body",
+    mailBodyHint: "HTML allowed",
+    mailSent: "Mail sent",
+    send: "Send",
+    inviter: "Assign inviter",
+    inviterTitle: "Assign inviter",
+    inviterLabel: "Inviter user ID (UUID)",
+    inviterHint:
+      "Point the account at an inviter, or clear it entirely.",
+    clearInviter: "Clear inviter",
+    inviterCleared: "Inviter cleared",
+    inviterSaved: "Inviter assigned",
+    assignOrder: "Assign order",
+    assignOrderTitle: "Assign order",
+    tradeNoLabel: "Trade number",
+    tradeNoHint: "The order to hand over",
+    assign: "Assign",
+    assigned: "Order assigned"
   }
 };
 
@@ -167,6 +221,12 @@ export function AdminUsersPage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [mailing, setMailing] = useState<AdminUser | null>(null);
+  const [assigningInviter, setAssigningInviter] = useState<AdminUser | null>(
+    null
+  );
+  const [assigningOrder, setAssigningOrder] = useState<AdminUser | null>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
 
   const usersQuery = useQuery({
     queryKey: ["admin-users", search, status, page],
@@ -213,6 +273,23 @@ export function AdminUsersPage() {
     onSuccess: refresh,
     onError: reportFailure
   });
+
+  async function exportCsv() {
+    setError("");
+    setCsvBusy(true);
+    try {
+      const blob = await exportUserCsv(accessToken);
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "users.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (cause) {
+      setError(cause instanceof ApiError ? cause.message : text.exportFailed);
+    } finally {
+      setCsvBusy(false);
+    }
+  }
 
   const data = usersQuery.data;
   const users = data?.data ?? [];
@@ -285,6 +362,13 @@ export function AdminUsersPage() {
               ))}
             </select>
           </label>
+          <button
+            disabled={csvBusy}
+            onClick={() => void exportCsv()}
+            type="button"
+          >
+            {text.exportCsv}
+          </button>
         </div>
 
         <div className="admin-table-wrap">
@@ -361,6 +445,24 @@ export function AdminUsersPage() {
                           {text.resetTraffic}
                         </button>
                         <button
+                          onClick={() => setMailing(user)}
+                          type="button"
+                        >
+                          {text.sendMail}
+                        </button>
+                        <button
+                          onClick={() => setAssigningInviter(user)}
+                          type="button"
+                        >
+                          {text.inviter}
+                        </button>
+                        <button
+                          onClick={() => setAssigningOrder(user)}
+                          type="button"
+                        >
+                          {text.assignOrder}
+                        </button>
+                        <button
                           onClick={() => {
                             if (window.confirm(text.removeConfirm)) {
                               remove.mutate(user);
@@ -428,6 +530,33 @@ export function AdminUsersPage() {
           link={newSecret}
           onClose={() => setNewSecret(null)}
           text={text}
+        />
+      ) : null}
+
+      {mailing ? (
+        <MailDialog
+          onClose={() => setMailing(null)}
+          onFailure={reportFailure}
+          text={text}
+          user={mailing}
+        />
+      ) : null}
+
+      {assigningInviter ? (
+        <InviterDialog
+          onClose={() => setAssigningInviter(null)}
+          onFailure={reportFailure}
+          text={text}
+          user={assigningInviter}
+        />
+      ) : null}
+
+      {assigningOrder ? (
+        <AssignOrderDialog
+          onClose={() => setAssigningOrder(null)}
+          onFailure={reportFailure}
+          text={text}
+          user={assigningOrder}
         />
       ) : null}
     </AdminShell>
@@ -635,6 +764,241 @@ function SecretDialog({
           </button>
           <button onClick={onClose} type="button">
             {text.cancel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MailDialog({
+  user,
+  text,
+  onClose,
+  onFailure
+}: {
+  user: AdminUser;
+  text: Copy;
+  onClose: () => void;
+  onFailure: (cause: unknown) => void;
+}) {
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+
+  const send = useMutation({
+    mutationFn: () => sendUserMail(accessToken, user.id, subject, body),
+    onSuccess: onClose,
+    onError: onFailure
+  });
+
+  const field = {
+    display: "block",
+    marginBottom: 14
+  } as const;
+  const input = {
+    width: "100%",
+    padding: "10px 13px",
+    border: "1px solid #dfe5ee",
+    borderRadius: 9,
+    font: "inherit",
+    marginTop: 6
+  } as const;
+
+  return (
+    <div className="settings-dialog-backdrop">
+      <div className="settings-dialog" style={{ maxWidth: 520 }}>
+        <h3>{text.mailTitle}</h3>
+        <div style={{ ...field, color: "#707c93" }}>
+          {text.mailTo}: {user.email}
+        </div>
+        <label style={field}>
+          <span>{text.mailSubject}</span>
+          <input
+            onChange={(event) => setSubject(event.target.value)}
+            placeholder={text.mailSubjectHint}
+            style={input}
+            value={subject}
+          />
+        </label>
+        <label style={field}>
+          <span>{text.mailBody}</span>
+          <textarea
+            onChange={(event) => setBody(event.target.value)}
+            placeholder={text.mailBodyHint}
+            rows={8}
+            style={input}
+            value={body}
+          />
+        </label>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} type="button">
+            {text.cancel}
+          </button>
+          <button
+            disabled={send.isPending || !subject.trim() || !body.trim()}
+            onClick={() => send.mutate()}
+            type="button"
+          >
+            {send.isPending ? text.loading : text.send}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InviterDialog({
+  user,
+  text,
+  onClose,
+  onFailure
+}: {
+  user: AdminUser;
+  text: Copy;
+  onClose: () => void;
+  onFailure: (cause: unknown) => void;
+}) {
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
+  const [inviterId, setInviterId] = useState("");
+
+  const save = useMutation({
+    mutationFn: () =>
+      assignUserInviter(accessToken, user.id, inviterId.trim() || null),
+    onSuccess: onClose,
+    onError: onFailure
+  });
+
+  const clear = useMutation({
+    mutationFn: () => assignUserInviter(accessToken, user.id, null),
+    onSuccess: onClose,
+    onError: onFailure
+  });
+
+  const input = {
+    width: "100%",
+    padding: "10px 13px",
+    border: "1px solid #dfe5ee",
+    borderRadius: 9,
+    font: "inherit",
+    marginTop: 6
+  } as const;
+
+  return (
+    <div className="settings-dialog-backdrop">
+      <div className="settings-dialog" style={{ maxWidth: 480 }}>
+        <h3>{text.inviterTitle}</h3>
+        <div style={{ marginBottom: 14, color: "#707c93" }}>{user.email}</div>
+        <label style={{ display: "block", marginBottom: 14 }}>
+          <span>{text.inviterLabel}</span>
+          <input
+            onChange={(event) => setInviterId(event.target.value)}
+            style={input}
+            value={inviterId}
+          />
+        </label>
+        <p style={{ color: "#707c93", marginTop: 0 }}>{text.inviterHint}</p>
+        <div
+          style={{
+            display: "flex",
+            gap: 10,
+            justifyContent: "flex-end",
+            flexWrap: "wrap"
+          }}
+        >
+          <button onClick={onClose} type="button">
+            {text.cancel}
+          </button>
+          <button
+            disabled={clear.isPending}
+            onClick={() => clear.mutate()}
+            type="button"
+          >
+            {text.clearInviter}
+          </button>
+          <button
+            disabled={save.isPending || !inviterId.trim()}
+            onClick={() => save.mutate()}
+            type="button"
+          >
+            {save.isPending ? text.loading : text.save}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssignOrderDialog({
+  user,
+  text,
+  onClose,
+  onFailure
+}: {
+  user: AdminUser;
+  text: Copy;
+  onClose: () => void;
+  onFailure: (cause: unknown) => void;
+}) {
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
+  const queryClient = useQueryClient();
+  const [tradeNo, setTradeNo] = useState("");
+  const [assigned, setAssigned] = useState(false);
+
+  const assign = useMutation({
+    mutationFn: () =>
+      assignUserOrder(accessToken, tradeNo.trim(), user.id),
+    onSuccess: () => {
+      setAssigned(true);
+      void queryClient.invalidateQueries({
+        queryKey: ["admin-users"]
+      });
+      window.setTimeout(() => {
+        setAssigned(false);
+        onClose();
+      }, 1200);
+    },
+    onError: onFailure
+  });
+
+  const input = {
+    width: "100%",
+    padding: "10px 13px",
+    border: "1px solid #dfe5ee",
+    borderRadius: 9,
+    font: "inherit",
+    marginTop: 6
+  } as const;
+
+  return (
+    <div className="settings-dialog-backdrop">
+      <div className="settings-dialog" style={{ maxWidth: 480 }}>
+        <h3>{text.assignOrderTitle}</h3>
+        <div style={{ marginBottom: 14, color: "#707c93" }}>
+          {text.account}: {user.email}
+        </div>
+        <label style={{ display: "block", marginBottom: 14 }}>
+          <span>{text.tradeNoLabel}</span>
+          <input
+            onChange={(event) => {
+              setTradeNo(event.target.value);
+              setAssigned(false);
+            }}
+            placeholder={text.tradeNoHint}
+            style={input}
+            value={tradeNo}
+          />
+        </label>
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} type="button">
+            {text.cancel}
+          </button>
+          <button
+            disabled={assign.isPending || !tradeNo.trim() || assigned}
+            onClick={() => assign.mutate()}
+            type="button"
+          >
+            {assigned ? text.assigned : assign.isPending ? text.loading : text.assign}
           </button>
         </div>
       </div>
