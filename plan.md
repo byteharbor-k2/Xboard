@@ -56,6 +56,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - 订单记录页与详情页 `/account/orders/{tradeNo}`
 - 页面：主页（原版 Freedom HTML）、注册、登录、密码找回、账户概览、资料、
   登录设备、套餐、结算、订单
+- 订单开通邮件：双语模板（管理员可编辑），未配置即静默跳过，绝不影响开通
+- 流量明细页接真数据（`viewerTrafficDaily`，按日账本口径）
 
 **管理侧**
 
@@ -71,6 +73,11 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   `/user/update` 不再接受 `banned`
 - 优惠券管理 CRUD：`/api/v2/admin/coupon/*` + 管理页（折扣类型、适用范围、有效期、每人限用）；
   并发重码落库冲突返回 500 而非 409（单管理员，可接受）
+- 安全开关接线：`stop_register`、`register_limit_*`（复用 Redis 计数）、`password_limit_*`
+  （锁定窗口默认改回原版 60 分钟）、`email_gmail_limit_enable`（只对 gmail 系域名拒 `+`、不拒 `.`）；
+  `captcha_type` 只存 turnstile，UI 移除 reCAPTCHA 选项（消除静默失效陷阱）
+- 仪表盘统计：收入（已支付订单）、用户（总数/活跃）、流量（日账本 30 天）、节点排名
+  （`/api/v2/admin/stat/*`）
 
 **节点与订阅**
 
@@ -84,25 +91,21 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - **五种协议同时在 SG 上跑通并逐一实测**：shadowsocks 2022、VLESS-Reality（XTLS-Vision）、
   Hysteria2、TUIC v5、AnyTLS。每个协议都用 sing-box 从**外部机器**真实建连出网
   （出口 IP 与地理位置均为 SG），且流量逐字节精确计入发起用户、无串号。
+- `NodeProtocolService.users()` SQL 化：`whereIn` 权益组过滤，去掉全表载入
+  （payload 与 etag 字节不变）
+- 流量日账本 `traffic_daily`：上报即入账（user×node×日，`billed_bytes` 计费口径，
+  Asia/Shanghai 切日），客诉核验与统计的地基
+- 权益变更实时推送：开通/续费/升级与后台改订阅 → `sync.users` 推相关节点
+  （`pushUserDelta` 仍无人调用，可后续清理；流量重置不改节点可见字段，不推）
 
 ## 4. 待办
 
 ### P1
 
-- [ ] 安全开关接线：`stop_register`、`register_limit_*`、`password_limit_*`；
-      `captcha_type` 要么实现 reCAPTCHA，要么从 UI 移除选项（**误选 reCAPTCHA 会让注册校验静默失效**）
-- [ ] `email_gmail_limit_enable`：只在 `gmail.com` / `googlemail.com` 校验，
-      且只拒 `+`、不拒 `.`
-- [ ] 订单事件邮件（模板端点与编辑页已完成，缺事件触发）
 - [ ] 续费与流量提醒：`remind_mail_enable` 目前只存储不消费
-- [ ] **节点同步实时性**：`pushUserDelta` 是死代码，用户权益变更（开通/重置）只靠轮询
-      （封禁/解封已实时推送：`UserSuspensionChangedEvent` → 节点 `sync.users`）
 
 ### P2
 
-- [ ] 仪表盘统计后端（收入、用户、流量、节点排名、失败任务）。
-      **前置依赖：流量统计落库管线**（原版 `StatUserJob`/`StatServerJob`，当前完全没有），
-      它同时挡着流量明细页、节点排名与客诉核验。**等商业主流程跑通后再做**（2026-09-19 定）
 - [ ] 公告、知识库两个模块（用户侧骨架已在）
 - [ ] 接入外部客服系统（替换已放弃的工单）
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
@@ -110,9 +113,6 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 用户流量自动重置定时任务与流量重置记录页
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
-- [ ] **节点侧扩展性**：`NodeProtocolService.users()` 每次全表载入权益再内存过滤，
-      成本 `O(全站用户) × 每节点 × 每轮询周期`；原版是一条带 `whereIn(group_id)` 的 SQL
-- [ ] **流量明细落库**：无「某用户某节点某日流量」记录，客诉无法核验
 
 ### P3
 

@@ -13,6 +13,12 @@ type Query {
     planOffer(id: ID!): PlanOffer
     viewerEntitlement: SubscriptionEntitlement
     """
+    The account's own daily traffic ledger, one row per node and day, starting
+    31 days back. Recorded only where the billing actually charged the
+    account, so the rows reconcile with the subscription counters.
+    """
+    viewerTrafficDaily: [ViewerTrafficDaily!]!
+    """
     The address this account's client subscribes to. It carries the account's
     credential, so it is only ever returned to the account itself.
     """
@@ -168,6 +174,20 @@ enum EntitlementState {
     EXPIRED
     EXHAUSTED
     CANCELED
+}
+
+"""
+One row of the account's daily traffic ledger. Byte counts are strings so a
+64-bit value survives JSON. `billedBytes` is the upload plus download after
+the node's rate multiplier was applied - the part that actually deducted
+from the subscription - while the raw columns show what the node carried.
+"""
+type ViewerTrafficDaily {
+    day: String!
+    nodeName: String
+    uploadBytes: String!
+    downloadBytes: String!
+    billedBytes: String!
 }
 
 """

@@ -34,6 +34,11 @@ public class NodeTrafficRateCalculator {
         this.billingZone = ZoneId.of(billingTimeZone);
     }
 
+    /** The zone the billing day is cut in; the ledger cuts days with it. */
+    public ZoneId zone() {
+        return billingZone;
+    }
+
     public BigDecimal currentRate(ProxyNode node, Instant now) {
         BigDecimal baseRate = nonNegative(node.getRate());
         if (!node.isRateTimeEnable()) return baseRate;

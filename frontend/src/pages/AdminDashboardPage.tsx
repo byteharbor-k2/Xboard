@@ -2,19 +2,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
 import {
-  getDashboardSummary,
   getFailedJobs,
   getQueueOverview,
   getRevenueSeries,
   getSystemStatus,
-  getTrafficRanking,
-  type DashboardPeriod,
   type FailedJob,
   type PageResult,
   type RevenueMetric,
-  type RevenueRange,
-  type TrafficRankingEntry
+  type RevenueRange
 } from "../admin/dashboardApi";
+import {
+  getAdminStatSummary,
+  getStatRanking,
+  type AdminStatPeriod,
+  type AdminStatRankingEntry
+} from "../admin/adminStatsApi";
 import { AdminShell } from "../components/AdminShell";
 import { AppLink } from "../components/AppLink";
 import { useAdminPreferences } from "../store/adminPreferences";
@@ -210,9 +212,9 @@ function RankingCard({
 }: {
   title: string;
   glyph: string;
-  period: DashboardPeriod;
-  onPeriodChange: (period: DashboardPeriod) => void;
-  entries: TrafficRankingEntry[] | undefined;
+  period: AdminStatPeriod;
+  onPeriodChange: (period: AdminStatPeriod) => void;
+  entries: AdminStatRankingEntry[] | undefined;
   loading: boolean;
   error: boolean;
   onRefresh: () => void;
@@ -220,7 +222,7 @@ function RankingCard({
 }) {
   const visibleEntries = entries?.slice(0, 6) ?? [];
   const maximum = Math.max(...visibleEntries.map((entry) => entry.bytes), 1);
-  const periodLabels: Record<DashboardPeriod, string> = {
+  const periodLabels: Record<AdminStatPeriod, string> = {
     today: copy.today,
     yesterday: copy.yesterday,
     "7d": copy.sevenDays,
@@ -240,7 +242,7 @@ function RankingCard({
             className="admin-period-select"
             value={period}
             onChange={(event) =>
-              onPeriodChange(event.target.value as DashboardPeriod)
+              onPeriodChange(event.target.value as AdminStatPeriod)
             }
           >
             {Object.entries(periodLabels).map(([value, label]) => (
@@ -460,13 +462,13 @@ export function AdminDashboardPage() {
   const queryClient = useQueryClient();
   const [revenueRange, setRevenueRange] = useState<RevenueRange>("30d");
   const [revenueMetric, setRevenueMetric] = useState<RevenueMetric>("amount");
-  const [nodePeriod, setNodePeriod] = useState<DashboardPeriod>("today");
-  const [userPeriod, setUserPeriod] = useState<DashboardPeriod>("today");
+  const [nodePeriod, setNodePeriod] = useState<AdminStatPeriod>("today");
+  const [userPeriod, setUserPeriod] = useState<AdminStatPeriod>("today");
   const [failedJobsOpen, setFailedJobsOpen] = useState(false);
 
   const summary = useQuery({
     queryKey: ["admin-dashboard", "summary"],
-    queryFn: () => getDashboardSummary(accessToken)
+    queryFn: () => getAdminStatSummary(accessToken)
   });
   const revenue = useQuery({
     queryKey: ["admin-dashboard", "revenue", revenueRange, revenueMetric],
@@ -474,11 +476,11 @@ export function AdminDashboardPage() {
   });
   const nodeRanking = useQuery({
     queryKey: ["admin-dashboard", "ranking", "node", nodePeriod],
-    queryFn: () => getTrafficRanking(accessToken, "node", nodePeriod)
+    queryFn: () => getStatRanking(accessToken, "node", nodePeriod)
   });
   const userRanking = useQuery({
     queryKey: ["admin-dashboard", "ranking", "user", userPeriod],
-    queryFn: () => getTrafficRanking(accessToken, "user", userPeriod)
+    queryFn: () => getStatRanking(accessToken, "user", userPeriod)
   });
   const systemStatus = useQuery({
     queryKey: ["admin-dashboard", "system-status"],

@@ -51,6 +51,43 @@ public interface SubscriptionEntitlementRepository
     @Query("select entitlement from SubscriptionEntitlement entitlement")
     List<SubscriptionEntitlement> findAllWithUserAndPlan();
 
+    /**
+     * The accounts one node's user list is built from, filtered in SQL instead
+     * of streamed across the whole table.
+     *
+     * Copies the eligibility NodeProtocolService applies when building the
+     * node's user list: the effective group is the account override when
+     * present and the plan's group otherwise, the account is active and
+     * addressable by nodes, and the entitlement is not cancelled, not expired
+     * and not exhausted at the instant given. The exhausted predicate is
+     * written so it matches the entity's saturated {@code usedBytes()} exactly:
+     * {@code uploaded + downloaded < limit} holds true if and only if both
+     * single conditions hold. Ordered by node user id, which the in-memory
+     * caller used to sort by.
+     */
+    @EntityGraph(attributePaths = {"user", "plan"})
+    @Query("""
+        select entitlement from SubscriptionEntitlement entitlement
+        where coalesce(entitlement.user.serverGroupId, entitlement.plan.serverGroupId)
+              in :groupIds
+          and entitlement.user.status = :activeStatus
+          and entitlement.user.nodeUserId is not null
+          and entitlement.canceledAt is null
+          and (
+            entitlement.expiresAt is null
+            or entitlement.expiresAt > :now
+          )
+          and entitlement.uploadedBytes < entitlement.transferLimitBytes
+          and entitlement.downloadedBytes
+              < entitlement.transferLimitBytes - entitlement.uploadedBytes
+        order by entitlement.user.nodeUserId asc
+        """)
+    List<SubscriptionEntitlement> findActiveForServerGroups(
+        @Param("groupIds") Collection<Long> groupIds,
+        @Param("activeStatus") UserStatus activeStatus,
+        @Param("now") Instant now
+    );
+
     /** Whether an account holds the entitlement at all. */
     boolean existsByUserId(UUID userId);
 

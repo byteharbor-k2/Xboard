@@ -126,4 +126,18 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
         @Param("status") OrderStatus status,
         @Param("excludedPeriod") BillingPeriod excludedPeriod
     );
+
+    /**
+     * Revenue actually brought in since a point in time. Only settled orders
+     * are counted - they are the ones carrying a payment time, since a
+     * cancelled order came straight from the still-unpaid pending state.
+     * Returns minor units.
+     */
+    @Query("""
+        select coalesce(sum(o.totalAmount), 0)
+        from ServiceOrder o
+        where o.paidAt is not null
+          and o.paidAt >= :from
+        """)
+    long sumPaidOrderAmountSince(@Param("from") Instant from);
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.EntitlementState;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.stats.repository.TrafficDailyRepository;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -54,7 +56,9 @@ class NodeProtocolServiceTest {
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
         when(entitlement.getSpeedLimitMbps()).thenReturn(50);
-        when(fixture.entitlements().findAllWithUserAndPlan()).thenReturn(List.of(entitlement));
+        when(fixture.entitlements().findActiveForServerGroups(
+            Set.of(10L), UserStatus.ACTIVE, NOW
+        )).thenReturn(List.of(entitlement));
 
         NodeProtocolService.UsersPayload payload = fixture.service().users(1, 9, "token");
 
@@ -205,6 +209,9 @@ class NodeProtocolServiceTest {
         SubscriptionEntitlement entitlement = mock(SubscriptionEntitlement.class);
         when(user.getStatus()).thenReturn(UserStatus.ACTIVE);
         when(user.getNodeUserId()).thenReturn(101L);
+        UUID ledgerUserId =
+            UUID.fromString("00000000-0000-0000-0000-000000000201");
+        when(user.getId()).thenReturn(ledgerUserId);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
@@ -220,6 +227,10 @@ class NodeProtocolServiceTest {
         ));
 
         verify(entitlement).addUsage(12L, 17L, NOW);
+        // The ledger records raw bytes and the rate-applied charge.
+        verify(fixture.trafficDaily()).upsertDaily(
+            ledgerUserId, 9L, LocalDate.of(2026, 8, 6), 5L, 7L, 29L
+        );
         verify(fixture.node()).recordReport(5L, 7L, 1, 0, null, null, NOW);
     }
 
@@ -263,8 +274,9 @@ class NodeProtocolServiceTest {
         when(fixture.nodes().findFirstByCode("9")).thenReturn(Optional.empty());
         SubscriptionEntitlement first = entitlement(101L);
         SubscriptionEntitlement second = entitlement(102L);
-        when(fixture.entitlements().findAllWithUserAndPlan())
-            .thenReturn(List.of(first, second));
+        when(fixture.entitlements().findActiveForServerGroups(
+            Set.of(10L), UserStatus.ACTIVE, NOW
+        )).thenReturn(List.of(first, second));
         when(fixture.deviceStates().snapshotForUsers(Set.of(101L, 102L), NOW))
             .thenReturn(Map.of(
                 101L, List.of("198.51.100.1", "2001:db8::1"),
@@ -372,6 +384,7 @@ class NodeProtocolServiceTest {
         NodeRouteRuleRepository routes = mock(NodeRouteRuleRepository.class);
         SubscriptionEntitlementRepository entitlements =
             mock(SubscriptionEntitlementRepository.class);
+        TrafficDailyRepository trafficDaily = mock(TrafficDailyRepository.class);
         NodeTrafficRateCalculator trafficRates = mock(NodeTrafficRateCalculator.class);
         NodeDeviceStateService deviceStates = mock(NodeDeviceStateService.class);
         PlatformConfigurationService configuration = mock(PlatformConfigurationService.class);
@@ -391,6 +404,7 @@ class NodeProtocolServiceTest {
         when(node.getCustomOutbounds()).thenReturn("[]");
         when(node.getCustomRoutes()).thenReturn("[]");
         when(trafficRates.currentRate(node, NOW)).thenReturn(BigDecimal.ONE);
+        when(trafficRates.zone()).thenReturn(ZoneOffset.UTC);
         when(trafficRates.charge(5L, BigDecimal.ONE)).thenReturn(5L);
         when(trafficRates.charge(7L, BigDecimal.ONE)).thenReturn(7L);
         when(configuration.nodeCommunicationSettings()).thenReturn(
@@ -400,12 +414,12 @@ class NodeProtocolServiceTest {
         );
 
         NodeProtocolService service = new NodeProtocolService(
-            machines, nodes, routes, entitlements, trafficRates, deviceStates,
-            configuration, events, new ObjectMapper(), CLOCK
+            machines, nodes, routes, entitlements, trafficDaily, trafficRates,
+            deviceStates, configuration, events, new ObjectMapper(), CLOCK
         );
         return new Fixture(
-            service, machines, node, nodes, routes, entitlements, trafficRates,
-            deviceStates, events
+            service, machines, node, nodes, routes, entitlements, trafficDaily,
+            trafficRates, deviceStates, events
         );
     }
 
@@ -453,6 +467,7 @@ class NodeProtocolServiceTest {
         ProxyNodeRepository nodes,
         NodeRouteRuleRepository routes,
         SubscriptionEntitlementRepository entitlements,
+        TrafficDailyRepository trafficDaily,
         NodeTrafficRateCalculator trafficRates,
         NodeDeviceStateService deviceStates,
         ApplicationEventPublisher events

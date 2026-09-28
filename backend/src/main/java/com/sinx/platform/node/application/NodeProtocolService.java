@@ -7,7 +7,6 @@ import java.time.Clock;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +30,7 @@ import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.EntitlementState;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.stats.repository.TrafficDailyRepository;
 
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
@@ -43,6 +43,7 @@ public class NodeProtocolService {
     private final ProxyNodeRepository nodes;
     private final NodeRouteRuleRepository routes;
     private final SubscriptionEntitlementRepository entitlements;
+    private final TrafficDailyRepository trafficDaily;
     private final NodeTrafficRateCalculator trafficRates;
     private final NodeDeviceStateService deviceStates;
     private final PlatformConfigurationService configuration;
@@ -55,6 +56,7 @@ public class NodeProtocolService {
         ProxyNodeRepository nodes,
         NodeRouteRuleRepository routes,
         SubscriptionEntitlementRepository entitlements,
+        TrafficDailyRepository trafficDaily,
         NodeTrafficRateCalculator trafficRates,
         NodeDeviceStateService deviceStates,
         PlatformConfigurationService configuration,
@@ -66,6 +68,7 @@ public class NodeProtocolService {
         this.nodes = nodes;
         this.routes = routes;
         this.entitlements = entitlements;
+        this.trafficDaily = trafficDaily;
         this.trafficRates = trafficRates;
         this.deviceStates = deviceStates;
         this.configuration = configuration;
@@ -286,10 +289,13 @@ public class NodeProtocolService {
             return new UsersPayload(List.of(), etag(List.of()));
         }
         var now = clock.instant();
-        List<Map<String, Object>> users = entitlements.findAllWithUserAndPlan().stream()
-            .filter(entitlement -> entitlement.stateAt(now) == EntitlementState.ACTIVE)
-            .filter(entitlement -> eligible(entitlement, groupIds))
-            .sorted(Comparator.comparing(entitlement -> entitlement.getUser().getNodeUserId()))
+        // Every known filter (group membership, account status, live
+        // entitlement, allowance not exhausted) is pushed into the query; the
+        // payload mapping stays in memory only because the wire shape needs
+        // Kotlin-style per-row assembly anyway. The list arrives already
+        // ordered by node user id, as before.
+        List<Map<String, Object>> users = entitlements
+            .findActiveForServerGroups(groupIds, UserStatus.ACTIVE, now).stream()
             .map(this::userPayload)
             .toList();
         return new UsersPayload(users, etag(users));
@@ -337,10 +343,20 @@ public class NodeProtocolService {
                         || !eligible(entitlement, groupIds)) {
                         continue;
                     }
-                    entitlement.addUsage(
-                        trafficRates.charge(uploadedDelta, currentRate),
-                        trafficRates.charge(downloadedDelta, currentRate),
-                        now
+                    long chargedUpload = trafficRates.charge(uploadedDelta, currentRate);
+                    long chargedDownload = trafficRates.charge(downloadedDelta, currentRate);
+                    entitlement.addUsage(chargedUpload, chargedDownload, now);
+                    // The daily ledger records exactly what was charged: same
+                    // eligibility as this charge implies, and the multiplier
+                    // applied. Users skipped above never reach this line, so
+                    // the ledger stays a copy of the billing stance.
+                    trafficDaily.upsertDaily(
+                        entitlement.getUser().getId(),
+                        node.getId(),
+                        now.atZone(trafficRates.zone()).toLocalDate(),
+                        uploadedDelta,
+                        downloadedDelta,
+                        saturatedAdd(chargedUpload, chargedDownload)
                     );
                     if (entitlement.stateAt(now) == EntitlementState.EXHAUSTED) {
                         exhaustedGroupIds.add(
