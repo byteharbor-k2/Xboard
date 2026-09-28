@@ -10,9 +10,11 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.ServicePlan;
+import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.OrderType;
@@ -58,6 +60,7 @@ public class OrderFulfilmentService {
     private final ServiceOrderRepository orders;
     private final SubscriptionEntitlementRepository entitlements;
     private final UserAccountRepository users;
+    private final ApplicationEventPublisher events;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -65,12 +68,14 @@ public class OrderFulfilmentService {
         ServiceOrderRepository orders,
         SubscriptionEntitlementRepository entitlements,
         UserAccountRepository users,
+        ApplicationEventPublisher events,
         ObjectMapper objectMapper,
         Clock clock
     ) {
         this.orders = orders;
         this.entitlements = entitlements;
         this.users = users;
+        this.events = events;
         this.objectMapper = objectMapper;
         this.clock = clock;
     }
@@ -161,8 +166,75 @@ public class OrderFulfilmentService {
         }
 
         writeOffConsumedOrders(order, now);
-        entitlements.save(applyPlan(order, user, now));
+        SubscriptionEntitlement entitlement = applyPlan(order, user, now);
+        entitlements.save(entitlement);
         order.complete(now);
+        announceEntitlementChange(user.getId(), entitlement, now);
+        if (order.getPeriod() != BillingPeriod.RESET_TRAFFIC) {
+            announceFulfilment(order, user, entitlement, now);
+        }
+    }
+
+    /**
+     * Tells the nodes the account's subscription changed.
+     *
+     * A settlement can alter everything a node's user list is built from: the
+     * plan (and with it the group the account is served through and the speed
+     * limit on the wire), the allowance (an exhausted account drops out of the
+     * list, so a renewal that resets the counters puts it back), and the
+     * expiry. Even a traffic reset alone can flip an exhausted account back to
+     * active. The listener pushes after commit, so a settlement that fails
+     * never announces anything.
+     */
+    private void announceEntitlementChange(
+        UUID userId,
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        Long groupId = entitlement.getEffectiveServerGroupId();
+        events.publishEvent(new UserEntitlementChangedEvent(
+            userId,
+            groupId == null ? List.of() : List.of(groupId),
+            now
+        ));
+    }
+
+    /**
+     * Announces the fulfilment to the customer: the mail that says the
+     * subscription they paid for is on. A traffic reset is deliberately not
+     * announced - it grants nothing new, so the "subscription opened" mail
+     * would be a lie.
+     */
+    private void announceFulfilment(
+        ServiceOrder order,
+        UserAccount user,
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        events.publishEvent(new OrderFulfilledEvent(
+            order.getTradeNo(),
+            user.getId(),
+            user.getEmail(),
+            user.getDisplayName(),
+            entitlement.getPlanName(),
+            periodLabel(order.getPeriod()),
+            entitlement.getExpiresAt(),
+            now
+        ));
+    }
+
+    /** The billing period as the customer reads it, in both languages. */
+    private static String periodLabel(BillingPeriod period) {
+        return switch (period) {
+            case MONTHLY -> "月付 / Monthly";
+            case QUARTERLY -> "季付 / Quarterly";
+            case HALF_YEARLY -> "半年付 / Half-yearly";
+            case YEARLY -> "年付 / Yearly";
+            case TWO_YEARLY -> "两年付 / Two years";
+            case THREE_YEARLY -> "三年付 / Three years";
+            case ONETIME -> "流量包 / Traffic package";
+            case RESET_TRAFFIC -> "流量重置 / Traffic reset";
+        };
     }
 
     /** Marks the earlier orders a later upgrade spent as discounted. */

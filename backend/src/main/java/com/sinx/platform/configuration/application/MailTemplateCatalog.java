@@ -100,6 +100,21 @@ public final class MailTemplateCatalog {
                 "登录链接测试"
             )
         );
+        // Not one of the original's five: the panel's own addition for the
+        // order fulfilment mail. It has no original template to copy, so the
+        // bundled default is written for this panel and speaks both languages
+        // the platform ships in.
+        byName.put(
+            "orderFulfilled",
+            definition(
+                "orderFulfilled",
+                "订单开通通知",
+                List.of("plan"),
+                List.of("name", "url", "period", "expiry"),
+                "订阅已开通 / Subscription activated",
+                "开通通知测试"
+            )
+        );
         BY_NAME = Map.copyOf(byName);
         ALL = List.copyOf(byName.values());
     }

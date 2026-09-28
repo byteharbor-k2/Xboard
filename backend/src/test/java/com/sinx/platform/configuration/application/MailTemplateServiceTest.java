@@ -89,7 +89,8 @@ class MailTemplateServiceTest {
                 "notify",
                 "remindExpire",
                 "remindTraffic",
-                "mailLogin"
+                "mailLogin",
+                "orderFulfilled"
             );
         assertThat(summaries)
             .allSatisfy(summary -> {

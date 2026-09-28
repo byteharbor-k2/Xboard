@@ -85,12 +85,12 @@ class AdminMailTemplateControllerTest {
             mockMvc.perform(get("/api/v2/admin/mail/template/list"))
                 .andExpect(status().isUnauthorized());
 
-            // The catalog as shipped: all five, none customized yet.
+            // The catalog as shipped: all six, none customized yet.
             MvcResult listResult = mockMvc.perform(
                     get("/api/v2/admin/mail/template/list")
                         .with(administrator))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.length()").value(5))
+                .andExpect(jsonPath("$.data.length()").value(6))
                 .andExpect(jsonPath("$.data[0].name").value("verify"))
                 .andExpect(jsonPath("$.data[0].label").value("邮箱验证码"))
                 .andExpect(jsonPath("$.data[4].name").value("mailLogin"))

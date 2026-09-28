@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
@@ -66,6 +67,7 @@ class OrderFulfilmentServiceTest {
             orders,
             entitlements,
             users,
+            org.mockito.Mockito.mock(ApplicationEventPublisher.class),
             new ObjectMapper(),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );

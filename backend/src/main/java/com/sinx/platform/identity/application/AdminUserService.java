@@ -281,7 +281,9 @@ public class AdminUserService {
                 "SUBSCRIPTION_NOT_FOUND",
                 "This account has no subscription to reset"
             ));
-        entitlement.resetTraffic(clock.instant());
+        Instant now = clock.instant();
+        entitlement.resetTraffic(now);
+        publishEntitlementChanged(userId, entitlement, now);
         return detail(userId);
     }
 
@@ -582,6 +584,32 @@ public class AdminUserService {
         }
         entitlement.administrate(plan, allowance, expiresAt, now);
         entitlements.save(entitlement);
+        publishEntitlementChanged(account.getId(), entitlement, now);
+    }
+
+    /**
+     * Announces a correction the nodes can see, the way a paid order already
+     * does.
+     *
+     * The node user list filters on expiry and on whether the traffic is used
+     * up, and the wire payload carries the plan's speed limit, so allowance,
+     * expiry and plan edits all change what xboard-node serves; resetting
+     * traffic can lift an exhausted account back into the list. A remarks,
+     * password or per-account speed edit reaches nothing a node reads and
+     * stays silent - the node's speed limit comes from the plan behind the
+     * entitlement, not from the account's own field.
+     */
+    private void publishEntitlementChanged(
+        UUID userId,
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        Long groupId = entitlement.getEffectiveServerGroupId();
+        events.publishEvent(new UserEntitlementChangedEvent(
+            userId,
+            groupId == null ? List.of() : List.of(groupId),
+            now
+        ));
     }
 
     private Map<UUID, SubscriptionEntitlement> entitlementsByUser(

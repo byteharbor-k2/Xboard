@@ -157,6 +157,31 @@ public class MailTemplateService {
     }
 
     /**
+     * Renders a template in its current shape (override or bundled default)
+     * with the given substitution values, for deliveries outside the template
+     * tab: the order fulfilment mail is sent by the order flow, but it speaks
+     * the same catalog the administrator edits, so an override applies there
+     * too and the default subject still carries the site name.
+     *
+     * Values are substituted verbatim, like {@code sendTest}: the caller
+     * escapes them first, because they reach admin-authored HTML.
+     */
+    public RenderedTemplate render(String name, Map<String, String> variables) {
+        MailTemplateCatalog.Definition definition = require(name);
+        MailTemplate override = templates.findById(name).orElse(null);
+        String subject = override == null
+            ? defaultSubject(definition)
+            : override.subject();
+        String content = override == null
+            ? definition.defaultContent()
+            : override.content();
+        return new RenderedTemplate(
+            renderPlaceholders(subject, variables),
+            renderPlaceholders(content, variables)
+        );
+    }
+
+    /**
      * Send a test of the template in its current shape (override or default)
      * to {@code recipient}, which the controller resolves to the requesting
      * administrator when the request carries no address.
@@ -220,6 +245,11 @@ public class MailTemplateService {
                 "link",
                 escapeHtml(url + "/login?token=test-token")
             );
+            case "orderFulfilled" -> {
+                vars.put("plan", "示例套餐 / Example plan");
+                vars.put("period", "月付 / Monthly");
+                vars.put("expiry", "2027-09-28 00:00 UTC");
+            }
             default -> {
             }
         }
@@ -317,5 +347,9 @@ public class MailTemplateService {
         String subject,
         String content
     ) {
+    }
+
+    /** A template resolved to its final subject and body, ready to send. */
+    public record RenderedTemplate(String subject, String content) {
     }
 }
