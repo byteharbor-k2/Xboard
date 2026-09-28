@@ -52,6 +52,35 @@ public class PlatformConfigurationService {
         "safe.turnstile_site_key";
     private static final String TURNSTILE_SECRET_KEY =
         "safe.turnstile_secret_key";
+    /**
+     * The registration safety switches from the legacy panel. Field names,
+     * thresholds and windows mirror Xboard's RegisterService and
+     * LoginService so a saved legacy configuration keeps meaning the same
+     * thing after the rewrite.
+     */
+    private static final String STOP_REGISTER_KEY = "safe.stop_register";
+    private static final String SITE_STOP_REGISTER_KEY = "site.stop_register";
+    private static final String REGISTER_IP_LIMIT_ENABLED_KEY =
+        "safe.register_limit_by_ip_enable";
+    private static final String REGISTER_IP_LIMIT_COUNT_KEY =
+        "safe.register_limit_count";
+    private static final String REGISTER_IP_LIMIT_EXPIRE_KEY =
+        "safe.register_limit_expire";
+    private static final String EMAIL_GMAIL_LIMIT_KEY =
+        "safe.email_gmail_limit_enable";
+    private static final String PASSWORD_LIMIT_ENABLED_KEY =
+        "safe.password_limit_enable";
+    private static final String PASSWORD_LIMIT_COUNT_KEY =
+        "safe.password_limit_count";
+    private static final String PASSWORD_LIMIT_EXPIRE_KEY =
+        "safe.password_limit_expire";
+    /**
+     * Where a login is locked after too many wrong passwords and for how
+     * long, matching the legacy LoginService defaults
+     * (password_limit_count = 5, password_limit_expire = 60 minutes).
+     */
+    static final int DEFAULT_PASSWORD_LIMIT_COUNT = 5;
+    static final int DEFAULT_PASSWORD_LIMIT_EXPIRE_MINUTES = 60;
     private static final String INVITE_REQUIRED_KEY = "invite.invite_force";
     private static final String INVITE_COMMISSION_KEY =
         "invite.invite_commission";
@@ -84,6 +113,14 @@ public class PlatformConfigurationService {
     private static final Pattern SERVER_TOKEN_PATTERN = Pattern.compile(
         "^[0-9a-f]{64}$"
     );
+    /**
+     * The domains Gmail itself treats as one mailbox, so an alias on these is
+     * a duplicate account on this site too.
+     */
+    private static final Set<String> GMAIL_ALIAS_DOMAINS = Set.of(
+        "gmail.com",
+        "googlemail.com"
+    );
 
     private final PlatformSettingRepository settings;
     private final Clock clock;
@@ -111,26 +148,68 @@ public class PlatformConfigurationService {
                 // read back a shortened list would silently overwrite the rest
                 // on its next save.
                 "subscribe_url", String.join(",", subscribeUrls()),
-                "tos_url", termsUrl().orElse("")
+                "tos_url", termsUrl().orElse(""),
+                "stop_register",
+                stopRegisterPolicy().stopped()
             );
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
                 TurnstilePolicy turnstile = turnstilePolicy();
-                yield Map.of(
-                    "email_verify",
-                    emailVerificationRequired(),
-                    "email_whitelist_enable",
-                    policy.enabled(),
-                    "email_whitelist_suffix",
-                    policy.domains(),
-                    "captcha_enable",
-                    turnstile.enabled(),
-                    "captcha_type",
-                    "turnstile",
-                    "turnstile_site_key",
-                    turnstile.siteKey() == null ? "" : turnstile.siteKey(),
-                    "turnstile_secret_key",
-                    ""
+                yield Map.ofEntries(
+                    Map.entry(
+                        "email_verify",
+                        emailVerificationRequired()
+                    ),
+                    Map.entry(
+                        "stop_register",
+                        stopRegisterPolicy().stopped()
+                    ),
+                    Map.entry(
+                        "email_gmail_limit_enable",
+                        gmailAliasPolicy().enabled()
+                    ),
+                    Map.entry(
+                        "email_whitelist_enable",
+                        policy.enabled()
+                    ),
+                    Map.entry(
+                        "email_whitelist_suffix",
+                        policy.domains()
+                    ),
+                    Map.entry(
+                        "captcha_enable",
+                        turnstile.enabled()
+                    ),
+                    Map.entry("captcha_type", "turnstile"),
+                    Map.entry(
+                        "turnstile_site_key",
+                        turnstile.siteKey() == null ? "" : turnstile.siteKey()
+                    ),
+                    Map.entry("turnstile_secret_key", ""),
+                    Map.entry(
+                        "register_limit_by_ip_enable",
+                        registrationIpLimit().enabled()
+                    ),
+                    Map.entry(
+                        "register_limit_count",
+                        registrationIpLimit().limitCount()
+                    ),
+                    Map.entry(
+                        "register_limit_expire",
+                        registrationIpLimit().expireMinutes()
+                    ),
+                    Map.entry(
+                        "password_limit_enable",
+                        loginAttemptPolicy().enabled()
+                    ),
+                    Map.entry(
+                        "password_limit_count",
+                        loginAttemptPolicy().maxFailures()
+                    ),
+                    Map.entry(
+                        "password_limit_expire",
+                        loginAttemptPolicy().lockMinutes()
+                    )
                 );
             }
             case "invite" -> {
@@ -220,6 +299,8 @@ public class PlatformConfigurationService {
             ? nodeCommunicationSettings()
             : null;
         switch (section + "." + entry.getKey()) {
+            case SITE_STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
+            case STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
             case APP_NAME_KEY -> saveAppName(entry.getValue());
             case APP_URL_KEY -> saveAppUrl(entry.getValue());
             case SUBSCRIBE_URL_KEY -> saveSubscribeUrls(entry.getValue());
@@ -230,6 +311,20 @@ public class PlatformConfigurationService {
                 saveEmailAllowlistDomains(entry.getValue());
             case EMAIL_VERIFICATION_KEY ->
                 saveBoolean(EMAIL_VERIFICATION_KEY, entry.getValue());
+            case EMAIL_GMAIL_LIMIT_KEY ->
+                saveBoolean(EMAIL_GMAIL_LIMIT_KEY, entry.getValue());
+            case REGISTER_IP_LIMIT_ENABLED_KEY ->
+                saveBoolean(REGISTER_IP_LIMIT_ENABLED_KEY, entry.getValue());
+            case REGISTER_IP_LIMIT_COUNT_KEY ->
+                saveInteger(REGISTER_IP_LIMIT_COUNT_KEY, entry.getValue(), 1, 100);
+            case REGISTER_IP_LIMIT_EXPIRE_KEY ->
+                saveInteger(REGISTER_IP_LIMIT_EXPIRE_KEY, entry.getValue(), 1, 10_080);
+            case PASSWORD_LIMIT_ENABLED_KEY ->
+                saveBoolean(PASSWORD_LIMIT_ENABLED_KEY, entry.getValue());
+            case PASSWORD_LIMIT_COUNT_KEY ->
+                saveInteger(PASSWORD_LIMIT_COUNT_KEY, entry.getValue(), 1, 100);
+            case PASSWORD_LIMIT_EXPIRE_KEY ->
+                saveInteger(PASSWORD_LIMIT_EXPIRE_KEY, entry.getValue(), 1, 10_080);
             case CAPTCHA_ENABLED_KEY ->
                 saveBoolean(CAPTCHA_ENABLED_KEY, entry.getValue());
             case CAPTCHA_TYPE_KEY -> saveCaptchaType(entry.getValue());
@@ -337,6 +432,87 @@ public class PlatformConfigurationService {
         return read(EMAIL_VERIFICATION_KEY)
             .map(Boolean::parseBoolean)
             .orElse(true);
+    }
+
+    /**
+     * The whole safety-switch surface at once. The registration admission
+     * points read a snapshot of it, so a register request is judged by one
+     * consistent set of values even while an administrator is editing.
+     */
+    public SafetySwitchPolicy safetyPolicy() {
+        StopRegisterPolicy stopRegister = stopRegisterPolicy();
+        RegistrationIpLimitPolicy ipLimit = registrationIpLimit();
+        GmailAliasPolicy gmail = gmailAliasPolicy();
+        LoginAttemptPolicy login = loginAttemptPolicy();
+        return new SafetySwitchPolicy(
+            stopRegister.stopped(),
+            ipLimit.enabled(),
+            ipLimit.limitCount(),
+            ipLimit.expireMinutes(),
+            gmail.enabled(),
+            login.enabled(),
+            login.maxFailures(),
+            login.lockMinutes()
+        );
+    }
+
+    /**
+     * The legacy switch maps a truthy saved value to the effective switch
+     * (ConfigSave's boolean caster parses "0"/"1"/"true"), so the section read
+     * returns a real boolean either way.
+     */
+    public StopRegisterPolicy stopRegisterPolicy() {
+        return new StopRegisterPolicy(readBoolean(STOP_REGISTER_KEY, false));
+    }
+
+    public RegistrationIpLimitPolicy registrationIpLimit() {
+        return new RegistrationIpLimitPolicy(
+            readBoolean(REGISTER_IP_LIMIT_ENABLED_KEY, false),
+            readInteger(REGISTER_IP_LIMIT_COUNT_KEY, 3),
+            readInteger(REGISTER_IP_LIMIT_EXPIRE_KEY, 60)
+        );
+    }
+
+    public GmailAliasPolicy gmailAliasPolicy() {
+        return new GmailAliasPolicy(
+            readBoolean(EMAIL_GMAIL_LIMIT_KEY, false)
+        );
+    }
+
+    public LoginAttemptPolicy loginAttemptPolicy() {
+        return new LoginAttemptPolicy(
+            readBoolean(PASSWORD_LIMIT_ENABLED_KEY, true),
+            readInteger(PASSWORD_LIMIT_COUNT_KEY, DEFAULT_PASSWORD_LIMIT_COUNT),
+            readInteger(PASSWORD_LIMIT_EXPIRE_KEY, DEFAULT_PASSWORD_LIMIT_EXPIRE_MINUTES)
+        );
+    }
+
+    /**
+     * The legacy alias guard covers only the alias-capable Gmail domains:
+     * gmail.com and googlemail.com. It refuses a plus-tagged local part there
+     * (dots keep passing, unlike the original check) and leaves every other
+     * domain unaffected.
+     */
+    public void assertGmailAliasAllowed(String email) {
+        if (!gmailAliasPolicy().enabled()) {
+            return;
+        }
+        int separator = email.lastIndexOf('@');
+        if (separator < 0) {
+            return;
+        }
+        String domain = email.substring(separator + 1).toLowerCase(Locale.ROOT);
+        if (!GMAIL_ALIAS_DOMAINS.contains(domain)) {
+            return;
+        }
+        String localPart = email.substring(0, separator);
+        if (localPart.indexOf('+') >= 0) {
+            throw new ApiProblemException(
+                HttpStatus.BAD_REQUEST,
+                "GMAIL_ALIAS_NOT_SUPPORTED",
+                "Gmail alias addresses cannot be used for registration"
+            );
+        }
     }
 
     public TurnstilePolicy turnstilePolicy() {
@@ -867,6 +1043,42 @@ public class PlatformConfigurationService {
         public EmailDomainPolicy {
             domains = List.copyOf(domains);
         }
+    }
+
+    public record StopRegisterPolicy(
+        boolean stopped
+    ) {
+    }
+
+    public record RegistrationIpLimitPolicy(
+        boolean enabled,
+        int limitCount,
+        int expireMinutes
+    ) {
+    }
+
+    public record GmailAliasPolicy(
+        boolean enabled
+    ) {
+    }
+
+    public record LoginAttemptPolicy(
+        boolean enabled,
+        int maxFailures,
+        int lockMinutes
+    ) {
+    }
+
+    public record SafetySwitchPolicy(
+        boolean registrationStopped,
+        boolean registerIpLimitEnabled,
+        int registerIpLimitCount,
+        int registerIpLimitExpireMinutes,
+        boolean gmailAliasesBlocked,
+        boolean loginLimitEnabled,
+        int loginMaxFailures,
+        int loginLockMinutes
+    ) {
     }
 
     public record TurnstilePolicy(

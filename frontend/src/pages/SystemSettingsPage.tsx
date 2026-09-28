@@ -595,11 +595,8 @@ export function SystemSettingsPage() {
   }
 
   function isVisible(field: SettingsField) {
-    if (
-      field.key.startsWith("recaptcha") ||
-      field.key.startsWith("turnstile")
-    ) {
-      if (!draft.captcha_enable) return false;
+    if (field.key.startsWith("turnstile") && !draft.captcha_enable) {
+      return false;
     }
     if (!field.visibleWhen) return true;
     const current = draft[field.visibleWhen.key];
@@ -617,16 +614,7 @@ export function SystemSettingsPage() {
         <button
           aria-checked={enabled}
           className={`settings-toggle ${enabled ? "active" : ""}`}
-          onClick={() =>
-            updateField(
-              field,
-              field.key === "stop_register"
-                ? enabled
-                  ? 0
-                  : 1
-                : !enabled
-            )
-          }
+          onClick={() => updateField(field, !enabled)}
           role="switch"
           type="button"
         >

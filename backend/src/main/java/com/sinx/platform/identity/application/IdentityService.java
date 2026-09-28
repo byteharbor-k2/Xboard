@@ -25,6 +25,7 @@ import com.sinx.platform.identity.repository.RoleRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.identity.security.IdentityTokenService;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.application.ScopedSessionService.SessionGrant;
 import com.sinx.platform.shared.web.ApiProblemException;
 
@@ -45,6 +46,7 @@ public class IdentityService {
     private final PasswordResetAttemptService passwordResetAttempts;
     private final RegistrationVerificationService registrationVerification;
     private final InvitationService invitations;
+    private final PlatformConfigurationService configuration;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
@@ -62,6 +64,7 @@ public class IdentityService {
         PasswordResetAttemptService passwordResetAttempts,
         RegistrationVerificationService registrationVerification,
         InvitationService invitations,
+        PlatformConfigurationService configuration,
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
@@ -77,6 +80,7 @@ public class IdentityService {
         this.passwordResetAttempts = passwordResetAttempts;
         this.registrationVerification = registrationVerification;
         this.invitations = invitations;
+        this.configuration = configuration;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
@@ -96,9 +100,20 @@ public class IdentityService {
         String remoteIp
     ) {
         String normalizedEmail = normalizeEmail(email);
+        // The legacy RegisterService refuses a closed site before any other
+        // admission work, so an operator flipping the switch is the only word
+        // and nothing else is consulted after it.
+        if (configuration.stopRegisterPolicy().stopped()) {
+            throw new ApiProblemException(
+                HttpStatus.BAD_REQUEST,
+                "REGISTRATION_CLOSED",
+                "Registration has closed"
+            );
+        }
         if (userRepository.existsByEmail(normalizedEmail)) {
             throw emailAlreadyRegistered();
         }
+        configuration.assertGmailAliasAllowed(normalizedEmail);
         boolean emailVerified = registrationVerification.verifyRegistration(
             normalizedEmail,
             emailCode,

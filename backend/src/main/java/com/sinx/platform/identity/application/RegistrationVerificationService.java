@@ -2,6 +2,7 @@ package com.sinx.platform.identity.application;
 
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 
@@ -73,7 +74,16 @@ public class RegistrationVerificationService {
         String remoteIp
     ) {
         String normalizedEmail = normalizeEmail(email);
+        PlatformConfigurationService.SafetySwitchPolicy policy =
+            configuration.safetyPolicy();
+        if (policy.registrationStopped()) {
+            // A closed site does not even hand out verification codes: no
+            // amount of preparation can finish a registration that is refused
+            // outright.
+            throw registrationClosed();
+        }
         configuration.assertEmailDomainAllowed(normalizedEmail);
+        configuration.assertGmailAliasAllowed(normalizedEmail);
         if (!configuration.emailVerificationRequired()) {
             return;
         }
@@ -125,7 +135,13 @@ public class RegistrationVerificationService {
         String turnstileToken,
         String remoteIp
     ) {
+        PlatformConfigurationService.SafetySwitchPolicy policy =
+            configuration.safetyPolicy();
+        if (policy.registrationStopped()) {
+            throw registrationClosed();
+        }
         configuration.assertEmailDomainAllowed(normalizeEmail(email));
+        configuration.assertGmailAliasAllowed(normalizeEmail(email));
         turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
         if (!configuration.emailVerificationRequired()) {
@@ -155,22 +171,41 @@ public class RegistrationVerificationService {
 
     public void completeRegistration(String email, String remoteIp) {
         redis.delete(codeKey(email));
+        PlatformConfigurationService.SafetySwitchPolicy policy =
+            configuration.safetyPolicy();
+        if (!policy.registerIpLimitEnabled()) {
+            return;
+        }
         String key = IP_PREFIX + tokenService.hashOpaqueToken(
             normalizeRemoteIp(remoteIp)
         );
         Long count = redis.opsForValue().increment(key);
         if (count != null && count == 1L) {
-            redis.expire(key, properties.registrationWindow());
+            // The settings window replaces the old environment one: the first
+            // registration from an address starts the countdown and everything
+            // else within it only raises the count.
+            redis.expire(
+                key,
+                Duration.ofMinutes(policy.registerIpLimitExpireMinutes())
+            );
         }
     }
 
     private void assertRegistrationAllowed(String remoteIp) {
+        PlatformConfigurationService.SafetySwitchPolicy policy =
+            configuration.safetyPolicy();
+        if (policy.registrationStopped()) {
+            throw registrationClosed();
+        }
+        if (!policy.registerIpLimitEnabled()) {
+            return;
+        }
         String key = IP_PREFIX + tokenService.hashOpaqueToken(
             normalizeRemoteIp(remoteIp)
         );
         String value = redis.opsForValue().get(key);
         int count = value == null ? 0 : Integer.parseInt(value);
-        if (count >= properties.maxRegistrationsPerIp()) {
+        if (count >= policy.registerIpLimitCount()) {
             throw new ApiProblemException(
                 HttpStatus.TOO_MANY_REQUESTS,
                 "REGISTRATION_RATE_LIMITED",
@@ -204,6 +239,18 @@ public class RegistrationVerificationService {
             HttpStatus.BAD_REQUEST,
             "REGISTRATION_EMAIL_CODE_INVALID",
             "The email verification code is invalid or expired"
+        );
+    }
+
+    /**
+     * The switch names and the business code mirror the legacy panel: a
+     * closed registration is a plain refusal, not a validation failure.
+     */
+    private ApiProblemException registrationClosed() {
+        return new ApiProblemException(
+            HttpStatus.BAD_REQUEST,
+            "REGISTRATION_CLOSED",
+            "Registration has closed"
         );
     }
 

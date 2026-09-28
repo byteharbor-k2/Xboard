@@ -112,31 +112,11 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
         visibleWhen: { key: "email_whitelist_enable" }
       }),
       field("captcha_enable", "启用验证码", "Enable CAPTCHA", "开启后用户注册时需要通过验证码验证。", "Require CAPTCHA verification during registration.", "toggle", false),
-      field("captcha_type", "验证码类型", "CAPTCHA provider", "选择要使用的验证码服务类型。", "Select the CAPTCHA provider.", "select", "recaptcha", {
+      field("captcha_type", "验证码类型", "CAPTCHA provider", "选择要使用的验证码服务类型。", "Select the CAPTCHA provider.", "select", "turnstile", {
         visibleWhen: { key: "captcha_enable" },
         options: [
-          option("recaptcha", "Google reCAPTCHA v2", "Google reCAPTCHA v2"),
-          option("recaptcha-v3", "Google reCAPTCHA v3", "Google reCAPTCHA v3"),
           option("turnstile", "Cloudflare Turnstile", "Cloudflare Turnstile")
         ]
-      }),
-      field("recaptcha_key", "reCAPTCHA密钥", "reCAPTCHA secret key", "输入您的reCAPTCHA密钥。", "Enter the reCAPTCHA secret key.", "password", "", {
-        visibleWhen: { key: "captcha_type", value: "recaptcha" }
-      }),
-      field("recaptcha_site_key", "reCAPTCHA站点密钥", "reCAPTCHA site key", "输入您的reCAPTCHA站点密钥。", "Enter the reCAPTCHA site key.", "text", "", {
-        visibleWhen: { key: "captcha_type", value: "recaptcha" }
-      }),
-      field("recaptcha_v3_secret_key", "reCAPTCHA v3密钥", "reCAPTCHA v3 secret key", "输入您的reCAPTCHA v3服务器密钥。", "Enter the reCAPTCHA v3 server key.", "password", "", {
-        visibleWhen: { key: "captcha_type", value: "recaptcha-v3" }
-      }),
-      field("recaptcha_v3_site_key", "reCAPTCHA v3站点密钥", "reCAPTCHA v3 site key", "输入您的reCAPTCHA v3站点密钥。", "Enter the reCAPTCHA v3 site key.", "text", "", {
-        visibleWhen: { key: "captcha_type", value: "recaptcha-v3" }
-      }),
-      field("recaptcha_v3_score_threshold", "分数阈值", "Score threshold", "设置验证分数阈值（0-1），分数越高表示越可能是真人操作。", "Set the verification threshold from 0 to 1.", "number", 0.5, {
-        min: 0,
-        max: 1,
-        step: 0.1,
-        visibleWhen: { key: "captcha_type", value: "recaptcha-v3" }
       }),
       field("turnstile_secret_key", "Turnstile密钥", "Turnstile secret key", "输入您的Cloudflare Turnstile密钥。", "Enter the Cloudflare Turnstile secret key.", "password", "", {
         visibleWhen: { key: "captcha_type", value: "turnstile" }
