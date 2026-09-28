@@ -173,6 +173,16 @@ public class ServiceOrder {
     }
 
     /**
+     * Hands the order to another account, as an administrator's correction
+     * does. The pricing rows are untouched: the money was already accounted
+     * against the original purchase, so only the owner changes.
+     */
+    public void assignTo(UserAccount target, Instant now) {
+        this.user = target;
+        this.updatedAt = now;
+    }
+
+    /**
      * Settles the order and hands it to provisioning.
      *
      * Only a pending order can be settled, so a duplicate payment callback

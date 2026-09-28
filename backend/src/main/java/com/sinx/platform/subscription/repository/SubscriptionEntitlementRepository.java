@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -49,6 +50,28 @@ public interface SubscriptionEntitlementRepository
     @EntityGraph(attributePaths = {"user", "plan"})
     @Query("select entitlement from SubscriptionEntitlement entitlement")
     List<SubscriptionEntitlement> findAllWithUserAndPlan();
+
+    /** Whether an account holds the entitlement at all. */
+    boolean existsByUserId(UUID userId);
+
+    /**
+     * Repoints the account's entitlement to another account, for an
+     * administrator handing a customer's order - and, with it, his
+     * subscription - to a different address. A direct update because the
+     * entitlement is meant to keep everything but its owner; the caller locks
+     * both account rows before invoking it.
+     */
+    @Modifying
+    @Query(value = """
+        update subscription_entitlements
+        set user_id = :toUserId, updated_at = :now
+        where user_id = :fromUserId
+        """, nativeQuery = true)
+    int moveOwnership(
+        @Param("fromUserId") UUID fromUserId,
+        @Param("toUserId") UUID toUserId,
+        @Param("now") Instant now
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"user", "plan"})

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.order.application.OrderAdminView;
+import com.sinx.platform.order.application.OrderAssignmentService;
 import com.sinx.platform.order.application.OrderFulfilmentService;
 import com.sinx.platform.order.application.OrderService;
 import com.sinx.platform.order.domain.OrderStatus;
@@ -35,8 +36,10 @@ class AdminOrderControllerTest {
     private final OrderService orders = mock(OrderService.class);
     private final OrderFulfilmentService fulfilment =
         mock(OrderFulfilmentService.class);
+    private final OrderAssignmentService assignments =
+        mock(OrderAssignmentService.class);
     private final MockMvc mvc = MockMvcBuilders
-        .standaloneSetup(new AdminOrderController(orders, fulfilment))
+        .standaloneSetup(new AdminOrderController(orders, fulfilment, assignments))
         .build();
 
     @Test

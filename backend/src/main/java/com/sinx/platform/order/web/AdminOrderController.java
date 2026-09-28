@@ -1,6 +1,7 @@
 package com.sinx.platform.order.web;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sinx.platform.order.application.OrderAdminView;
+import com.sinx.platform.order.application.OrderAssignmentService;
 import com.sinx.platform.order.application.OrderFulfilmentService;
 import com.sinx.platform.order.application.OrderService;
 import com.sinx.platform.order.domain.OrderStatus;
@@ -32,13 +34,16 @@ public class AdminOrderController {
 
     private final OrderService orders;
     private final OrderFulfilmentService fulfilment;
+    private final OrderAssignmentService assignments;
 
     public AdminOrderController(
         OrderService orders,
-        OrderFulfilmentService fulfilment
+        OrderFulfilmentService fulfilment,
+        OrderAssignmentService assignments
     ) {
         this.orders = orders;
         this.fulfilment = fulfilment;
+        this.assignments = assignments;
     }
 
     @GetMapping("/fetch")
@@ -63,7 +68,23 @@ public class AdminOrderController {
         return XboardResponse.of(true);
     }
 
+    /**
+     * Hands the order, and the subscription its account holds, to another
+     * customer - the correction for a purchase made under the wrong address.
+     */
+    @PostMapping("/assign")
+    XboardResponse<Boolean> assign(@RequestBody AssignRequest request) {
+        assignments.assign(request.tradeNo(), request.userId());
+        return XboardResponse.of(true);
+    }
+
     record TradeNoRequest(@JsonProperty("trade_no") String tradeNo) {
+    }
+
+    record AssignRequest(
+        @JsonProperty("trade_no") String tradeNo,
+        @JsonProperty("user_id") UUID userId
+    ) {
     }
 
     record XboardResponse<T>(T data) {

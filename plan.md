@@ -69,6 +69,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - **封号真正断开**：封禁即撤销全部设备会话并按权益组实时推送节点用户表（解封同推）；
   已签发 access JWT 残留 ≤10 分钟（stateless，原版同款）；封禁入口只有 `/user/ban`，
   `/user/update` 不再接受 `banned`
+- 优惠券管理 CRUD：`/api/v2/admin/coupon/*` + 管理页（折扣类型、适用范围、有效期、每人限用）；
+  并发重码落库冲突返回 500 而非 409（单管理员，可接受）
 
 **节点与订阅**
 
@@ -87,7 +89,6 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### P1
 
-- [ ] 优惠券管理 CRUD（后端 + 页面）。表和折抵逻辑已实现，只缺创建入口
 - [ ] 安全开关接线：`stop_register`、`register_limit_*`、`password_limit_*`；
       `captcha_type` 要么实现 reCAPTCHA，要么从 UI 移除选项（**误选 reCAPTCHA 会让注册校验静默失效**）
 - [ ] `email_gmail_limit_enable`：只在 `gmail.com` / `googlemail.com` 校验，

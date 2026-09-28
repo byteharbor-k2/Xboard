@@ -125,6 +125,26 @@ public class Coupon {
         updatedAt = now;
     }
 
+    /**
+     * Applies an administrator's edit to what the coupon is: its code, its
+     * display name, and what it takes off. The redemption counters and the
+     * restrictions are untouched here - the former belongs to customer usage
+     * alone, the latter go through {@link #configureLimits}.
+     */
+    public void redefine(
+        String code,
+        String name,
+        CouponDiscountType discountType,
+        long discountValue,
+        Instant now
+    ) {
+        this.code = code;
+        this.name = name;
+        this.discountType = discountType;
+        this.discountValue = discountValue;
+        this.updatedAt = now;
+    }
+
     public void configureLimits(
         Instant startsAt,
         Instant endsAt,
@@ -163,6 +183,30 @@ public class Coupon {
 
     public long getDiscountValue() {
         return discountValue;
+    }
+
+    public Instant getStartsAt() {
+        return startsAt;
+    }
+
+    public Instant getEndsAt() {
+        return endsAt;
+    }
+
+    public Integer getMaxRedemptions() {
+        return maxRedemptions;
+    }
+
+    public int getRedemptionsUsed() {
+        return redemptionsUsed;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 
     public Integer getMaxRedemptionsPerUser() {

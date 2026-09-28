@@ -10,6 +10,7 @@ import { AdminLoginPage } from "./pages/AdminLoginPage";
 import { DeviceSessionsPage } from "./pages/DeviceSessionsPage";
 import { AdminMfaPage } from "./pages/AdminMfaPage";
 import { AdminPlansPage } from "./pages/AdminPlansPage";
+import { AdminCouponPage } from "./pages/AdminCouponPage";
 import { AdminMachinesPage } from "./pages/AdminMachinesPage";
 import { AdminNodesPage } from "./pages/AdminNodesPage";
 import { AdminNodeGroupsPage } from "./pages/AdminNodeGroupsPage";
@@ -227,6 +228,13 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminPaymentsPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/finance/coupons") {
+    return (
+      <AdminProtectedRoute>
+        <AdminCouponPage />
       </AdminProtectedRoute>
     );
   }
