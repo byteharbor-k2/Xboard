@@ -22,6 +22,14 @@ const updateProfileMutation = `
   }
 `;
 
+const updateRemindersMutation = `
+  mutation UpdateViewerReminders($remindExpire: Boolean!, $remindTraffic: Boolean!) {
+    updateViewerReminders(remindExpire: $remindExpire, remindTraffic: $remindTraffic) {
+      id remindExpire remindTraffic
+    }
+  }
+`;
+
 /**
  * The balance is money, so it is read fresh rather than taken from the session
  * the app booted with: a purchase made in this tab changes it, and a stale
@@ -58,7 +66,14 @@ const copy = {
     updatePassword: "更新密码",
     mismatch: "两次输入的新密码不一致",
     passwordUpdated: "密码已更新，当前设备保持登录。",
-    passwordFailed: "密码更新失败"
+    passwordFailed: "密码更新失败",
+    reminders: "提醒邮件",
+    remindersDescription: "选择系统每天可以发送给你的提醒。",
+    remindExpire: "到期提醒（服务到期前 24 小时）",
+    remindTraffic: "流量提醒（用量达到 80% 时）",
+    saveReminders: "保存提醒设置",
+    remindersSaved: "提醒设置已保存。",
+    remindersFailed: "提醒设置保存失败"
   },
   "en-US": {
     title: "Personal center",
@@ -84,7 +99,14 @@ const copy = {
     updatePassword: "Update password",
     mismatch: "The new passwords do not match",
     passwordUpdated: "Password updated. This device remains signed in.",
-    passwordFailed: "Password update failed"
+    passwordFailed: "Password update failed",
+    reminders: "Reminder emails",
+    remindersDescription: "Choose which daily reminders the system may send you.",
+    remindExpire: "Expiry reminder (24 hours before your service ends)",
+    remindTraffic: "Traffic reminder (when usage reaches 80%)",
+    saveReminders: "Save reminder settings",
+    remindersSaved: "Reminder settings saved.",
+    remindersFailed: "Failed to save reminder settings"
   }
 };
 
@@ -95,10 +117,13 @@ export function AccountProfilePage() {
   const language = useUserPreferences((state) => state.language);
   const labels = copy[language];
   const [displayName, setDisplayName] = useState(viewer.displayName);
+  const [remindExpire, setRemindExpire] = useState(viewer.remindExpire);
+  const [remindTraffic, setRemindTraffic] = useState(viewer.remindTraffic);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [profileMessage, setProfileMessage] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -125,6 +150,28 @@ export function AccountProfilePage() {
       setProfileMessage(labels.profileSaved);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : labels.saveFailed);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function updateReminders(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSubmitting(true);
+    setError("");
+    setReminderMessage("");
+    try {
+      const result = await graphQl<{ updateViewerReminders: Viewer }>(
+        accessToken,
+        updateRemindersMutation,
+        { remindExpire, remindTraffic }
+      );
+      setViewer(result.updateViewerReminders);
+      setReminderMessage(labels.remindersSaved);
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError ? caught.message : labels.remindersFailed
+      );
     } finally {
       setSubmitting(false);
     }
@@ -216,6 +263,39 @@ export function AccountProfilePage() {
               disabled={submitting}
             >
               {labels.saveProfile}
+            </button>
+          </form>
+        </section>
+        <section className="panel account-form-panel">
+          <h2>{labels.reminders}</h2>
+          <p className="muted">{labels.remindersDescription}</p>
+          <form onSubmit={updateReminders}>
+            <label className="account-reminder-toggle">
+              <input
+                type="checkbox"
+                checked={remindExpire}
+                onChange={(event) => setRemindExpire(event.target.checked)}
+              />
+              <span>{labels.remindExpire}</span>
+            </label>
+            <label className="account-reminder-toggle">
+              <input
+                type="checkbox"
+                checked={remindTraffic}
+                onChange={(event) => setRemindTraffic(event.target.checked)}
+              />
+              <span>{labels.remindTraffic}</span>
+            </label>
+            {reminderMessage && (
+              <p className="account-inline-message success">
+                {reminderMessage}
+              </p>
+            )}
+            <button
+              className="primary-button compact-button"
+              disabled={submitting}
+            >
+              {labels.saveReminders}
             </button>
           </form>
         </section>

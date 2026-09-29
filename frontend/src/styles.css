@@ -409,6 +409,22 @@
   margin: 0;
 }
 
+/* Reminder toggles: the global input rule shapes text boxes, so the
+   checkbox opt-outs are pulled back to their natural size here. */
+.account-reminder-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+
+.account-reminder-toggle input {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: #315dff;
+}
+
 .account-inline-message {
   font-size: 14px;
 }

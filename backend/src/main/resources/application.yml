@@ -101,3 +101,7 @@ sinx:
     delivery: ${MAIL_DELIVERY:log}
     public-base-url: ${PUBLIC_BASE_URL:http://localhost:5173}
     from: ${MAIL_FROM:no-reply@dev.sinx.it.com}
+  remind:
+    # When the daily renewal/traffic reminder sweep runs. The mail job pins
+    # its zone to Asia/Shanghai, the original deployment's server clock.
+    cron: ${REMIND_CRON:0 30 11 * * *}

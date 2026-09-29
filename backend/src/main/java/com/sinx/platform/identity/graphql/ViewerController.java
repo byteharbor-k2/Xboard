@@ -70,4 +70,18 @@ public class ViewerController {
             displayName
         );
     }
+
+    @MutationMapping
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
+    ViewerView updateViewerReminders(
+        @Argument boolean remindExpire,
+        @Argument boolean remindTraffic,
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        return identityService.updateReminders(
+            UUID.fromString(jwt.getSubject()),
+            remindExpire,
+            remindTraffic
+        );
+    }
 }

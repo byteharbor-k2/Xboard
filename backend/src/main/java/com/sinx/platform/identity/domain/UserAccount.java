@@ -78,6 +78,21 @@ public class UserAccount {
     @Column(name = "subscription_token", length = 64, nullable = false)
     private String subscriptionToken;
 
+    /**
+     * Whether the daily sweep may send this account the expiry reminder.
+     *
+     * Defaults to on, like the original panel's {@code remind_expire}, so an
+     * account opts out rather than in; the admin-side
+     * {@code email.remind_mail_enable} is the other gate and lives with the
+     * platform settings.
+     */
+    @Column(name = "remind_expire", nullable = false)
+    private boolean remindExpire;
+
+    /** Whether the daily sweep may send this account the traffic reminder. */
+    @Column(name = "remind_traffic", nullable = false)
+    private boolean remindTraffic;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -120,6 +135,8 @@ public class UserAccount {
         user.displayName = displayName;
         user.status = UserStatus.ACTIVE;
         user.subscriptionToken = requireSubscriptionToken(subscriptionToken);
+        user.remindExpire = true;
+        user.remindTraffic = true;
         user.createdAt = now;
         user.updatedAt = now;
         user.roles.add(defaultRole);
@@ -146,6 +163,21 @@ public class UserAccount {
     public void updateDisplayName(String displayName, Instant now) {
         this.displayName = displayName;
         updatedAt = now;
+    }
+
+    /**
+     * Records the customer's own choice about the reminder mails. Both
+     * switches move together because the account page edits them as one
+     * preference set; there is no halfway state worth a second mutation.
+     */
+    public void updateReminders(
+        boolean remindExpire,
+        boolean remindTraffic,
+        Instant now
+    ) {
+        this.remindExpire = remindExpire;
+        this.remindTraffic = remindTraffic;
+        this.updatedAt = now;
     }
 
     public void changePassword(String passwordHash, Instant now) {
@@ -175,6 +207,14 @@ public class UserAccount {
 
     public UserStatus getStatus() {
         return status;
+    }
+
+    public boolean isRemindExpire() {
+        return remindExpire;
+    }
+
+    public boolean isRemindTraffic() {
+        return remindTraffic;
     }
 
     public Instant getCreatedAt() {

@@ -58,6 +58,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   登录设备、套餐、结算、订单
 - 订单开通邮件：双语模板（管理员可编辑），未配置即静默跳过，绝不影响开通
 - 流量明细页接真数据（`viewerTrafficDaily`，按日账本口径）
+- 续费与流量提醒邮件：24 小时内到期、用量 ≥80% 双提醒（用户级开关 + 管理员总闸
+  `remind_mail_enable`，每日 11:30 Asia/Shanghai 定时，单封失败不断批次）
 
 **管理侧**
 
@@ -99,10 +101,6 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   （`pushUserDelta` 仍无人调用，可后续清理；流量重置不改节点可见字段，不推）
 
 ## 4. 待办
-
-### P1
-
-- [ ] 续费与流量提醒：`remind_mail_enable` 目前只存储不消费
 
 ### P2
 

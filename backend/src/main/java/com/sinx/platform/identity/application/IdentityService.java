@@ -228,6 +228,18 @@ public class IdentityService {
     }
 
     @Transactional
+    public ViewerView updateReminders(
+        UUID userId,
+        boolean remindExpire,
+        boolean remindTraffic
+    ) {
+        UserAccount user = userRepository.findWithRolesById(userId)
+            .orElseThrow(this::sessionUserNotFound);
+        user.updateReminders(remindExpire, remindTraffic, Instant.now(clock));
+        return ViewerView.forScope(user, SessionScope.USER);
+    }
+
+    @Transactional
     public void changePassword(
         UUID userId,
         UUID currentSessionId,

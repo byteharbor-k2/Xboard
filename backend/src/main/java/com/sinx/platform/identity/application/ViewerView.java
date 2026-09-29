@@ -19,7 +19,13 @@ public record ViewerView(
      * has already paid in, so it belongs on their own pages rather than only
      * being discoverable at checkout.
      */
-    String balanceMinor
+    String balanceMinor,
+    /**
+     * The account's own reminder-mail switches, shown and changed on the
+     * account page so the customer controls what the daily sweep may send.
+     */
+    boolean remindExpire,
+    boolean remindTraffic
 ) {
     public static ViewerView forScope(
         UserAccount user,
@@ -32,7 +38,9 @@ public record ViewerView(
             user.isEmailVerified(),
             List.of(scope.name()),
             user.getCreatedAt(),
-            Long.toString(user.getBalanceMinor())
+            Long.toString(user.getBalanceMinor()),
+            user.isRemindExpire(),
+            user.isRemindTraffic()
         );
     }
 }

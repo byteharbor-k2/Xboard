@@ -88,6 +88,49 @@ public interface SubscriptionEntitlementRepository
         @Param("now") Instant now
     );
 
+    /**
+     * The entitlements whose account the daily reminder sweep must judge.
+     *
+     * This is a candidate pre-filter, deliberately wider than what gets sent:
+     * the two reminders have different predicates, so they are OR-ed here and
+     * the sender re-judges each one per account with the entity's own exact
+     * arithmetic. The expiry branch is fully exact - an expiry within the
+     * next day, not cancelled. The traffic branch compares against 80% of the
+     * allowance, in floating point because a bigint sum of two counters could
+     * overflow where the entity's saturated {@code usedBytes()} would not; the
+     * double is exact far beyond any real allowance, and the exhaustion side
+     * ({@code used >= limit}, no reminder) is re-checked exactly in the
+     * sender. Only active accounts with at least one reminder switch on enter
+     * the run.
+     */
+    @EntityGraph(attributePaths = {"user"})
+    @Query("""
+        select entitlement from SubscriptionEntitlement entitlement
+        where entitlement.user.status = :activeStatus
+          and (
+            (
+              entitlement.user.remindExpire = true
+              and entitlement.canceledAt is null
+              and entitlement.expiresAt > :now
+              and entitlement.expiresAt < :expiresWithin
+            )
+            or
+            (
+              entitlement.user.remindTraffic = true
+              and entitlement.transferLimitBytes > 0
+              and cast(entitlement.uploadedBytes as Double)
+                  + cast(entitlement.downloadedBytes as Double)
+                  >= 0.8 * cast(entitlement.transferLimitBytes as Double)
+            )
+          )
+        order by entitlement.user.id asc
+        """)
+    List<SubscriptionEntitlement> findReminderCandidates(
+        @Param("activeStatus") UserStatus activeStatus,
+        @Param("now") Instant now,
+        @Param("expiresWithin") Instant expiresWithin
+    );
+
     /** Whether an account holds the entitlement at all. */
     boolean existsByUserId(UUID userId);
 

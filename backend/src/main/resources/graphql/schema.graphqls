@@ -43,6 +43,11 @@ type Mutation {
     """
     rotateSubscriptionCredential: String
     updateViewerProfile(displayName: String!): Viewer!
+    """
+    Sets the account's own reminder-mail switches. Returns the whole viewer so
+    the caller can refresh what it shows from one answer.
+    """
+    updateViewerReminders(remindExpire: Boolean!, remindTraffic: Boolean!): Viewer!
     placeOrder(
         planId: ID!
         period: BillingPeriod!
@@ -92,6 +97,10 @@ type Viewer {
     createdAt: String!
     """Prepaid balance in minor units: money the customer has already paid in."""
     balanceMinor: String!
+    """Whether the daily sweep may send this account the expiry reminder."""
+    remindExpire: Boolean!
+    """Whether the daily sweep may send this account the traffic reminder."""
+    remindTraffic: Boolean!
 }
 
 type DeviceSession {

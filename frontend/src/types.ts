@@ -7,6 +7,10 @@ export type Viewer = {
   createdAt: string;
   /** Prepaid balance in minor units. */
   balanceMinor: string;
+  /** Whether the daily sweep may send this account the expiry reminder. */
+  remindExpire: boolean;
+  /** Whether the daily sweep may send this account the traffic reminder. */
+  remindTraffic: boolean;
 };
 
 export type SessionGrant = {
