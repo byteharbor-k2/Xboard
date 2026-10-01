@@ -60,6 +60,9 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - 流量明细页接真数据（`viewerTrafficDaily`，按日账本口径）
 - 续费与流量提醒邮件：24 小时内到期、用量 ≥80% 双提醒（用户级开关 + 管理员总闸
   `remind_mail_enable`，每日 11:30 Asia/Shanghai 定时，单封失败不断批次）
+- 公告：真实数据轮播（`viewerNotices`，后台发布管理，原版同款 fetch/save/show/drop/sort）
+- 知识库：分类 + 关键词搜索 + 文章详情（`/docs` 接真数据，后台发布管理）
+- 客服转人工：站点分区 `support_url` / `support_email` 外链接入（无 AI，极简版）
 
 **管理侧**
 
@@ -83,6 +86,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - 邮件投递模式 `email_delivery`（log/smtp）管理台可切：保存值优先、未保存回落
   `sinx.mail.delivery` 环境默认；`tls`＝STARTTLS(587)、`ssl`＝隐式 TLS(465)，
   SMTP 设置完整时测试邮件按钮即真发
+- 公告管理、知识库管理、流量重置记录页（原版管理面路径与字段语义对齐）
 
 **节点与订阅**
 
@@ -107,12 +111,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### P2
 
-- [ ] 公告、知识库两个模块（用户侧骨架已在）
-- [ ] 接入外部客服系统（替换已放弃的工单）
+- [ ] 接入外部客服系统（替换已放弃的工单；转人工外链已接，深度接入后置）
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
 - [ ] 试用套餐：`try_out_plan_id` / `try_out_hour` + 试用流量、试用带宽
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
-- [ ] 用户流量自动重置定时任务与流量重置记录页
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
 
 ### P3
@@ -182,7 +184,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 ### 5.3 流量重置档位
 
 周期订阅用**按月**（`MONTHLY_FROM_ACTIVATION`，从开通日起满一个月），
-流量包用**不重置**（`NEVER`，代码已强制）。自动重置任务尚未实现。
+流量包用**不重置**（`NEVER`，代码已强制）。自动重置任务已实现
+（每小时扫一次，Asia/Shanghai；`next_reset_at` 为唯一锚点，手动重置与
+重置包购买把锚移到重置时刻；首次部署对历史开通做一次追平重置；
+月末日期钳位到 28/29 接受漂移）。
 
 其余三档备查：
 

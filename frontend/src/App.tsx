@@ -17,6 +17,9 @@ import { AdminNodeGroupsPage } from "./pages/AdminNodeGroupsPage";
 import { AdminOrdersPage } from "./pages/AdminOrdersPage";
 import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AdminNoticesPage } from "./pages/AdminNoticesPage";
+import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
+import { AdminTrafficResetsPage } from "./pages/AdminTrafficResetsPage";
 import { AdminNodeRoutesPage } from "./pages/AdminNodeRoutesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
 import { SystemSettingsPage } from "./pages/SystemSettingsPage";
@@ -242,6 +245,27 @@ export function App() {
     return (
       <AdminProtectedRoute>
         <AdminUsersPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/users/traffic-resets") {
+    return (
+      <AdminProtectedRoute>
+        <AdminTrafficResetsPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/content/notices") {
+    return (
+      <AdminProtectedRoute>
+        <AdminNoticesPage />
+      </AdminProtectedRoute>
+    );
+  }
+  if (path === "/admin/content/knowledge") {
+    return (
+      <AdminProtectedRoute>
+        <AdminKnowledgePage />
       </AdminProtectedRoute>
     );
   }

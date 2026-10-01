@@ -7,6 +7,13 @@ type Query {
     the client then shows for the imported profile.
     """
     siteName: String!
+    """
+    Where a customer reaches a human: the operator-configured support URL
+    (hosted chat page, a Telegram/Matrix link, a form) and fallback email.
+    Null when the operator left that setting blank / never configured it.
+    """
+    supportUrl: String
+    supportEmail: String
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
     offerCatalog: [PlanOffer!]!
@@ -32,6 +39,12 @@ type Query {
     viewerOrders: [ServiceOrder!]!
     """The ways one pending order can be paid for, each priced for it."""
     paymentOptions(tradeNo: String!): [PaymentOption!]!
+    """The announcement carousel's content, shown ones only, carousel order."""
+    viewerNotices: [Notice!]!
+    """The help centre, grouped by category. Keyword filters title or body."""
+    viewerKnowledge(language: String, keyword: String): [KnowledgeCategory!]!
+    """One help article's full body; null when it does not exist or is hidden."""
+    viewerKnowledgeArticle(id: ID!): KnowledgeArticle
 }
 
 type Mutation {
@@ -260,4 +273,35 @@ enum OrderStatus {
     CANCELLED
     COMPLETED
     DISCOUNTED
+}
+
+type Notice {
+    id: ID!
+    title: String!
+    content: String!
+    """Whether the dashboard may raise this notice beyond the carousel."""
+    popup: Boolean!
+    """When the notice was created, the carousel's published date."""
+    publishedAt: String!
+}
+
+type KnowledgeCategory {
+    category: String!
+    articles: [KnowledgeArticleSummary!]!
+}
+
+type KnowledgeArticleSummary {
+    id: ID!
+    title: String!
+    """When the article was last edited by the operator."""
+    updatedAt: String!
+}
+
+type KnowledgeArticle {
+    id: ID!
+    title: String!
+    category: String!
+    language: String!
+    body: String!
+    updatedAt: String!
 }
