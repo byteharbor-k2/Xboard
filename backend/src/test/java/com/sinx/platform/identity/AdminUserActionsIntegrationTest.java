@@ -174,6 +174,43 @@ class AdminUserActionsIntegrationTest {
         assertThat(userCount).isEqualTo(1);
     }
 
+    /**
+     * In smtp delivery with the settings still missing, the send attempt
+     * reaches the transport and its own complaint surfaces - the request
+     * fails (5xx) and the underlying error is logged for the operator;
+     * there is no separate "settings incomplete" answer of its own.
+     */
+    @Test
+    void sendMailInSmtpModeWithoutSettingsFailsToTheUnderlyingError()
+        throws Exception {
+        String email = "mail-smtp@example.com";
+        UUID userId = register(email);
+        jdbcTemplate.update(
+            "INSERT INTO platform_settings (setting_key, setting_value, "
+                + "updated_at) VALUES ('email.email_delivery', 'smtp', NOW()) "
+                + "ON CONFLICT (setting_key) "
+                + "DO UPDATE SET setting_value = EXCLUDED.setting_value"
+        );
+        try {
+            mockMvc.perform(post("/api/v2/admin/user/sendMail")
+                    .with(administrator())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {
+                          "user_id": "%s",
+                          "subject": "Cannot travel",
+                          "body": "<p>No transport.</p>"
+                        }
+                        """.formatted(userId)))
+                .andExpect(status().isInternalServerError());
+        } finally {
+            jdbcTemplate.update(
+                "DELETE FROM platform_settings "
+                    + "WHERE setting_key = 'email.email_delivery'"
+            );
+        }
+    }
+
     @Test
     void assignInviterWiresTheExistingColumnAndRefusesBadEdges()
         throws Exception {

@@ -73,8 +73,17 @@ async function settingsRequest<T>(
     }
   });
   if (!response.ok) {
+    // The admin API answers business failures as ProblemDetail; surface the
+    // detail (e.g. the SMTP server's "550 <domain> is not verified" line)
+    // instead of a generic unreachable-endpoint note.
+    let problem: Partial<{ detail: string }> = {};
+    try {
+      problem = (await response.json()) as Partial<{ detail: string }>;
+    } catch {
+      problem = { detail: `管理员设置接口尚未可用：${endpoint}` };
+    }
     throw new ApiError(response.status, {
-      detail: `管理员设置接口尚未可用：${endpoint}`
+      detail: problem.detail ?? `管理员设置接口尚未可用：${endpoint}`
     });
   }
   if (response.status === 204) return undefined as T;

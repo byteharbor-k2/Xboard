@@ -159,6 +159,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 | 兼容非 xboard-node 代理（V2bX / XrayR 等） | **只用 xboard-node**（2026-09-19 定）。不补 `/api/v2/server/push\|alive\|alivelist\|status` 与 Tidalab 端点 |
 | 用户自助改邮箱 / 重新验证邮箱 | 原版也没有（`/user/update` 只接受 `remind_expire` / `remind_traffic`），不做 |
 | Loon / QuantumultX / Shadowrocket 专属订阅格式 | 不补；Shadowrocket 走通用 v2ray 列表 |
+| 管理台设置保存的字段级校验（数值范围、枚举白名单）与发信 503/500 错误分类 | 单管理员一次配置，写侧校验徒增复杂度；读侧对无效存值回落默认值，发信失败原样透传、管理台直接显示邮件服务器的真实报错（2026-09-29 定）。公开用户面的防护（限流、优惠券校验、CSV 防注入、开通邮件 log-and-drop）不受此原则影响 |
 
 ### 5.2 业务口径
 

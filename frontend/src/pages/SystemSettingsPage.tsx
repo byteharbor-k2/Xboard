@@ -270,7 +270,10 @@ function MailTemplateManager({
       setTestOpen(false);
       setMessage(labels.testEmailSuccess);
     },
-    onError: () => setMessage(labels.actionFailed)
+    onError: (error) =>
+      setMessage(
+        error instanceof ApiError ? error.message : labels.actionFailed
+      )
   });
 
   if (templates.isPending) {
@@ -537,7 +540,13 @@ export function SystemSettingsPage() {
   const testEmail = useMutation({
     mutationFn: () => sendTestEmail(accessToken),
     onSuccess: () => setStatus(labels.testEmailSuccess),
-    onError: () => setStatus(labels.actionFailed)
+    // The failure detail carries the mail server's own diagnosis
+    // (e.g. "550 <domain> is not verified"), so show that, not a generic
+    // "action failed" label.
+    onError: (error) =>
+      setStatus(
+        error instanceof ApiError ? error.message : labels.actionFailed
+      )
   });
 
   const webhook = useMutation({

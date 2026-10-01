@@ -19,10 +19,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mail.MailException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -39,7 +37,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import com.sinx.platform.notification.email.ConfiguredNotificationMailSender;
-import com.sinx.platform.shared.web.ApiProblemException;
 import org.mockito.Mockito;
 
 /**
@@ -128,10 +125,15 @@ class DeliveryModeIntegrationTest {
         expect(fetchEmail(), "$.data.email.email_delivery", "smtp");
     }
 
+    /**
+     * A delivery mode other than the two known ones is saved exactly as the
+     * operator wrote it, and the read ignores it: with an unknown stored
+     * mode the property stays authoritative, so a corrupted row cannot
+     * silently turn delivery off.
+     */
     @Test
-    void unknownDeliveryValuesAreRefusedWithAValueProblem() throws Exception {
-        // A supported key with a bad value is a value problem - never a
-        // section problem.
+    void unknownDeliveryValuesSaveButTheReadFallsBackToThePropertyMode()
+        throws Exception {
         mockMvc.perform(post("/api/v2/admin/config/save")
                 .param("key", "email")
                 .with(administrator())
@@ -139,9 +141,20 @@ class DeliveryModeIntegrationTest {
                 .content("""
                     {"email_delivery":"resend"}
                     """))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("SETTING_VALUE_INVALID"));
+            .andExpect(status().isOk());
 
+        String stored = jdbcTemplate.queryForObject(
+            "SELECT setting_value FROM platform_settings "
+                + "WHERE setting_key = ?",
+            String.class,
+            DELIVERY_KEY
+        );
+        assertThat(stored).isEqualTo("resend");
+
+        // The read ignores the unknown mode and names the property's mode.
+        expect(fetchEmail(), "$.data.email.email_delivery", "smtp");
+
+        // A non-string value of the wrong shape stays the flat 400.
         mockMvc.perform(post("/api/v2/admin/config/save")
                 .param("key", "email")
                 .with(administrator())
@@ -151,18 +164,35 @@ class DeliveryModeIntegrationTest {
                     """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("SETTING_VALUE_INVALID"));
+    }
 
-        // The saved state never overwrote any existing value along the way.
-        saveSetting("email_delivery", "log");
-        expect(fetchEmail(), "$.data.email.email_delivery", "log");
+    /**
+     * A mode save of the wrong shape still leaves no row behind.
+     */
+    @Test
+    void junkTypedDeliveryValuesAreRefusedFlatly() throws Exception {
+        mockMvc.perform(post("/api/v2/admin/config/save")
+            .param("key", "email")
+            .with(administrator())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"email_delivery\":true}"))
+            .andExpect(status().isBadRequest());
+
+        Integer rows = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM platform_settings WHERE setting_key = ?",
+            Integer.class,
+            DELIVERY_KEY
+        );
+        assertThat(rows).isZero();
     }
 
     @Test
     void theDeploymentPropertyAppliesUntilTheAdministratorSaves()
         throws Exception {
         // No saved row, environmental property smtp, SMTP settings absent:
-        // the test mail answers 503 instead of a fake success.
-        expectUnconfiguredTestMailIsRefused();
+        // the attempt reaches the incomplete settings and the transport's
+        // own complaint propagates, for the shared error handling to log.
+        expectUnconfiguredTestMailFailsToTheTransportException();
 
         // Once "log" is saved it outranks the property: the very same call
         // completes quietly by logging, in "smtp" mode by environment.
@@ -176,7 +206,7 @@ class DeliveryModeIntegrationTest {
             "DELETE FROM platform_settings WHERE setting_key = ?",
             DELIVERY_KEY
         );
-        expectUnconfiguredTestMailIsRefused();
+        expectUnconfiguredTestMailFailsToTheTransportException();
     }
 
     @Test
@@ -269,23 +299,26 @@ class DeliveryModeIntegrationTest {
         }
     }
 
-    private void expectUnconfiguredTestMailIsRefused() {
+    private void expectUnconfiguredTestMailFailsToTheTransportException() {
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
             mailSender.sendTestEmail("delivery-precedence@example.com")
-        ).isInstanceOfSatisfying(ApiProblemException.class, exception -> {
-            assertThat(exception.getStatus())
-                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-            assertThat(exception.getCode()).isEqualTo("SMTP_NOT_CONFIGURED");
-        });
+        ).isInstanceOfSatisfying(
+            IllegalStateException.class,
+            exception -> assertThat(exception.getMessage())
+                .contains("SMTP settings are incomplete")
+        );
     }
 
     private void assertThatThrownByIsASocketSend(
         ConfiguredNotificationMailSender sender,
         TestSmtpListener listener
     ) throws Exception {
+        // The send failure propagates as the transport's own exception - no
+        // endpoint-side wrapping - while the shared error handling logs the
+        // full text for the operator.
         org.assertj.core.api.Assertions.assertThatThrownBy(() ->
             sender.sendTestEmail("delivery-socket@example.com")
-        ).isInstanceOf(MailException.class);
+        ).isInstanceOf(org.springframework.mail.MailException.class);
         // The refused exchange really opened a socket to the stored host.
         assertThat(listener.accepted().get(5, TimeUnit.SECONDS)).isNotNull();
     }

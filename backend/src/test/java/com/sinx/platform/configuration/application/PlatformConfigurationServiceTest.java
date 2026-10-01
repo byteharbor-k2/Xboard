@@ -79,7 +79,7 @@ class PlatformConfigurationServiceTest {
     }
 
     @Test
-    void pollingIntervalsUseTheMachineModeCompatibleBounds() {
+    void pollingIntervalsStoreTheSavedNumbersWithoutBounds() {
         service.saveSectionSettings(
             "server",
             Map.of("server_pull_interval", 30)
@@ -95,14 +95,60 @@ class PlatformConfigurationServiceTest {
             .isEqualTo(10);
         verify(events, never()).publishEvent(any());
 
+        // One-time configuration carries no numeric bounds: whatever the
+        // operator saved is read straight back.
+        service.saveSectionSettings(
+            "server",
+            Map.of("server_pull_interval", 9)
+        );
+        assertThat(service.nodeCommunicationSettings().pullIntervalSeconds())
+            .isEqualTo(9);
+
+        // A value of the wrong shape stays the flat invalid-setting answer.
         assertThatThrownBy(() -> service.saveSectionSettings(
             "server",
-            Map.of("server_pull_interval", 29)
+            Map.of("server_pull_interval", "abc")
         )).isInstanceOf(ApiProblemException.class);
-        assertThatThrownBy(() -> service.saveSectionSettings(
-            "server",
-            Map.of("server_push_interval", 9)
-        )).isInstanceOf(ApiProblemException.class);
+    }
+
+    /**
+     * The read side tolerates a corrupted row just like mailDelivery
+     * ignores an unknown mode: junk number or junk switch reads as the
+     * field's default instead of failing.
+     */
+    @Test
+    void junkStoredValuesReadAsTheDefaults() {
+        store("safe.register_limit_count", "abc");
+        store("safe.register_limit_expire", "");
+        store("safe.stop_register", "sometimes");
+        store("safe.email_verify", "sometimes");
+        store("safe.password_limit_enable", "sometimes");
+        store("safe.password_limit_count", "abc");
+        store("safe.password_limit_expire", "not-a-number");
+        store("safe.captcha_enable", "sometimes");
+        store("safe.email_whitelist_enable", "abc");
+        store("safe.email_gmail_limit_enable", "maybe");
+        store("server.server_pull_interval", "abc");
+        store("server.server_ws_enable", "");
+
+        assertThat(service.registrationIpLimit().limitCount()).isEqualTo(3);
+        assertThat(service.registrationIpLimit().expireMinutes()).isEqualTo(60);
+        assertThat(service.stopRegisterPolicy().stopped()).isFalse();
+        assertThat(service.emailVerificationRequired()).isTrue();
+        assertThat(service.loginAttemptPolicy().enabled()).isTrue();
+        assertThat(service.loginAttemptPolicy().maxFailures())
+            .isEqualTo(PlatformConfigurationService.DEFAULT_PASSWORD_LIMIT_COUNT);
+        assertThat(service.loginAttemptPolicy().lockMinutes())
+            .isEqualTo(
+                PlatformConfigurationService.DEFAULT_PASSWORD_LIMIT_EXPIRE_MINUTES
+            );
+        assertThat(service.turnstilePolicy().enabled()).isFalse();
+        assertThat(service.emailDomainPolicy().enabled()).isFalse();
+        assertThat(service.gmailAliasPolicy().enabled()).isFalse();
+        assertThat(service.nodeCommunicationSettings().pullIntervalSeconds())
+            .isEqualTo(60);
+        assertThat(service.nodeCommunicationSettings().webSocketEnabled())
+            .isTrue();
     }
 
     @Test
@@ -153,6 +199,14 @@ class PlatformConfigurationServiceTest {
 
         assertThat(service.sectionSettings("site").get("subscribe_url"))
             .isEqualTo("https://a.example.com,https://b.example.com");
+    }
+
+    /** Plants a raw settings row, as a pre-existing (possibly corrupt) DB state. */
+    private void store(String key, String value) {
+        stored.put(
+            key,
+            PlatformSetting.create(key, value, CLOCK.instant())
+        );
     }
 
     @Test

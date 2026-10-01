@@ -10,20 +10,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.mail.MailException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
-import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
@@ -69,9 +66,6 @@ public class AdminUserService {
     private final SubscriptionLinkService subscriptionLinks;
     private final DeviceSessionRepository deviceSessions;
     private final ConfiguredNotificationMailSender mail;
-    private final PlatformConfigurationService configuration;
-    /** The delivery mode the configured mail sender falls back on. */
-    private final String mailDelivery;
     private final ApplicationEventPublisher events;
     private final java.time.Clock clock;
 
@@ -85,8 +79,6 @@ public class AdminUserService {
         SubscriptionLinkService subscriptionLinks,
         DeviceSessionRepository deviceSessions,
         ConfiguredNotificationMailSender mail,
-        PlatformConfigurationService configuration,
-        @Value("${sinx.mail.delivery:log}") String mailDelivery,
         ApplicationEventPublisher events,
         java.time.Clock clock
     ) {
@@ -99,8 +91,6 @@ public class AdminUserService {
         this.subscriptionLinks = subscriptionLinks;
         this.deviceSessions = deviceSessions;
         this.mail = mail;
-        this.configuration = configuration;
-        this.mailDelivery = mailDelivery;
         this.events = events;
         this.clock = clock;
     }
@@ -345,14 +335,13 @@ public class AdminUserService {
 
     /**
      * Sends one mail an administrator wrote, straight to the account's
-     * address. Nothing is stored: the mail template machinery stays in its own
-     * section, and a one-off letter is not correspondence history.
+     * address. Nothing is stored: the mail template machinery stays in its
+     * own section, and a one-off letter is not correspondence history.
      *
-     * The failure codes are separated up front: missing SMTP settings answer
-     * {@code 503 SMTP_NOT_CONFIGURED} (mirroring the SMTP test mail so the
-     * settings page recognizes it), while a delivery that fails after the
-     * settings were complete - a refused connection, an unbuilt message -
-     * answers {@code 500 MAIL_SEND_FAILED}.
+     * The delivery is the underlying transport's own business: in log mode
+     * it drops the letter to the log and succeeds against no SMTP settings
+     * at all, and in smtp mode a failing transport raises its own exception,
+     * which the shared error handling logs in full for the operator to read.
      */
     public void sendMail(UUID userId, String subject, String body) {
         if (subject == null || subject.isBlank()) {
@@ -369,39 +358,8 @@ public class AdminUserService {
                 "A body is required to send mail"
             );
         }
-        // Development log delivery succeeds without SMTP settings, so it
-        // counts as configured here; only a required-but-absent configuration
-        // is the 503. The mode is read with the same property the configured
-        // sender falls back on.
-        boolean logDelivery = "log".equalsIgnoreCase(mailDelivery);
-        if (!logDelivery && !configuration.mailSettings().configured()) {
-            throw problem(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "SMTP_NOT_CONFIGURED",
-                "Complete the SMTP settings before sending mail"
-            );
-        }
         UserAccount account = require(userId);
-        try {
-            mail.sendHtml(account.getEmail(), subject, body);
-        } catch (ApiProblemException exception) {
-            throw exception;
-        } catch (IllegalStateException | MailException exception) {
-            // The settings were complete; the transport or the message
-            // construction failed, which is a server fault, not a missing
-            // configuration.
-            throw problem(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "MAIL_SEND_FAILED",
-                "The mail could not be sent: " + exception.getMessage()
-            );
-        } catch (RuntimeException exception) {
-            throw problem(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "MAIL_SEND_FAILED",
-                "The mail could not be sent: " + exception.getMessage()
-            );
-        }
+        mail.sendHtml(account.getEmail(), subject, body);
     }
 
     /**

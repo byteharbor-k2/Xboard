@@ -318,7 +318,10 @@ class MailTemplateServiceTest {
         ).isInstanceOfSatisfying(ApiProblemException.class, exception -> {
             assertThat(exception.getStatus())
                 .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
-            assertThat(exception.getMessage()).isEqualTo("发送失败: smtp refused");
+            assertThat(exception.getCode()).isEqualTo("MAIL_SEND_FAILED");
+            assertThat(exception.getMessage()).isEqualTo(
+                "The mail could not be sent: smtp refused"
+            );
         });
     }
 

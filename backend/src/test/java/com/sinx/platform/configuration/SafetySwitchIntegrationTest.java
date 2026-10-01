@@ -144,42 +144,69 @@ class SafetySwitchIntegrationTest {
     }
 
     @Test
-    void badSafetyValuesAreRefusedWithABusinessProblem() throws Exception {
-        // Out-of-range counters refuse with a value problem, never a section
-        // problem - the keys are supported, only the numbers are wrong.
+    void safetyValuesSaveAndStoreWhatTheOperatorWrote() throws Exception {
+        // One-time configuration carries no bounds: the operator's number
+        // is stored as written and read straight back.
+        saveSetting("register_limit_count", 999);
+        saveSetting("register_limit_expire", 30);
+
+        String body = fetchSafe();
+        expect(body, "$.data.safe.register_limit_count", 999);
+        expect(body, "$.data.safe.register_limit_expire", 30);
+
+        // A string that reads as an integer is coerced and stored the same
+        // way, so a re-save of a JSON-editorized value never refuses.
+        saveSetting("register_limit_expire", "30");
+        expect(fetchSafe(), "$.data.safe.register_limit_expire", 30);
+
+        // The provider switch stores whatever the operator chose; the
+        // section keeps reporting the provider the platform actually runs
+        // (turnstile) and an unknown stored type simply disables captcha.
+        saveSetting("captcha_type", "recaptcha");
+        saveSetting("captcha_type", "turnstile");
+    }
+
+    /**
+     * A value of the wrong shape - one that cannot be read back as the
+     * setting's type at all - is the single flat invalid-setting answer,
+     * and never a special-cased taxonomy.
+     */
+    @Test
+    void junkTypedValuesAnswerTheFlatValueProblem() throws Exception {
         mockMvc.perform(post("/api/v2/admin/config/save")
                 .param("key", "safe")
                 .with(administrator())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"register_limit_count": 0}
+                    {"register_limit_expire": "abc"}
                     """))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value("SETTING_VALUE_INVALID"));
 
-        mockMvc.perform(post("/api/v2/admin/config/save")
-                .param("key", "safe")
-                .with(administrator())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"register_limit_expire": "30"}
-                    """))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("SETTING_VALUE_INVALID"));
+        // A junk-typed save never left a row behind.
+        expect(fetchSafe(), "$.data.safe.register_limit_expire", 60);
+    }
 
-        // The provider switch carries turnstile only: anything else is a
-        // refusal, not a silently wasteful save.
-        mockMvc.perform(post("/api/v2/admin/config/save")
-                .param("key", "safe")
-                .with(administrator())
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                    {"captcha_type": "recaptcha"}
-                    """))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.code").value("CAPTCHA_PROVIDER_NOT_SUPPORTED"));
+    /**
+     * A corrupted row (planted directly, the way an old bug could have left
+     * it) is read as the field's default - never a failure of the fetch.
+     */
+    @Test
+    void junkStoredRowsReadAsTheDefaults() throws Exception {
+        insertSetting("safe.register_limit_count", "abc");
+        insertSetting("safe.stop_register", "sometimes");
+        insertSetting("safe.email_verify", "sometimes");
+        insertSetting("safe.password_limit_count", "not-a-number");
 
-        expect(fetchSafe(), "$.data.safe.captcha_type", "turnstile");
+        String body = fetchSafe();
+        expect(body, "$.data.safe.register_limit_count", 3);
+        expect(body, "$.data.safe.register_limit_expire", 60);
+        expect(body, "$.data.safe.stop_register", false);
+        expect(body, "$.data.safe.email_verify", true);
+        expect(body, "$.data.safe.register_limit_by_ip_enable", false);
+        expect(body, "$.data.safe.password_limit_enable", true);
+        expect(body, "$.data.safe.password_limit_count", 5);
+        expect(body, "$.data.safe.password_limit_expire", 60);
     }
 
     @Test
@@ -375,6 +402,15 @@ class SafetySwitchIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"%s\": %s}".formatted(key, encoded)))
             .andExpect(status().isOk());
+    }
+
+    /** Plants a raw row directly, disturbing the save path entirely. */
+    private void insertSetting(String key, String value) {
+        jdbcTemplate.update(
+            "INSERT INTO platform_settings (setting_key, setting_value, "
+                + "updated_at) VALUES (?, ?, NOW())",
+            key, value
+        );
     }
 
     private String fetchSafe() throws Exception {

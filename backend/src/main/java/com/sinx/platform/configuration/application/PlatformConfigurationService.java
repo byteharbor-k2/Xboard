@@ -332,15 +332,15 @@ public class PlatformConfigurationService {
             case REGISTER_IP_LIMIT_ENABLED_KEY ->
                 saveBoolean(REGISTER_IP_LIMIT_ENABLED_KEY, entry.getValue());
             case REGISTER_IP_LIMIT_COUNT_KEY ->
-                saveInteger(REGISTER_IP_LIMIT_COUNT_KEY, entry.getValue(), 1, 100);
+                saveInteger(REGISTER_IP_LIMIT_COUNT_KEY, entry.getValue());
             case REGISTER_IP_LIMIT_EXPIRE_KEY ->
-                saveInteger(REGISTER_IP_LIMIT_EXPIRE_KEY, entry.getValue(), 1, 10_080);
+                saveInteger(REGISTER_IP_LIMIT_EXPIRE_KEY, entry.getValue());
             case PASSWORD_LIMIT_ENABLED_KEY ->
                 saveBoolean(PASSWORD_LIMIT_ENABLED_KEY, entry.getValue());
             case PASSWORD_LIMIT_COUNT_KEY ->
-                saveInteger(PASSWORD_LIMIT_COUNT_KEY, entry.getValue(), 1, 100);
+                saveInteger(PASSWORD_LIMIT_COUNT_KEY, entry.getValue());
             case PASSWORD_LIMIT_EXPIRE_KEY ->
-                saveInteger(PASSWORD_LIMIT_EXPIRE_KEY, entry.getValue(), 1, 10_080);
+                saveInteger(PASSWORD_LIMIT_EXPIRE_KEY, entry.getValue());
             case CAPTCHA_ENABLED_KEY ->
                 saveBoolean(CAPTCHA_ENABLED_KEY, entry.getValue());
             case CAPTCHA_TYPE_KEY -> saveCaptchaType(entry.getValue());
@@ -351,20 +351,15 @@ public class PlatformConfigurationService {
             case INVITE_REQUIRED_KEY ->
                 saveBoolean(INVITE_REQUIRED_KEY, entry.getValue());
             case INVITE_COMMISSION_KEY ->
-                saveInteger(INVITE_COMMISSION_KEY, entry.getValue(), 0, 100);
+                saveInteger(INVITE_COMMISSION_KEY, entry.getValue());
             case INVITE_GENERATION_LIMIT_KEY ->
-                saveInteger(
-                    INVITE_GENERATION_LIMIT_KEY,
-                    entry.getValue(),
-                    0,
-                    100
-                );
+                saveInteger(INVITE_GENERATION_LIMIT_KEY, entry.getValue());
             case INVITE_NEVER_EXPIRE_KEY ->
                 saveBoolean(INVITE_NEVER_EXPIRE_KEY, entry.getValue());
             case EMAIL_DELIVERY_KEY -> saveMailDelivery(entry.getValue());
             case EMAIL_HOST_KEY -> saveMailHost(entry.getValue());
             case EMAIL_PORT_KEY ->
-                saveInteger(EMAIL_PORT_KEY, entry.getValue(), 1, 65_535);
+                saveInteger(EMAIL_PORT_KEY, entry.getValue());
             case EMAIL_ENCRYPTION_KEY ->
                 saveMailEncryption(entry.getValue());
             case EMAIL_USERNAME_KEY ->
@@ -387,9 +382,9 @@ public class PlatformConfigurationService {
                 saveBoolean(EMAIL_REMINDERS_KEY, entry.getValue());
             case SERVER_TOKEN_KEY -> saveServerToken(entry.getValue());
             case SERVER_PULL_INTERVAL_KEY ->
-                saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue(), 30, 3600);
+                saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue());
             case SERVER_PUSH_INTERVAL_KEY ->
-                saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue(), 10, 3600);
+                saveInteger(SERVER_PUSH_INTERVAL_KEY, entry.getValue());
             case SERVER_WS_ENABLED_KEY ->
                 saveBoolean(SERVER_WS_ENABLED_KEY, entry.getValue());
             case SERVER_WS_URL_KEY -> saveWebSocketUrl(entry.getValue());
@@ -434,9 +429,7 @@ public class PlatformConfigurationService {
     }
 
     public EmailDomainPolicy emailDomainPolicy() {
-        boolean enabled = read(EMAIL_ALLOWLIST_ENABLED_KEY)
-            .map(Boolean::parseBoolean)
-            .orElse(false);
+        boolean enabled = readBoolean(EMAIL_ALLOWLIST_ENABLED_KEY, false);
         List<String> domains = read(EMAIL_ALLOWLIST_SUFFIXES_KEY)
             .stream()
             .flatMap(String::lines)
@@ -446,9 +439,7 @@ public class PlatformConfigurationService {
     }
 
     public boolean emailVerificationRequired() {
-        return read(EMAIL_VERIFICATION_KEY)
-            .map(Boolean::parseBoolean)
-            .orElse(true);
+        return readBoolean(EMAIL_VERIFICATION_KEY, true);
     }
 
     /**
@@ -533,9 +524,7 @@ public class PlatformConfigurationService {
     }
 
     public TurnstilePolicy turnstilePolicy() {
-        boolean enabled = read(CAPTCHA_ENABLED_KEY)
-            .map(Boolean::parseBoolean)
-            .orElse(false);
+        boolean enabled = readBoolean(CAPTCHA_ENABLED_KEY, false);
         String type = read(CAPTCHA_TYPE_KEY).orElse("turnstile");
         if (!"turnstile".equals(type)) {
             return new TurnstilePolicy(false, null, null);
@@ -719,7 +708,7 @@ public class PlatformConfigurationService {
     }
 
     private void saveEmailAllowlistDomains(Object rawValue) {
-        if (!(rawValue instanceof List<?> values) || values.size() > 100) {
+        if (!(rawValue instanceof List<?> values)) {
             throw invalidEmailDomainPolicy();
         }
         Set<String> normalized = new LinkedHashSet<>();
@@ -781,13 +770,11 @@ public class PlatformConfigurationService {
     }
 
     private void saveCaptchaType(Object rawValue) {
-        if (!(rawValue instanceof String type) || !"turnstile".equals(type)) {
-            throw new ApiProblemException(
-                HttpStatus.BAD_REQUEST,
-                "CAPTCHA_PROVIDER_NOT_SUPPORTED",
-                "Only Cloudflare Turnstile is currently supported"
-            );
+        if (!(rawValue instanceof String type)) {
+            throw invalidSettingValue();
         }
+        // Stored as given: the read side already treats a type it does not
+        // know as "no captcha provider", so a junk value cannot break reads.
         store(CAPTCHA_TYPE_KEY, type);
     }
 
@@ -809,24 +796,19 @@ public class PlatformConfigurationService {
         store(key, normalized);
     }
 
-    private void saveInteger(
-        String key,
-        Object rawValue,
-        int minimum,
-        int maximum
-    ) {
-        if (!(rawValue instanceof Number number)) {
+    private void saveInteger(String key, Object rawValue) {
+        // One-time configuration is the operator's call: any number the
+        // operator wrote is stored as written, with no business bounds. Only
+        // a value of the wrong shape - one that cannot be read back as an
+        // integer at all - is the flat invalid-setting answer.
+        try {
+            int value = Integer.parseInt(
+                String.valueOf(rawValue).trim()
+            );
+            store(key, Integer.toString(value));
+        } catch (NumberFormatException exception) {
             throw invalidSettingValue();
         }
-        long value = number.longValue();
-        if (
-            value < minimum
-                || value > maximum
-                || number.doubleValue() != value
-        ) {
-            throw invalidSettingValue();
-        }
-        store(key, Long.toString(value));
     }
 
     private void saveMailHost(Object rawValue) {
@@ -850,23 +832,21 @@ public class PlatformConfigurationService {
     }
 
     private void saveMailDelivery(Object rawValue) {
-        if (
-            !(rawValue instanceof String value)
-                || !Set.of(EMAIL_DELIVERY_LOG, EMAIL_DELIVERY_SMTP)
-                    .contains(value)
-        ) {
+        if (!(rawValue instanceof String value)) {
             throw invalidSettingValue();
         }
+        // Stored as given: mailDelivery() only honors the two known modes
+        // and ignores everything else, so a corrupted row is read as the
+        // deployment property instead of failing reads.
         store(EMAIL_DELIVERY_KEY, value);
     }
 
     private void saveMailEncryption(Object rawValue) {
-        if (
-            !(rawValue instanceof String value)
-                || !Set.of("", "ssl", "tls").contains(value)
-        ) {
+        if (!(rawValue instanceof String value)) {
             throw invalidSettingValue();
         }
+        // Stored as given: the mailSettings read falls back to "ssl" when
+        // the saved value is unusable, so no write-side whitelist is kept.
         store(EMAIL_ENCRYPTION_KEY, value);
     }
 
@@ -949,12 +929,36 @@ public class PlatformConfigurationService {
         store(key, normalized);
     }
 
+    /**
+     * A saved switch is read from its truthy representations - the legacy
+     * caster accepted "0"/"1"/"true" - and anything else is junk a corrupt
+     * row could carry: it reads as the default rather than failing the read.
+     */
     private boolean readBoolean(String key, boolean defaultValue) {
-        return read(key).map(Boolean::parseBoolean).orElse(defaultValue);
+        String value = read(key).map(String::trim).orElse(null);
+        if (value == null) {
+            return defaultValue;
+        }
+        return switch (value) {
+            case "true", "1" -> true;
+            case "false", "0" -> false;
+            default -> defaultValue;
+        };
     }
 
+    /**
+     * A saved number that does not parse is kept out of the read path the
+     * same way mailDelivery keeps an unknown mode out: the default stands
+     * in, so a corrupted row never turns a read into a failure.
+     */
     private int readInteger(String key, int defaultValue) {
-        return read(key).map(Integer::parseInt).orElse(defaultValue);
+        try {
+            return read(key)
+                .map(value -> Integer.parseInt(value.trim()))
+                .orElse(defaultValue);
+        } catch (NumberFormatException exception) {
+            return defaultValue;
+        }
     }
 
     private Optional<String> read(String key) {

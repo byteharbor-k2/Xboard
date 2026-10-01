@@ -4,13 +4,12 @@ import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
+import org.springframework.mail.MailSendException;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
-import com.sinx.platform.shared.web.ApiProblemException;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -74,15 +73,13 @@ public class ConfiguredNotificationMailSender
         deliver(recipient, subject, html, subject);
     }
 
+    /**
+     * The settings page's SMTP test mail. Transported like any other admin
+     * mail: log mode logs and succeeds, and a failing smtp transport raises
+     * its own exception for the shared error handling to log - the operator
+     * reads the logs; this endpoint carries no separate failure taxonomy.
+     */
     public void sendTestEmail(String recipient) {
-        if (!configuration.mailDelivery().equalsIgnoreCase("log")
-            && !configuration.mailSettings().configured()) {
-            throw new ApiProblemException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "SMTP_NOT_CONFIGURED",
-                "Complete the SMTP settings before sending a test email"
-            );
-        }
         deliver(
             recipient,
             "SinX Cloud SMTP test",
@@ -92,6 +89,30 @@ public class ConfiguredNotificationMailSender
             """,
             "SMTP test"
         );
+    }
+
+    /**
+     * The one-line diagnosis of a failed delivery: the first failed
+     * message's text when {@code send} collected per-message refusals
+     * (that text is the remote server's response, e.g. Resend's
+     * {@code 550 <domain> is not verified}), the exception message
+     * otherwise. Nothing else travels - no stack trace and no credentials:
+     * the transport never echoes the password back.
+     */
+    public static String sendFailureDetail(Exception exception) {
+        String detail = exception.getMessage();
+        if (exception instanceof MailSendException sendException
+            && !sendException.getFailedMessages().isEmpty()) {
+            detail = sendException.getFailedMessages().values()
+                .iterator().next().getMessage();
+        }
+        if (detail == null || detail.isBlank()) {
+            return "the SMTP transport rejected the message";
+        }
+        String compact = detail.replaceAll("\\s+", " ").trim();
+        return compact.length() > 240
+            ? compact.substring(0, 240) + "…"
+            : compact;
     }
 
     private void deliver(

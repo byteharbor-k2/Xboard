@@ -210,10 +210,17 @@ public class MailTemplateService {
         } catch (ApiProblemException exception) {
             throw exception;
         } catch (RuntimeException exception) {
+            // Same answer as the SMTP test endpoint and AdminUserService's
+            // sendMail: one 500 MAIL_SEND_FAILED line that carries the
+            // remote server's diagnosis (ConfiguredNotificationMailSender
+            // extracts it, e.g. Resend's "550 <domain> is not verified").
             throw new ApiProblemException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "MAIL_TEMPLATE_TEST_FAILED",
-                "发送失败: " + exception.getMessage()
+                "MAIL_SEND_FAILED",
+                "The mail could not be sent: "
+                    + ConfiguredNotificationMailSender.sendFailureDetail(
+                        exception
+                    )
             );
         }
     }
