@@ -30,6 +30,7 @@ import com.sinx.platform.node.application.NodeDeviceStateService;
 import com.sinx.platform.notification.email.ConfiguredNotificationMailSender;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.application.SubscriptionLinkService;
+import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
@@ -59,6 +60,7 @@ public class AdminUserService {
 
     private final UserAccountRepository users;
     private final SubscriptionEntitlementRepository entitlements;
+    private final TrafficResetService trafficResets;
     private final ServicePlanRepository plans;
     private final NodeDeviceStateService deviceStates;
     private final PasswordEncoder passwordEncoder;
@@ -72,6 +74,7 @@ public class AdminUserService {
     public AdminUserService(
         UserAccountRepository users,
         SubscriptionEntitlementRepository entitlements,
+        TrafficResetService trafficResets,
         ServicePlanRepository plans,
         NodeDeviceStateService deviceStates,
         PasswordEncoder passwordEncoder,
@@ -84,6 +87,7 @@ public class AdminUserService {
     ) {
         this.users = users;
         this.entitlements = entitlements;
+        this.trafficResets = trafficResets;
         this.plans = plans;
         this.deviceStates = deviceStates;
         this.passwordEncoder = passwordEncoder;
@@ -262,17 +266,25 @@ public class AdminUserService {
         return subscriptionLinks.subscriptionUrl(token);
     }
 
-    /** Zeroes the usage counters, leaving the allowance and expiry alone. */
+    /**
+     * Zeroes the usage counters, leaving the allowance and expiry alone.
+     *
+     * The reset takes the same path the cycle's own resets do: it is judged
+     * on the locked entitlement row, a record stays on the reset ledger with
+     * what was spent before, and a monthly cycle re-anchors at this reset so
+     * the operator's intervention does not shorten the rhythm that follows.
+     */
     @Transactional
     public AdminUserView resetTraffic(UUID userId) {
-        SubscriptionEntitlement entitlement = entitlements.findByUserId(userId)
-            .orElseThrow(() -> problem(
-                HttpStatus.NOT_FOUND,
-                "SUBSCRIPTION_NOT_FOUND",
-                "This account has no subscription to reset"
-            ));
+        SubscriptionEntitlement entitlement =
+            entitlements.findByUserIdForUpdate(userId)
+                .orElseThrow(() -> problem(
+                    HttpStatus.NOT_FOUND,
+                    "SUBSCRIPTION_NOT_FOUND",
+                    "This account has no subscription to reset"
+                ));
         Instant now = clock.instant();
-        entitlement.resetTraffic(now);
+        trafficResets.recordManualReset(entitlement, now);
         publishEntitlementChanged(userId, entitlement, now);
         return detail(userId);
     }

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 
@@ -133,6 +134,61 @@ public interface SubscriptionEntitlementRepository
 
     /** Whether an account holds the entitlement at all. */
     boolean existsByUserId(UUID userId);
+
+    /** The account's entitlement for an update; safer on weigh-ins than reads. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"user", "plan"})
+    @Query("""
+        select entitlement from SubscriptionEntitlement entitlement
+        where entitlement.user.id = :userId
+        """)
+    Optional<SubscriptionEntitlement> findByUserIdForUpdate(
+        @Param("userId") UUID userId
+    );
+
+    /**
+     * The activations whose monthly cycle has caught up with today.
+     *
+     * A candidate pre-filter, deliberately id-only: the run locks each row
+     * one at a time and re-judges the entity's own state under the lock, so
+     * an administrator resetting the same account between the query and the
+     * lock cannot bring the counters down twice.
+     */
+    @Query("""
+        select entitlement.id from SubscriptionEntitlement entitlement
+        where entitlement.resetPolicy = :policy
+          and entitlement.canceledAt is null
+          and (entitlement.expiresAt is null or entitlement.expiresAt > :now)
+          and entitlement.nextResetAt is not null
+          and entitlement.nextResetAt <= :now
+        """)
+    List<UUID> findIdsDueForMonthlyReset(
+        @Param("policy") TrafficResetPolicy policy,
+        @Param("now") Instant now
+    );
+
+    /**
+     * The monthly entitlements granted before a cycle existed, whose
+     * boundary still reads NULL. Only these, and only the ones with no other
+     * reset policy: a traffic package and a NEVER plan live without a cycle.
+     */
+    @Query("""
+        select entitlement.id from SubscriptionEntitlement entitlement
+        where entitlement.resetPolicy = :policy
+          and entitlement.canceledAt is null
+          and entitlement.nextResetAt is null
+        """)
+    List<UUID> findIdsWithoutMonthlyBoundary(
+        @Param("policy") TrafficResetPolicy policy
+    );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"user", "plan"})
+    @Query("""
+        select entitlement from SubscriptionEntitlement entitlement
+        where entitlement.id = :id
+        """)
+    Optional<SubscriptionEntitlement> findByIdForUpdate(@Param("id") UUID id);
 
     /**
      * Repoints the account's entitlement to another account, for an

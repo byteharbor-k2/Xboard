@@ -105,3 +105,8 @@ sinx:
     # When the daily renewal/traffic reminder sweep runs. The mail job pins
     # its zone to Asia/Shanghai, the original deployment's server clock.
     cron: ${REMIND_CRON:0 30 11 * * *}
+  traffic-reset:
+    # When the monthly traffic reset sweep runs. Hourly, on the half hour:
+    # a monthly boundary lands inside whichever hour it falls due, and the
+    # resetting job pins its zone to Asia/Shanghai like the reminder mail's.
+    cron: ${TRAFFIC_RESET_CRON:0 30 * * * *}

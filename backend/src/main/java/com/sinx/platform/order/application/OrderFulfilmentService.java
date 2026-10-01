@@ -22,6 +22,7 @@ import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
+import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
 import tools.jackson.core.type.TypeReference;
@@ -59,6 +60,7 @@ public class OrderFulfilmentService {
 
     private final ServiceOrderRepository orders;
     private final SubscriptionEntitlementRepository entitlements;
+    private final TrafficResetService trafficResets;
     private final UserAccountRepository users;
     private final ApplicationEventPublisher events;
     private final ObjectMapper objectMapper;
@@ -67,6 +69,7 @@ public class OrderFulfilmentService {
     public OrderFulfilmentService(
         ServiceOrderRepository orders,
         SubscriptionEntitlementRepository entitlements,
+        TrafficResetService trafficResets,
         UserAccountRepository users,
         ApplicationEventPublisher events,
         ObjectMapper objectMapper,
@@ -74,6 +77,7 @@ public class OrderFulfilmentService {
     ) {
         this.orders = orders;
         this.entitlements = entitlements;
+        this.trafficResets = trafficResets;
         this.users = users;
         this.events = events;
         this.objectMapper = objectMapper;
@@ -255,8 +259,13 @@ public class OrderFulfilmentService {
     ) {
         BillingPeriod period = order.getPeriod();
         ServicePlan plan = order.getPlan();
+        // A reset order is judged on the locked entitlement row, the way the
+        // operator's reset button and the monthly sweep already are: a reset
+        // racing anything else must see what the other side left standing.
         SubscriptionEntitlement entitlement =
-            entitlements.findByUserId(user.getId()).orElse(null);
+            period == BillingPeriod.RESET_TRAFFIC
+                ? entitlements.findByUserIdForUpdate(user.getId()).orElse(null)
+                : entitlements.findByUserId(user.getId()).orElse(null);
 
         if (period == BillingPeriod.RESET_TRAFFIC) {
             if (entitlement == null) {
@@ -265,7 +274,11 @@ public class OrderFulfilmentService {
                     "a traffic reset needs a subscription to reset"
                 );
             }
-            entitlement.resetTraffic(now);
+            // A purchased reset takes the same path a manual one does: the
+            // counters drop with the same semantics, a record stays on the
+            // ledger with what was spent before, and a monthly cycle is
+            // re-anchored at this reset.
+            trafficResets.recordManualReset(entitlement, now);
             return entitlement;
         }
 

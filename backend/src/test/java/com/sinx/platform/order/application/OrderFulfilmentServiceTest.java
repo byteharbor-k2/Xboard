@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -37,9 +38,12 @@ import com.sinx.platform.order.domain.OrderType;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
+import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.subscription.repository.TrafficResetRecordRepository;
 
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
 /** What a settled order does to the account and its subscription. */
@@ -66,6 +70,14 @@ class OrderFulfilmentServiceTest {
         fulfilment = new OrderFulfilmentService(
             orders,
             entitlements,
+            new TrafficResetService(
+                entitlements,
+                mock(TrafficResetRecordRepository.class),
+                users,
+                org.mockito.Mockito.mock(ApplicationEventPublisher.class),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                mock(TransactionTemplate.class)
+            ),
             users,
             org.mockito.Mockito.mock(ApplicationEventPublisher.class),
             new ObjectMapper(),
@@ -302,20 +314,34 @@ class OrderFulfilmentServiceTest {
     private void givenSubscription(SubscriptionEntitlement entitlement) {
         when(entitlements.findByUserId(user.getId()))
             .thenReturn(Optional.of(entitlement));
+        // A reset order reaches the entitlement through the locked finder;
+        // the same row stands behind both readings.
+        when(entitlements.findByUserIdForUpdate(user.getId()))
+            .thenReturn(Optional.of(entitlement));
     }
 
     private void whenNoSubscription() {
         when(entitlements.findByUserId(user.getId())).thenReturn(Optional.empty());
+        when(entitlements.findByUserIdForUpdate(user.getId()))
+            .thenReturn(Optional.empty());
     }
 
     /**
-     * The entitlement the settlement handed to the repository. Verifying here
-     * pins that exactly one row was written, since a second save would hand the
-     * customer a second subscription.
+     * The entitlement the settlement handed to the repository. Two writes are
+     * legal now: a recorded reset saves the row itself, the settlement saves
+     * it again afterwards. The pin is on identity, not invocation count - two
+     * distinct instances would hand the customer a second subscription.
      */
     private SubscriptionEntitlement saved() {
-        verify(entitlements).save(saved.capture());
-        return saved.getValue();
+        verify(entitlements, atLeastOnce()).save(saved.capture());
+        SubscriptionEntitlement provisioned = saved.getAllValues()
+            .get(saved.getAllValues().size() - 1);
+        for (SubscriptionEntitlement written : saved.getAllValues()) {
+            assertThat(written)
+                .as("the settlement writes one row, never a second")
+                .isSameAs(provisioned);
+        }
+        return provisioned;
     }
 
     private SubscriptionEntitlement entitlement(Instant expiresAt) {

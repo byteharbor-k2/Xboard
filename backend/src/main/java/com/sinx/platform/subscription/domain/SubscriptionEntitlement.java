@@ -99,7 +99,14 @@ public class SubscriptionEntitlement {
         entitlement.resetPolicy = plan.getResetPolicy();
         entitlement.startsAt = startsAt;
         entitlement.expiresAt = expiresAt;
-        entitlement.nextResetAt = nextResetAt;
+        // Seed the traffic cycle the plan calls for; a caller that knows
+        // better may hand a boundary of its own.
+        entitlement.nextResetAt = nextResetAt != null
+            ? nextResetAt
+            : entitlement.resetPolicy
+                == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+                ? MonthlyResetSchedule.initialBoundary(startsAt)
+                : null;
         entitlement.createdAt = now;
         entitlement.updatedAt = now;
         return entitlement;
@@ -151,6 +158,29 @@ public class SubscriptionEntitlement {
     /** Zeroes the counters, leaving the plan and its expiry untouched. */
     public void resetTraffic(Instant now) {
         clearCounters(now);
+    }
+
+    /**
+     * Zeroes the counters inside a running monthly cycle.
+     *
+     * The reset itself is the same clearing a manual one performs; what lifts
+     * it out of the ordinary is the boundary handed in: the cycle carries on
+     * from instantly after the passed one, so the customer keeps a monthly
+     * rhythm and a reset that lands late cannot shorten the one that follows.
+     */
+    public void resetTrafficInCycle(Instant now, Instant nextBoundary) {
+        clearCounters(now);
+        nextResetAt = nextBoundary;
+    }
+
+    /**
+     * Seeds the entitlement's traffic cycle from its activation instant, for
+     * entitlements granted before a cycle existed. Resets nothing and
+     * records nothing; the first due pass of the cycle walks the anchor
+     * forward to today's boundary, and the rhythm starts there.
+     */
+    public void seedPeriodicBoundary() {
+        nextResetAt = MonthlyResetSchedule.initialBoundary(startsAt);
     }
 
     /**
@@ -303,6 +333,10 @@ public class SubscriptionEntitlement {
     public Long getEffectiveServerGroupId() {
         Long explicitGroupId = user.getServerGroupId();
         return explicitGroupId != null ? explicitGroupId : plan.getServerGroupId();
+    }
+
+    public Instant getCanceledAt() {
+        return canceledAt;
     }
 
     public Instant getUpdatedAt() {
