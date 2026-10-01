@@ -209,6 +209,42 @@ class PlatformConfigurationServiceTest {
         );
     }
 
+    /**
+     * The human-support contact points are one-time configuration: saved as
+     * plain strings, cleared by blank, and read back as empty strings (no
+     * human contact) before anything was saved.
+     */
+    @Test
+    void supportContactStoresPlainStringsAndBlankClears() {
+        assertThat(service.sectionSettings("site"))
+            .containsEntry("support_url", "")
+            .containsEntry("support_email", "");
+
+        service.saveSectionSettings(
+            "site",
+            Map.of("support_url", "https://support.example.com/chat")
+        );
+        service.saveSectionSettings(
+            "site",
+            Map.of("support_email", "Support@Example.com")
+        );
+
+        assertThat(service.sectionSettings("site"))
+            .containsEntry("support_url", "https://support.example.com/chat")
+            .containsEntry("support_email", "Support@Example.com");
+        assertThat(service.supportUrl())
+            .contains("https://support.example.com/chat");
+        assertThat(service.supportEmail()).contains("Support@Example.com");
+
+        // Blank is how the contact point gets withdrawn; the sibling one
+        // stays as it was.
+        service.saveSectionSettings("site", Map.of("support_url", " "));
+        assertThat(service.sectionSettings("site"))
+            .containsEntry("support_url", "")
+            .containsEntry("support_email", "Support@Example.com");
+        assertThat(service.supportUrl()).isEmpty();
+    }
+
     @Test
     void legacyTokenRejectsWeakOrMalformedValues() {
         assertThatThrownBy(() -> service.saveSectionSettings(

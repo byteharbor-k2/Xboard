@@ -6,11 +6,17 @@ import {
 
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
+import { publicGraphQl } from "../lib/http";
 
 type SupportMessage = {
   id: number;
   sender: "ai" | "system" | "user";
   text: string;
+};
+
+type SupportContact = {
+  url: string;
+  email: string;
 };
 
 const copy = {
@@ -25,7 +31,8 @@ const copy = {
     conversationPreview: "开始对话后，AI 与人工客服的回复会集中显示在这里。",
     sendMessage: "发送消息",
     handoff: "转人工",
-    handoffNotice: "人工客服接管将在接入外部客服系统后启用。",
+    handoffNotice: "站点还未配置人工客服入口，请联系管理员开通。",
+    handoffEmail: "邮件联系",
     placeholder: "输入你的问题…",
     send: "发送",
     pendingReply: "AI 接口接入后，会根据知识库和账户状态在这里回复。",
@@ -46,7 +53,8 @@ const copy = {
     sendMessage: "Send us a message",
     handoff: "Talk to a person",
     handoffNotice:
-      "Human handoff will be enabled once an external support system is connected.",
+      "Human support has not been configured on this site yet. Please contact the operator.",
+    handoffEmail: "Contact by email",
     placeholder: "Describe your issue…",
     send: "Send",
     pendingReply:
@@ -65,6 +73,9 @@ export function SupportWidget() {
   const [conversationStarted, setConversationStarted] = useState(false);
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>([]);
+  // The human contact the operator configured on the site; null until the
+  // contact query has answered (and stays null when none is configured).
+  const [contact, setContact] = useState<SupportContact | null>(null);
 
   useEffect(() => {
     function openSupport() {
@@ -73,6 +84,45 @@ export function SupportWidget() {
     window.addEventListener("sinx:open-support", openSupport);
     return () => window.removeEventListener("sinx:open-support", openSupport);
   }, []);
+
+  // The contact is read once per open widget. The fields ride the same public
+  // GraphQL query surface as siteName; until supportUrl/supportEmail are
+  // registered there the request fails validation and the widget stays in the
+  // not-configured state, which is also the state of an operator who left both
+  // settings blank.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let active = true;
+    publicGraphQl<{
+      supportUrl: string | null;
+      supportEmail: string | null;
+    }>(`query SupportContact {
+      supportUrl
+      supportEmail
+    }`)
+      .then((result) => {
+        if (!active) {
+          return;
+        }
+        setContact({
+          url: result.supportUrl || "",
+          email: result.supportEmail || ""
+        });
+      })
+      .catch(() => {
+        if (active) {
+          setContact(null);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [open]);
+
+  const supportUrl = open && contact ? contact.url : "";
+  const supportEmail = open && contact ? contact.email : "";
 
   function startConversation() {
     setConversationStarted(true);
@@ -106,15 +156,16 @@ export function SupportWidget() {
     setDraft("");
   }
 
-  function requestHandoff() {
-    setMessages((current) => [
-      ...current,
-      {
-        id: Date.now(),
-        sender: "system",
-        text: labels.handoffNotice
-      }
-    ]);
+  function openHandoff() {
+    if (supportUrl) {
+      // Opens in a new tab with a noopener feature, so the hosted support
+      // page cannot reach back into this window.
+      window.open(supportUrl, "_blank", "noopener");
+      return;
+    }
+    if (supportEmail) {
+      window.open(`mailto:${supportEmail}`, "_blank", "noopener");
+    }
   }
 
   return (
@@ -199,9 +250,28 @@ export function SupportWidget() {
                     <small>{viewer?.displayName}</small>
                   </div>
                 </div>
-                <button onClick={requestHandoff} type="button">
-                  {labels.handoff}
-                </button>
+                {supportUrl ? (
+                  <button onClick={openHandoff} type="button">
+                    {labels.handoff}
+                  </button>
+                ) : supportEmail ? (
+                  <button
+                    onClick={openHandoff}
+                    title={`mailto:${supportEmail}`}
+                    type="button"
+                  >
+                    {labels.handoffEmail}
+                  </button>
+                ) : (
+                  <button
+                    aria-disabled="true"
+                    disabled
+                    title={labels.handoffNotice}
+                    type="button"
+                  >
+                    {labels.handoff}
+                  </button>
+                )}
               </div>
               <div className="support-message-thread">
                 {messages.map((message) => (

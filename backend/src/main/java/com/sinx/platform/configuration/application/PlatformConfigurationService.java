@@ -34,6 +34,15 @@ public class PlatformConfigurationService {
     private static final String APP_URL_KEY = "site.app_url";
     private static final String SUBSCRIBE_URL_KEY = "site.subscribe_url";
     private static final String TERMS_URL_KEY = "site.tos_url";
+    /**
+     * The human-support contact points, deliberately plain strings: the operator
+     * chooses the destination (a hosted chat page, a Telegram link, a form), so
+     * any URL shape is accepted and only blank means unconfigured. This is
+     * one-time configuration, so no business validation applies - the same call
+     * the interval settings already made.
+     */
+    private static final String SUPPORT_URL_KEY = "site.support_url";
+    private static final String SUPPORT_EMAIL_KEY = "site.support_email";
 
     /**
      * What the site is called before anyone has said otherwise. It reaches the
@@ -163,6 +172,8 @@ public class PlatformConfigurationService {
                 // on its next save.
                 "subscribe_url", String.join(",", subscribeUrls()),
                 "tos_url", termsUrl().orElse(""),
+                "support_url", supportUrl().orElse(""),
+                "support_email", supportEmail().orElse(""),
                 "stop_register",
                 stopRegisterPolicy().stopped()
             );
@@ -321,6 +332,10 @@ public class PlatformConfigurationService {
             case APP_URL_KEY -> saveAppUrl(entry.getValue());
             case SUBSCRIBE_URL_KEY -> saveSubscribeUrls(entry.getValue());
             case TERMS_URL_KEY -> saveTermsUrl(entry.getValue());
+            case SUPPORT_URL_KEY ->
+                saveSupportContact(SUPPORT_URL_KEY, entry.getValue());
+            case SUPPORT_EMAIL_KEY ->
+                saveSupportContact(SUPPORT_EMAIL_KEY, entry.getValue());
             case EMAIL_ALLOWLIST_ENABLED_KEY ->
                 saveEmailAllowlistEnabled(entry.getValue());
             case EMAIL_ALLOWLIST_SUFFIXES_KEY ->
@@ -603,6 +618,32 @@ public class PlatformConfigurationService {
                 "This email domain is not allowed for registration"
             );
         }
+    }
+
+    /**
+     * Where a customer reaches a human: an external chat page, a Telegram or
+     * Matrix link, a form, or an email address. Raw as saved on purpose - any
+     * destination shape the operator chooses stays intact, and blank is how
+     * the contact point is withdrawn.
+     */
+    public Optional<String> supportUrl() {
+        return read(SUPPORT_URL_KEY).filter(value -> !value.isBlank());
+    }
+
+    public Optional<String> supportEmail() {
+        return read(SUPPORT_EMAIL_KEY).filter(value -> !value.isBlank());
+    }
+
+    private void saveSupportContact(String key, Object rawValue) {
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty()) {
+            settings.deleteById(key);
+            return;
+        }
+        store(key, normalized);
     }
 
     private void saveTermsUrl(Object rawValue) {
