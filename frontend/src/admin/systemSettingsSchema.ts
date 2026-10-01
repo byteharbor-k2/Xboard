@@ -235,6 +235,12 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       "Configure SMTP delivery for verification, password reset, and notification emails."
     ),
     fields: [
+      field("email_delivery", "邮件投递方式", "Email delivery mode", "选择邮件如何送出：日志模式仅把邮件内容写入后台日志，适合开发调试；SMTP模式按下方配置真实发送邮件。", "Choose how mail is sent: log mode only writes mail contents to the backend log for development, SMTP mode sends real mail through the settings below.", "select", "log", {
+        options: [
+          option("log", "日志（开发模式）", "Log (development)"),
+          option("smtp", "SMTP（真实发送）", "SMTP (real sending)")
+        ]
+      }),
       field("email_host", "SMTP主机", "SMTP host", "SMTP服务器地址，例如：smtp.gmail.com。", "SMTP server address, for example smtp.gmail.com.", "text", ""),
       field("email_port", "SMTP端口", "SMTP port", "SMTP服务器端口，常用端口：25, 465, 587。", "SMTP port; common values are 25, 465, and 587.", "number", 465),
       field("email_encryption", "加密方式", "Encryption", "邮件加密方式。", "Mail transport encryption.", "select", "", {

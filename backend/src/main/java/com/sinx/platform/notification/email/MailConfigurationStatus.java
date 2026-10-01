@@ -12,19 +12,15 @@ import com.sinx.platform.configuration.application.PlatformConfigurationService;
  * required-but-absent configuration (delivery mode stricter than {@code
  * log} with no stored host) is a send that cannot happen.
  *
- * The property is injected with the same name the configured sender falls
- * back on, so the answer here matches what the sender would do.
+ * The mode itself comes from the administrator's saved email_delivery
+ * setting, falling back to the deployment property when nothing was saved,
+ * so a saved answer is always what the sender would do.
  */
 public final class MailConfigurationStatus {
 
-    private final String mailDelivery;
     private final PlatformConfigurationService configuration;
 
-    public MailConfigurationStatus(
-        String mailDelivery,
-        PlatformConfigurationService configuration
-    ) {
-        this.mailDelivery = mailDelivery;
+    public MailConfigurationStatus(PlatformConfigurationService configuration) {
         this.configuration = configuration;
     }
 
@@ -34,7 +30,8 @@ public final class MailConfigurationStatus {
      * stored SMTP settings have to be complete.
      */
     public boolean canDeliver() {
-        boolean logDelivery = "log".equalsIgnoreCase(mailDelivery);
+        boolean logDelivery =
+            "log".equalsIgnoreCase(configuration.mailDelivery());
         return logDelivery || configuration.mailSettings().configured();
     }
 }

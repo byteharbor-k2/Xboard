@@ -8,7 +8,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -52,17 +51,13 @@ public class OrderFulfilledNotificationListener {
         MailTemplateService templates,
         ConfiguredNotificationMailSender mail,
         PlatformConfigurationService configuration,
-        VerificationMailProperties mailProperties,
-        @Value("${sinx.mail.delivery:log}") String mailDelivery
+        VerificationMailProperties mailProperties
     ) {
         this.templates = templates;
         this.mail = mail;
         this.configuration = configuration;
         this.mailProperties = mailProperties;
-        this.mailConfiguration = new MailConfigurationStatus(
-            mailDelivery,
-            configuration
-        );
+        this.mailConfiguration = new MailConfigurationStatus(configuration);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)

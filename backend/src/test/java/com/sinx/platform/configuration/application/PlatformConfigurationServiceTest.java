@@ -63,7 +63,8 @@ class PlatformConfigurationServiceTest {
             repository,
             CLOCK,
             events,
-            new SubscriptionTemplates(new ObjectMapper())
+            new SubscriptionTemplates(new ObjectMapper()),
+            "log"
         );
     }
 

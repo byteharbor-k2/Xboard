@@ -9,7 +9,6 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,7 +63,6 @@ public class RemindMailService {
         MailTemplateService templates,
         ConfiguredNotificationMailSender mail,
         VerificationMailProperties mailProperties,
-        @Value("${sinx.mail.delivery:log}") String mailDelivery,
         Clock clock
     ) {
         this.entitlements = entitlements;
@@ -72,10 +70,7 @@ public class RemindMailService {
         this.templates = templates;
         this.mail = mail;
         this.mailProperties = mailProperties;
-        this.mailConfiguration = new MailConfigurationStatus(
-            mailDelivery,
-            configuration
-        );
+        this.mailConfiguration = new MailConfigurationStatus(configuration);
         this.clock = clock;
     }
 

@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -88,6 +89,16 @@ public class PlatformConfigurationService {
         "invite.invite_gen_limit";
     private static final String INVITE_NEVER_EXPIRE_KEY =
         "invite.invite_never_expire";
+    private static final String EMAIL_DELIVERY_KEY = "email.email_delivery";
+    /**
+     * How outbound mail is transported: written to the log for development
+     * ("log") or through the stored SMTP settings ("smtp"). When no value
+     * was saved the deployment property stays authoritative, so a local box
+     * keeps logging mails and a test context whose environment says "smtp"
+     * keeps demanding settings.
+     */
+    private static final String EMAIL_DELIVERY_LOG = "log";
+    private static final String EMAIL_DELIVERY_SMTP = "smtp";
     private static final String EMAIL_HOST_KEY = "email.email_host";
     private static final String EMAIL_PORT_KEY = "email.email_port";
     private static final String EMAIL_ENCRYPTION_KEY =
@@ -126,17 +137,20 @@ public class PlatformConfigurationService {
     private final Clock clock;
     private final ApplicationEventPublisher eventPublisher;
     private final SubscriptionTemplates templates;
+    private final String mailDeliveryProperty;
 
     public PlatformConfigurationService(
         PlatformSettingRepository settings,
         Clock clock,
         ApplicationEventPublisher eventPublisher,
-        SubscriptionTemplates templates
+        SubscriptionTemplates templates,
+        @Value("${sinx.mail.delivery:log}") String mailDeliveryProperty
     ) {
         this.settings = settings;
         this.clock = clock;
         this.eventPublisher = eventPublisher;
         this.templates = templates;
+        this.mailDeliveryProperty = mailDeliveryProperty;
     }
 
     public Map<String, Object> sectionSettings(String section) {
@@ -228,6 +242,8 @@ public class PlatformConfigurationService {
             case "email" -> {
                 MailSettings mail = mailSettings();
                 yield Map.of(
+                    "email_delivery",
+                    mailDelivery(),
                     "email_host",
                     mail.host() == null ? "" : mail.host(),
                     "email_port",
@@ -345,6 +361,7 @@ public class PlatformConfigurationService {
                 );
             case INVITE_NEVER_EXPIRE_KEY ->
                 saveBoolean(INVITE_NEVER_EXPIRE_KEY, entry.getValue());
+            case EMAIL_DELIVERY_KEY -> saveMailDelivery(entry.getValue());
             case EMAIL_HOST_KEY -> saveMailHost(entry.getValue());
             case EMAIL_PORT_KEY ->
                 saveInteger(EMAIL_PORT_KEY, entry.getValue(), 1, 65_535);
@@ -539,6 +556,20 @@ public class PlatformConfigurationService {
             readInteger(INVITE_GENERATION_LIMIT_KEY, 5),
             readBoolean(INVITE_NEVER_EXPIRE_KEY, false)
         );
+    }
+
+    /**
+     * The effective mail transport: a saved email_delivery value wins, and
+     * otherwise the deployment property (set by the environment for tests
+     * and non-default deploys) decides. A stored value outside the two
+     * known modes is read as if it were never saved, so a corrupted row
+     * cannot silently turn delivery off.
+     */
+    public String mailDelivery() {
+        return read(EMAIL_DELIVERY_KEY)
+            .filter(value -> EMAIL_DELIVERY_LOG.equals(value)
+                || EMAIL_DELIVERY_SMTP.equals(value))
+            .orElse(mailDeliveryProperty);
     }
 
     public MailSettings mailSettings() {
@@ -816,6 +847,17 @@ public class PlatformConfigurationService {
             throw invalidSettingValue();
         }
         store(EMAIL_HOST_KEY, normalized);
+    }
+
+    private void saveMailDelivery(Object rawValue) {
+        if (
+            !(rawValue instanceof String value)
+                || !Set.of(EMAIL_DELIVERY_LOG, EMAIL_DELIVERY_SMTP)
+                    .contains(value)
+        ) {
+            throw invalidSettingValue();
+        }
+        store(EMAIL_DELIVERY_KEY, value);
     }
 
     private void saveMailEncryption(Object rawValue) {

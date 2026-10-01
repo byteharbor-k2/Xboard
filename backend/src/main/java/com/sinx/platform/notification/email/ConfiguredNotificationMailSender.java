@@ -4,7 +4,6 @@ import java.util.Properties;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -26,14 +25,11 @@ public class ConfiguredNotificationMailSender
     );
 
     private final PlatformConfigurationService configuration;
-    private final String fallbackDelivery;
 
     public ConfiguredNotificationMailSender(
-        PlatformConfigurationService configuration,
-        @Value("${sinx.mail.delivery:log}") String fallbackDelivery
+        PlatformConfigurationService configuration
     ) {
         this.configuration = configuration;
-        this.fallbackDelivery = fallbackDelivery;
     }
 
     @Override
@@ -79,7 +75,8 @@ public class ConfiguredNotificationMailSender
     }
 
     public void sendTestEmail(String recipient) {
-        if (!configuration.mailSettings().configured()) {
+        if (!configuration.mailDelivery().equalsIgnoreCase("log")
+            && !configuration.mailSettings().configured()) {
             throw new ApiProblemException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "SMTP_NOT_CONFIGURED",
@@ -106,7 +103,7 @@ public class ConfiguredNotificationMailSender
         PlatformConfigurationService.MailSettings settings =
             configuration.mailSettings();
         if (!settings.configured()) {
-            if ("log".equalsIgnoreCase(fallbackDelivery)) {
+            if ("log".equalsIgnoreCase(configuration.mailDelivery())) {
                 LOGGER.info(
                     "Development mail for {}: {}",
                     recipient,

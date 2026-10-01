@@ -80,6 +80,9 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   `captcha_type` 只存 turnstile，UI 移除 reCAPTCHA 选项（消除静默失效陷阱）
 - 仪表盘统计：收入（已支付订单）、用户（总数/活跃）、流量（日账本 30 天）、节点排名
   （`/api/v2/admin/stat/*`）
+- 邮件投递模式 `email_delivery`（log/smtp）管理台可切：保存值优先、未保存回落
+  `sinx.mail.delivery` 环境默认；`tls`＝STARTTLS(587)、`ssl`＝隐式 TLS(465)，
+  SMTP 设置完整时测试邮件按钮即真发
 
 **节点与订阅**
 
