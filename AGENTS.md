@@ -37,6 +37,8 @@ cd frontend && npm run check                # standalone gate for the 401-recove
 - The Chrome on port **9222** (profile `.chrome-cdp/`) belongs to other sessions — never kill, restart, or drive it.
 - Dev test accounts (admin + user) for signing in live in root `test_user.txt` (gitignored) — read it, never commit it.
 - Restart opencode after editing `opencode.json` or the skill — config loads once at startup.
+- Execution worker: `.opencode/agent/luna-worker.md`, `opencode-go/gpt-6-luna`, `variant: medium`. When newly edited config is not loaded in the current harness, an explicitly model-selected `opencode run` child process can execute delegated work without changing the main model.
+- UI completion requires real browser clicks and screenshots inspected visually (desktop and mobile), including admin save → user display. Build success, DOM text, and HTTP 200 alone do not prove usability. Notice/knowledge content must retain Markdown source and render Markdown, never literal text.
 
 ## Workflow hard rules (from plan.md §6 — all were learned the expensive way)
 

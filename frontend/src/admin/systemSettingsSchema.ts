@@ -84,12 +84,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       field("tos_url", "用户条款(TOS)URL", "Terms of service URL", "用于跳转到用户条款(TOS)。", "Used to open the terms of service.", "url", "", {
         placeholder: text("请输入用户条款URL，末尾不要/", "Enter terms URL without a trailing slash")
       }),
-      field("support_url", "人工客服链接", "Support URL", "人工客服入口，可以是托管的客服页面、Telegram/Matrix 链接或表单。留空表示未接通人工客服。", "Human support entry: a hosted chat page, a Telegram/Matrix link, or a form. Blank means no human support is configured.", "url", "", {
-        placeholder: text("请输入人工客服链接", "Enter support URL")
-      }),
-      field("support_email", "人工客服邮箱", "Support email", "未配置人工客服链接时使用的联系邮箱。", "Contact email used when no support URL is configured.", "text", "", {
-        placeholder: text("请输入人工客服邮箱", "Enter support email")
-      }),
       field("stop_register", "停止新用户注册", "Disable new registrations", "开启后任何人都将无法进行注册。", "No one can register after this is enabled.", "toggle", 0),
       field("try_out_plan_id", "注册试用", "Registration trial", "选择需要试用的订阅，如果没有选项请先前往订阅管理添加。", "Select the trial plan. Add a plan first if no option is available.", "select", 0, {
         options: [option(0, "关闭", "Disabled")]

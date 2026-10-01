@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { MarkdownContent } from "../components/MarkdownContent";
 
 import { AppLink } from "../components/AppLink";
 import { AppShell } from "../components/AppShell";
@@ -22,7 +23,7 @@ import {
   formatMoney,
   trafficResetLabel
 } from "../lib/subscription";
-import { fetchViewerNotices } from "../lib/content";
+import { fetchViewerNotices, fetchViewerNoticeImages } from "../lib/content";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import type { SubscriptionEntitlement } from "../types";
@@ -52,6 +53,8 @@ const copy = {
     announcement: "公告",
     previousAnnouncement: "上一篇公告",
     nextAnnouncement: "下一篇公告",
+    viewNotice: "查看详情",
+    close: "关闭",
     entitlementFailed: "订阅权益加载失败",
     subscription: "当前订阅",
     loading: "正在读取权益…",
@@ -87,6 +90,8 @@ const copy = {
     announcement: "Announcement",
     previousAnnouncement: "Previous announcement",
     nextAnnouncement: "Next announcement",
+    viewNotice: "View details",
+    close: "Close",
     entitlementFailed: "Subscription benefits could not be loaded",
     subscription: "Current subscription",
     loading: "Loading benefits…",
@@ -134,22 +139,37 @@ export function AccountOverviewPage() {
     networkPreviewNodes[0]
   );
   const [announcements, setAnnouncements] = useState<PortalAnnouncement[]>([]);
+  const [selectedNotice, setSelectedNotice] = useState<{ id: string; title: string; content: string; imgUrl?: string | null } | null>(null);
+  const [noticeDetails, setNoticeDetails] = useState<Record<string, { id: string; title: string; content: string; imgUrl?: string | null }>>({});
+  const noticeOpener = useRef<HTMLElement | null>(null);
+  const noticeDialog = useRef<HTMLElement | null>(null);
+
+  function closeNotice() {
+    setSelectedNotice(null);
+    requestAnimationFrame(() => noticeOpener.current?.focus());
+  }
 
   useEffect(() => {
     let active = true;
     fetchViewerNotices(accessToken)
       .then((notices) => {
         if (active) {
+          setNoticeDetails(Object.fromEntries(notices.map(notice => [notice.id, notice])));
           setAnnouncements(
             notices.map((notice) => ({
               id: notice.id,
               title: notice.title,
               // The carousel shows one line; the full content lives in the
               // notice itself and the first line carries the gist.
-              summary: notice.content.split("\n").at(0)?.trim() || "",
+              summary: notice.content.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/[#>*_`~\[\]()]/g, "").replace(/\s+/g, " ").trim().slice(0, 140) || notice.title,
               publishedAt: formatDateTime(notice.publishedAt, language)
             }))
           );
+          void fetchViewerNoticeImages(accessToken).then(images => {
+            if (!active) return;
+            setNoticeDetails(current => Object.fromEntries(Object.entries(current).map(([id, notice]) => [id, { ...notice, imgUrl: images[id] ?? null }])));
+            setAnnouncements(current => current.map(notice => ({ ...notice, imgUrl: images[notice.id] ?? null })));
+          }).catch(() => { /* Older GraphQL deployments omit the optional image field. */ });
         }
       })
       .catch(() => {
@@ -160,6 +180,16 @@ export function AccountOverviewPage() {
       active = false;
     };
   }, [accessToken, language]);
+
+  useEffect(() => {
+    if (!selectedNotice) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeNotice();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    requestAnimationFrame(() => noticeDialog.current?.focus());
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [selectedNotice]);
 
   useEffect(() => {
     let active = true;
@@ -232,7 +262,10 @@ export function AccountOverviewPage() {
         label={labels.announcement}
         nextLabel={labels.nextAnnouncement}
         previousLabel={labels.previousAnnouncement}
+        onViewDetails={(notice) => { noticeOpener.current = document.activeElement as HTMLElement; setSelectedNotice(noticeDetails[notice.id] ?? null); }}
+        detailsLabel={labels.viewNotice}
       />
+      {selectedNotice && <div className="notice-dialog-backdrop" role="presentation" onClick={closeNotice}><section ref={noticeDialog} aria-label={selectedNotice.title} aria-modal="true" className="notice-dialog" onClick={event => event.stopPropagation()} role="dialog" tabIndex={-1}><header><h2>{selectedNotice.title}</h2><button aria-label={labels.close} onClick={closeNotice} type="button">×</button></header>{selectedNotice.imgUrl && <img className="notice-detail-image" src={selectedNotice.imgUrl} alt="" />}<MarkdownContent source={selectedNotice.content} /></section></div>}
       {error && <p className="error-message">{error}</p>}
       <section className="user-dashboard-grid">
         <section className="subscription-overview dashboard-subscription-card">

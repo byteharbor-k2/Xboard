@@ -36,6 +36,7 @@ import { useAdminAuthStore } from "../store/adminAuth";
 
 const sectionPaths: Record<SystemSettingsSection, string> = {
   site: "/admin/system/settings",
+  support: "/admin/system/settings/support",
   safe: "/admin/system/settings/safe",
   subscribe: "/admin/system/settings/subscribe",
   invite: "/admin/system/settings/invite",
@@ -435,7 +436,8 @@ export function SystemSettingsPage() {
   const language = useAdminPreferences((state) => state.language);
   const queryClient = useQueryClient();
   const labels = copy[language];
-  const selectedSection = sectionFromPath(pathname);
+  const isSupportSettings = pathname === sectionPaths.support;
+  const selectedSection = isSupportSettings ? "site" : sectionFromPath(pathname);
   const section = useMemo(
     () =>
       systemSettingsSections.find((item) => item.id === selectedSection) ??
@@ -714,6 +716,10 @@ export function SystemSettingsPage() {
         )}
       </div>
     );
+  }
+
+  if (isSupportSettings) {
+    return <AdminShell><header className="settings-page-title"><h1>{language === "zh-CN" ? "在线客服" : "Online support"}</h1><p>{language === "zh-CN" ? "客服已改为站内文字对话，请前往在线客服收件箱查看并回复用户消息。" : "Support is now provided through in-site text conversations. Open the Online support inbox to read and reply to users."}</p></header><button className="settings-action-button" onClick={() => navigate("/admin/support")} type="button">{language === "zh-CN" ? "打开客服收件箱" : "Open support inbox"}</button></AdminShell>;
   }
 
   const visibleFields =

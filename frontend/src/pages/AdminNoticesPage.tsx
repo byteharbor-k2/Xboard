@@ -10,6 +10,8 @@ import {
   type NoticeDraft
 } from "../admin/noticeManagementApi";
 import { AdminShell } from "../components/AdminShell";
+import { MarkdownEditor } from "../components/MarkdownEditor";
+import { MarkdownContent } from "../components/MarkdownContent";
 import { ConfirmBar, type ConfirmRequest } from "../components/ConfirmBar";
 import { ApiError } from "../lib/http";
 import { useAdminAuthStore } from "../store/adminAuth";
@@ -268,7 +270,7 @@ export function AdminNoticesPage() {
                       <strong>{notice.title}</strong>
                     </td>
                     <td className="notice-content-cell">
-                      {notice.content.split("\n").at(0)}
+                      {notice.content.replace(/!\[[^\]]*\]\([^)]*\)/g, "").replace(/[#>*_`~\[\]()]/g, "").replace(/\s+/g, " ").trim().slice(0, 120)}
                     </td>
                     <td>{notice.popup ? text.yes : text.no}</td>
                     <td>{notice.sort}</td>
@@ -321,7 +323,7 @@ export function AdminNoticesPage() {
         <div className="admin-modal-backdrop" role="presentation">
           <form
             aria-label={editing ? text.editTitle : text.createTitle}
-            className="admin-modal machine-modal"
+            className="admin-modal machine-modal markdown-admin-modal"
             onSubmit={submit}
           >
             <header>
@@ -351,17 +353,7 @@ export function AdminNoticesPage() {
               </label>
               <label>
                 {text.contentLabel}
-                <textarea
-                  required
-                  rows={6}
-                  value={form.content}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      content: event.target.value
-                    }))
-                  }
-                />
+                <MarkdownEditor value={form.content} rows={8} language={language} onChange={(content) => setForm((current) => ({ ...current, content }))} />
               </label>
               <label>
                 {text.imgUrl}

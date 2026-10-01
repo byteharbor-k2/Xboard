@@ -5,6 +5,7 @@ export type PortalAnnouncement = {
   title: string;
   summary: string;
   publishedAt: string;
+  imgUrl?: string | null;
 };
 
 type AnnouncementCarouselProps = {
@@ -12,13 +13,17 @@ type AnnouncementCarouselProps = {
   label: string;
   nextLabel: string;
   previousLabel: string;
+  onViewDetails: (announcement: PortalAnnouncement) => void;
+  detailsLabel: string;
 };
 
 export function AnnouncementCarousel({
   announcements,
   label,
   nextLabel,
-  previousLabel
+  previousLabel,
+  onViewDetails,
+  detailsLabel
 }: AnnouncementCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -66,6 +71,7 @@ export function AnnouncementCarousel({
         <h2>{activeAnnouncement.title}</h2>
         <p>{activeAnnouncement.summary}</p>
         <time>{activeAnnouncement.publishedAt}</time>
+        <button className="announcement-details-button" onClick={() => onViewDetails(activeAnnouncement)} type="button">{detailsLabel} →</button>
       </div>
       {announcements.length > 1 && (
         <div className="portal-announcement-controls">

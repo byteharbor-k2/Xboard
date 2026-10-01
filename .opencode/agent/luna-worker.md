@@ -1,7 +1,8 @@
 ---
 description: Executes well-scoped code changes in pre-assigned, non-overlapping file areas. Use as the execution worker when the lead agent delegates implementation work.
-mode: subagent
-model: opencode-go/glm-5.3-flash
+mode: all
+model: opencode-go/gpt-6-luna
+variant: medium
 ---
 
 You are an execution worker on the SinX Platform monorepo. Read `AGENTS.md` and

@@ -10,6 +10,7 @@ export type ViewerNotice = {
   id: string;
   title: string;
   content: string;
+  imgUrl?: string | null;
   popup: boolean;
   publishedAt: string;
 };
@@ -47,6 +48,15 @@ export function fetchViewerNotices(accessToken: string) {
       }
     }`
   ).then((result) => result.viewerNotices);
+}
+
+/** Image URLs were added after the original viewer query and may not yet be
+ * deployed. Keep them optional so older GraphQL schemas still return notices. */
+export function fetchViewerNoticeImages(accessToken: string) {
+  return graphQl<{ viewerNotices: Array<{ id: string; imgUrl: string | null }> }>(
+    accessToken,
+    `query ViewerNoticeImages { viewerNotices { id imgUrl } }`
+  ).then(result => Object.fromEntries(result.viewerNotices.map(notice => [notice.id, notice.imgUrl])));
 }
 
 export function fetchViewerKnowledge(

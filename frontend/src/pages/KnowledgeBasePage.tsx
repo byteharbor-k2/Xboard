@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { MarkdownContent } from "../components/MarkdownContent";
 import { formatDateTime } from "../lib/subscription";
 import {
   fetchViewerKnowledge,
@@ -127,7 +128,7 @@ export function KnowledgeBasePage() {
           />
         </section>
       )}
-      <section className="knowledge-base-layout">
+      <section className={`knowledge-base-layout ${activeArticle ? "knowledge-detail-layout" : ""}`}>
         {!activeArticle && (
           <aside className="panel knowledge-category-panel">
             <h2>{labels.categories}</h2>
@@ -177,11 +178,7 @@ export function KnowledgeBasePage() {
                 {labels.lastUpdated}:{" "}
                 {formatDateTime(activeArticle.updatedAt, language)}
               </p>
-              <div className="knowledge-article-body">
-                {activeArticle.body.split("\n").map((line, index) => (
-                  <p key={index}>{line}</p>
-                ))}
-              </div>
+              <MarkdownContent className="knowledge-article-body" source={activeArticle.body} />
             </article>
           ) : detailLoading ? (
             <div className="skeleton-line wide" />

@@ -18,6 +18,7 @@ export const systemSettingsEndpoints = {
 
 export type SystemSettingsSection =
   | "site"
+  | "support"
   | "safe"
   | "subscribe"
   | "invite"

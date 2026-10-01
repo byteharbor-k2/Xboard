@@ -7,13 +7,6 @@ type Query {
     the client then shows for the imported profile.
     """
     siteName: String!
-    """
-    Where a customer reaches a human: the operator-configured support URL
-    (hosted chat page, a Telegram/Matrix link, a form) and fallback email.
-    Null when the operator left that setting blank / never configured it.
-    """
-    supportUrl: String
-    supportEmail: String
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
     offerCatalog: [PlanOffer!]!
@@ -45,6 +38,8 @@ type Query {
     viewerKnowledge(language: String, keyword: String): [KnowledgeCategory!]!
     """One help article's full body; null when it does not exist or is hidden."""
     viewerKnowledgeArticle(id: ID!): KnowledgeArticle
+    """Messages in the authenticated user's own human support conversation."""
+    viewerSupportMessages: [SupportMessage!]!
 }
 
 type Mutation {
@@ -73,6 +68,14 @@ type Mutation {
     the order is opened when the gateway's callback arrives.
     """
     checkoutOrder(tradeNo: String!, paymentMethodId: ID!): PaymentRedirect!
+    """Send a text message to the authenticated user's human support conversation."""
+    sendSupportMessage(content: String!): SupportMessage!
+}
+
+type SupportMessage {
+    sender: String!
+    content: String!
+    createdAt: String!
 }
 
 type PaymentOption {
@@ -279,6 +282,7 @@ type Notice {
     id: ID!
     title: String!
     content: String!
+    imgUrl: String
     """Whether the dashboard may raise this notice beyond the carousel."""
     popup: Boolean!
     """When the notice was created, the carousel's published date."""

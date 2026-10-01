@@ -1,317 +1,70 @@
-import {
-  useEffect,
-  useState,
-  type FormEvent
-} from "react";
-
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { graphQl } from "../lib/http";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
-import { publicGraphQl } from "../lib/http";
 
-type SupportMessage = {
-  id: number;
-  sender: "ai" | "system" | "user";
-  text: string;
-};
-
-type SupportContact = {
-  url: string;
-  email: string;
-};
-
+type SupportMessage = { sender: "USER" | "ADMIN"; content: string; createdAt: string };
 const copy = {
-  "zh-CN": {
-    launcher: "打开客服",
-    messages: "消息",
-    close: "关闭客服",
-    back: "返回消息",
-    assistant: "SinX AI 客服",
-    preview: "AI 客服界面预览",
-    introduction: "你好，我是 SinX AI 客服。请告诉我你遇到的问题。",
-    conversationPreview: "开始对话后，AI 与人工客服的回复会集中显示在这里。",
-    sendMessage: "发送消息",
-    handoff: "转人工",
-    handoffNotice: "站点还未配置人工客服入口，请联系管理员开通。",
-    handoffEmail: "邮件联系",
-    placeholder: "输入你的问题…",
-    send: "发送",
-    pendingReply: "AI 接口接入后，会根据知识库和账户状态在这里回复。",
-    connection: "无法连接",
-    subscription: "订阅问题",
-    payment: "支付问题"
-  },
-  "en-US": {
-    launcher: "Open support",
-    messages: "Messages",
-    close: "Close support",
-    back: "Back to messages",
-    assistant: "SinX AI Support",
-    preview: "AI support UI preview",
-    introduction: "Hi, I am SinX AI Support. Tell me how I can help.",
-    conversationPreview:
-      "AI and human support replies will appear here after you start a conversation.",
-    sendMessage: "Send us a message",
-    handoff: "Talk to a person",
-    handoffNotice:
-      "Human support has not been configured on this site yet. Please contact the operator.",
-    handoffEmail: "Contact by email",
-    placeholder: "Describe your issue…",
-    send: "Send",
-    pendingReply:
-      "After the AI endpoint is connected, responses based on the knowledge base and account state will appear here.",
-    connection: "Connection issue",
-    subscription: "Subscription question",
-    payment: "Payment question"
-  }
+  "zh-CN": { open: "联系人工客服", close: "关闭客服", title: "人工客服", loading: "正在加载对话…", empty: "您好，有什么可以帮您？", failed: "客服消息暂时无法加载，请重试。", placeholder: "输入消息…", send: "发送", sending: "发送中…", user: "我", admin: "人工客服" },
+  "en-US": { open: "Contact support", close: "Close support", title: "Human support", loading: "Loading conversation…", empty: "Hello! How can we help?", failed: "Support messages could not be loaded. Please retry.", placeholder: "Write a message…", send: "Send", sending: "Sending…", user: "You", admin: "Support" }
 };
 
 export function SupportWidget() {
-  const viewer = useAuthStore((state) => state.viewer);
-  const language = useUserPreferences((state) => state.language);
+  const token = useAuthStore(state => state.accessToken)!;
+  const language = useUserPreferences(state => state.language);
   const labels = copy[language];
   const [open, setOpen] = useState(false);
-  const [conversationStarted, setConversationStarted] = useState(false);
-  const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<SupportMessage[]>([]);
-  // The human contact the operator configured on the site; null until the
-  // contact query has answered (and stays null when none is configured).
-  const [contact, setContact] = useState<SupportContact | null>(null);
+  const [draft, setDraft] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const endOfMessages = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    function openSupport() {
-      setOpen(true);
-    }
-    window.addEventListener("sinx:open-support", openSupport);
-    return () => window.removeEventListener("sinx:open-support", openSupport);
+    const show = () => setOpen(true);
+    window.addEventListener("sinx:open-support", show);
+    return () => window.removeEventListener("sinx:open-support", show);
   }, []);
 
-  // The contact is read once per open widget. The fields ride the same public
-  // GraphQL query surface as siteName; until supportUrl/supportEmail are
-  // registered there the request fails validation and the widget stays in the
-  // not-configured state, which is also the state of an operator who left both
-  // settings blank.
   useEffect(() => {
-    if (!open) {
-      return;
-    }
+    if (!open || !token) return;
     let active = true;
-    publicGraphQl<{
-      supportUrl: string | null;
-      supportEmail: string | null;
-    }>(`query SupportContact {
-      supportUrl
-      supportEmail
-    }`)
-      .then((result) => {
-        if (!active) {
-          return;
-        }
-        setContact({
-          url: result.supportUrl || "",
-          email: result.supportEmail || ""
-        });
-      })
-      .catch(() => {
-        if (active) {
-          setContact(null);
-        }
-      });
-    return () => {
-      active = false;
+    let running = false;
+    const refresh = async () => {
+      if (running) return;
+      running = true;
+      try {
+        const result = await graphQl<{ viewerSupportMessages: SupportMessage[] }>(token, "query SupportMessages { viewerSupportMessages { sender content createdAt } }");
+        if (active) { setMessages(result.viewerSupportMessages); setError(""); }
+      } catch { if (active) setError(labels.failed); }
+      finally { running = false; if (active) setLoading(false); }
     };
-  }, [open]);
+    setLoading(true);
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 2500);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [open, token, labels.failed]);
 
-  const supportUrl = open && contact ? contact.url : "";
-  const supportEmail = open && contact ? contact.email : "";
+  useEffect(() => { endOfMessages.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [messages]);
 
-  function startConversation() {
-    setConversationStarted(true);
-    if (messages.length === 0) {
-      setMessages([
-        {
-          id: Date.now(),
-          sender: "ai",
-          text: labels.introduction
-        }
-      ]);
-    }
-  }
-
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent) {
     event.preventDefault();
-    const text = draft.trim();
-    if (!text) {
-      return;
-    }
-    const timestamp = Date.now();
-    setMessages((current) => [
-      ...current,
-      { id: timestamp, sender: "user", text },
-      {
-        id: timestamp + 1,
-        sender: "system",
-        text: labels.pendingReply
-      }
-    ]);
-    setDraft("");
+    const content = draft.trim();
+    if (!content || sending) return;
+    setSending(true);
+    setError("");
+    try {
+      await graphQl<{ sendSupportMessage: SupportMessage }>(token, "mutation SendSupportMessage($content: String!) { sendSupportMessage(content: $content) { sender content createdAt } }", { content });
+      setDraft("");
+      const result = await graphQl<{ viewerSupportMessages: SupportMessage[] }>(token, "query SupportMessages { viewerSupportMessages { sender content createdAt } }");
+      setMessages(result.viewerSupportMessages);
+    } catch { setError(labels.failed); }
+    finally { setSending(false); }
   }
 
-  function openHandoff() {
-    if (supportUrl) {
-      // Opens in a new tab with a noopener feature, so the hosted support
-      // page cannot reach back into this window.
-      window.open(supportUrl, "_blank", "noopener");
-      return;
-    }
-    if (supportEmail) {
-      window.open(`mailto:${supportEmail}`, "_blank", "noopener");
-    }
-  }
-
-  return (
-    <>
-      <button
-        aria-label={labels.launcher}
-        className="support-launcher"
-        onClick={() => setOpen(true)}
-        type="button"
-      >
-        <span aria-hidden="true">?</span>
-      </button>
-      {open && (
-        <aside
-          aria-label={labels.messages}
-          className="support-widget-panel"
-        >
-          <header>
-            {conversationStarted ? (
-              <button
-                aria-label={labels.back}
-                className="support-header-button"
-                onClick={() => setConversationStarted(false)}
-                type="button"
-              >
-                ←
-              </button>
-            ) : (
-              <span className="support-header-spacer" />
-            )}
-            <h2>{labels.messages}</h2>
-            <button
-              aria-label={labels.close}
-              className="support-header-button"
-              onClick={() => setOpen(false)}
-              type="button"
-            >
-              ×
-            </button>
-          </header>
-          {!conversationStarted ? (
-            <div className="support-message-home">
-              <button
-                className="support-conversation-preview"
-                onClick={startConversation}
-                type="button"
-              >
-                <span className="support-assistant-avatar" aria-hidden="true">
-                  S
-                </span>
-                <span>
-                  <strong>{labels.assistant}</strong>
-                  <small>{labels.conversationPreview}</small>
-                </span>
-                <b>›</b>
-              </button>
-              <div className="support-home-empty">
-                <span className="support-assistant-avatar large" aria-hidden="true">
-                  S
-                </span>
-                <strong>{labels.assistant}</strong>
-                <p>{labels.preview}</p>
-              </div>
-              <button
-                className="support-start-button"
-                onClick={startConversation}
-                type="button"
-              >
-                {labels.sendMessage}
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          ) : (
-            <div className="support-conversation">
-              <div className="support-conversation-heading">
-                <div>
-                  <span className="support-assistant-avatar" aria-hidden="true">
-                    S
-                  </span>
-                  <div>
-                    <strong>{labels.assistant}</strong>
-                    <small>{viewer?.displayName}</small>
-                  </div>
-                </div>
-                {supportUrl ? (
-                  <button onClick={openHandoff} type="button">
-                    {labels.handoff}
-                  </button>
-                ) : supportEmail ? (
-                  <button
-                    onClick={openHandoff}
-                    title={`mailto:${supportEmail}`}
-                    type="button"
-                  >
-                    {labels.handoffEmail}
-                  </button>
-                ) : (
-                  <button
-                    aria-disabled="true"
-                    disabled
-                    title={labels.handoffNotice}
-                    type="button"
-                  >
-                    {labels.handoff}
-                  </button>
-                )}
-              </div>
-              <div className="support-message-thread">
-                {messages.map((message) => (
-                  <div
-                    className={`support-message ${message.sender}`}
-                    key={message.id}
-                  >
-                    {message.text}
-                  </div>
-                ))}
-              </div>
-              <div className="support-quick-actions">
-                {[labels.connection, labels.subscription, labels.payment].map(
-                  (option) => (
-                    <button
-                      key={option}
-                      onClick={() => setDraft(option)}
-                      type="button"
-                    >
-                      {option}
-                    </button>
-                  )
-                )}
-              </div>
-              <form className="support-composer" onSubmit={sendMessage}>
-                <textarea
-                  aria-label={labels.placeholder}
-                  onChange={(event) => setDraft(event.target.value)}
-                  placeholder={labels.placeholder}
-                  rows={2}
-                  value={draft}
-                />
-                <button disabled={!draft.trim()} type="submit">
-                  {labels.send}
-                </button>
-              </form>
-            </div>
-          )}
-        </aside>
-      )}
-    </>
-  );
+  return <>
+    <button aria-label={labels.open} className="support-launcher" onClick={() => setOpen(true)} type="button"><span aria-hidden="true">?</span><span className="support-launcher-label">{labels.open}</span></button>
+    {open && <aside aria-label={labels.title} className="support-widget-panel human-support-panel"><header><h2>{labels.title}</h2><button aria-label={labels.close} className="support-header-button" onClick={() => setOpen(false)} type="button">×</button></header><div className="human-support-content"><div aria-live="polite" className="support-thread-messages">{loading && messages.length === 0 ? <p>{labels.loading}</p> : messages.length === 0 ? <p className="support-thread-empty">{labels.empty}</p> : messages.map((message, index) => <article className={`support-chat-message ${message.sender === "ADMIN" ? "from-admin" : "from-user"}`} key={`${message.createdAt}-${index}`}><strong>{message.sender === "ADMIN" ? labels.admin : labels.user}</strong><p>{message.content}</p><time>{new Intl.DateTimeFormat(language, { dateStyle: "short", timeStyle: "short" }).format(new Date(message.createdAt))}</time></article>)}<div ref={endOfMessages} /></div><form className="support-chat-composer" onSubmit={submit}><textarea aria-label={labels.placeholder} onChange={event => setDraft(event.target.value)} placeholder={labels.placeholder} rows={2} value={draft} /><button disabled={!draft.trim() || sending} type="submit">{sending ? labels.sending : labels.send}</button></form>{error && <p className="support-chat-error" role="alert">{error}</p>}</div></aside>}
+  </>;
 }

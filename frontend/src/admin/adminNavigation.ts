@@ -46,6 +46,13 @@ export const adminNavigation: AdminNavGroup[] = [
         }
       },
       {
+        id: "support-inbox",
+        href: "/admin/support",
+        glyph: "✉",
+        label: { "zh-CN": "在线客服", "en-US": "Online support" },
+        description: { "zh-CN": "查看用户对话并直接回复。", "en-US": "Read and reply to user support conversations." }
+      },
+      {
         id: "notices",
         href: "/admin/content/notices",
         glyph: "▤",

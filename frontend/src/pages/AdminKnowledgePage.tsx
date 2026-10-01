@@ -12,6 +12,7 @@ import {
   type KnowledgeDraft
 } from "../admin/knowledgeManagementApi";
 import { AdminShell } from "../components/AdminShell";
+import { MarkdownEditor } from "../components/MarkdownEditor";
 import { ConfirmBar, type ConfirmRequest } from "../components/ConfirmBar";
 import { ApiError } from "../lib/http";
 import { useAdminAuthStore } from "../store/adminAuth";
@@ -346,7 +347,7 @@ export function AdminKnowledgePage() {
         <div className="admin-modal-backdrop" role="presentation">
           <form
             aria-label={editing ? text.editTitle : text.createTitle}
-            className="admin-modal machine-modal"
+            className="admin-modal machine-modal markdown-admin-modal"
             onSubmit={submit}
           >
             <header>
@@ -413,17 +414,7 @@ export function AdminKnowledgePage() {
               </label>
               <label>
                 {text.bodyLabel}
-                <textarea
-                  required
-                  rows={10}
-                  value={form.body}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      body: event.target.value
-                    }))
-                  }
-                />
+                <MarkdownEditor value={form.body} rows={12} language={language} onChange={(body) => setForm((current) => ({ ...current, body }))} />
               </label>
               <label className="machine-check">
                 <input

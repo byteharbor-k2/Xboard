@@ -19,6 +19,7 @@ import { AdminPaymentsPage } from "./pages/AdminPaymentsPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminNoticesPage } from "./pages/AdminNoticesPage";
 import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
+import { AdminSupportPage } from "./pages/AdminSupportPage";
 import { AdminTrafficResetsPage } from "./pages/AdminTrafficResetsPage";
 import { AdminNodeRoutesPage } from "./pages/AdminNodeRoutesPage";
 import { AdminModulePlaceholderPage } from "./pages/AdminModulePlaceholderPage";
@@ -201,6 +202,9 @@ export function App() {
         <AdminMfaPage />
       </AdminProtectedRoute>
     );
+  }
+  if (path === "/admin/support") {
+    return <AdminProtectedRoute><AdminSupportPage /></AdminProtectedRoute>;
   }
   if (
     path.startsWith("/admin/system/settings") ||

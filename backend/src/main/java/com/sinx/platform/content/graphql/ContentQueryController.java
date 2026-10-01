@@ -107,6 +107,7 @@ public class ContentQueryController {
         UUID id,
         String title,
         String content,
+        String imgUrl,
         boolean popup,
         Instant publishedAt
     ) {
@@ -116,6 +117,7 @@ public class ContentQueryController {
                 notice.getId(),
                 notice.getTitle(),
                 notice.getContent(),
+                notice.getImgUrl(),
                 notice.isPopup(),
                 notice.getCreatedAt()
             );
