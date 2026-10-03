@@ -123,7 +123,8 @@ class AdminMailTestEndpointProblemTest {
             "DELETE FROM platform_settings WHERE setting_key IN "
                 + "('email.email_host', 'email.email_port', "
                 + "'email.email_username', 'email.email_password', "
-                + "'email.email_encryption', 'email.email_from_address')"
+                + "'email.email_encryption', 'email.email_from_address', "
+                + "'email.email_delivery')"
         );
     }
 
@@ -275,14 +276,13 @@ class AdminMailTestEndpointProblemTest {
                             // Discard.
                         }
                         respond(writer, REFUSAL);
-                        return;
                     } else if (command.equals("quit")) {
                         respond(writer, "221 bye");
                         return;
                     }
                 }
             } catch (IOException ignored) {
-                // A refused SMTP exchange is expected to end abruptly.
+                // The client may close the connection after completing cleanup.
             }
         }
 
