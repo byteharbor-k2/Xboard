@@ -102,6 +102,9 @@ export async function requestRegistrationCode(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, turnstileToken })
   });
+  if (response.ok) {
+    return;
+  }
   return parseResponse<void>(response);
 }
 
