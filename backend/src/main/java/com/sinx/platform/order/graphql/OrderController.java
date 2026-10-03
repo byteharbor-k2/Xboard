@@ -31,8 +31,12 @@ public class OrderController {
     }
 
     @QueryMapping
-    PlanOfferView planOffer(@Argument UUID id) {
-        return catalogService.availableOffer(id).orElse(null);
+    PlanOfferView planOffer(
+        @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
+        @Argument UUID id
+    ) {
+        UUID viewerId = jwt == null ? null : UUID.fromString(jwt.getSubject());
+        return catalogService.availableOffer(id, viewerId).orElse(null);
     }
 
     @QueryMapping

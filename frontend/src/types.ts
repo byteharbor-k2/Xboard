@@ -120,6 +120,7 @@ export type PlanOffer = {
   purchaseLimitPerUser: number | null;
   capacityRemaining: number | null;
   prices: PlanPrice[];
+  newUserOffer: boolean;
 };
 
 export type OrderType =
@@ -252,4 +253,5 @@ export type SubscriptionEntitlement = {
   startsAt: string;
   expiresAt: string | null;
   nextResetAt: string | null;
+  isTrial: boolean;
 };

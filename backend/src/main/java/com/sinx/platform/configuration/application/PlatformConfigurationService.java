@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -43,6 +44,14 @@ public class PlatformConfigurationService {
      */
     private static final String SUPPORT_URL_KEY = "site.support_url";
     private static final String SUPPORT_EMAIL_KEY = "site.support_email";
+    private static final String TRIAL_PLAN_ID_KEY = "new_user.try_out_plan_id";
+    private static final String TRIAL_HOURS_KEY = "new_user.try_out_hour";
+    private static final String NEW_USER_OFFER_PLAN_ID_KEY =
+        "new_user.new_user_offer_plan_id";
+    private static final String LEGACY_TRIAL_PLAN_ID_KEY =
+        "site.try_out_plan_id";
+    private static final String LEGACY_TRIAL_HOURS_KEY = "site.try_out_hour";
+    private static final int DEFAULT_TRIAL_HOURS = 3;
 
     /**
      * What the site is called before anyone has said otherwise. It reaches the
@@ -176,6 +185,13 @@ public class PlatformConfigurationService {
                 "support_email", supportEmail().orElse(""),
                 "stop_register",
                 stopRegisterPolicy().stopped()
+            );
+            case "new_user" -> Map.of(
+                "try_out_plan_id", trialPlanId()
+                    .map(UUID::toString).orElse(""),
+                "try_out_hour", trialHours(),
+                "new_user_offer_plan_id", newUserOfferPlanId()
+                    .map(UUID::toString).orElse("")
             );
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
@@ -328,6 +344,12 @@ public class PlatformConfigurationService {
         switch (section + "." + entry.getKey()) {
             case SITE_STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
             case STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
+            case "new_user.try_out_plan_id" ->
+                saveTrialPlanId(entry.getValue());
+            case "new_user.try_out_hour" ->
+                saveInteger(TRIAL_HOURS_KEY, entry.getValue());
+            case "new_user.new_user_offer_plan_id" ->
+                saveOptionalPlanId(NEW_USER_OFFER_PLAN_ID_KEY, entry.getValue());
             case APP_NAME_KEY -> saveAppName(entry.getValue());
             case APP_URL_KEY -> saveAppUrl(entry.getValue());
             case SUBSCRIBE_URL_KEY -> saveSubscribeUrls(entry.getValue());
@@ -632,6 +654,71 @@ public class PlatformConfigurationService {
 
     public Optional<String> supportEmail() {
         return read(SUPPORT_EMAIL_KEY).filter(value -> !value.isBlank());
+    }
+
+    /** The configured subscription plan granted to a newly registered user. */
+    public Optional<UUID> trialPlanId() {
+        return read(TRIAL_PLAN_ID_KEY)
+            .or(() -> read(LEGACY_TRIAL_PLAN_ID_KEY))
+            .flatMap(this::parsePlanId);
+    }
+
+    /** The duration of a registration trial, in hours; three is the legacy default. */
+    public int trialHours() {
+        int configured = read(TRIAL_HOURS_KEY)
+            .or(() -> read(LEGACY_TRIAL_HOURS_KEY))
+            .flatMap(this::parseInteger)
+            .orElse(DEFAULT_TRIAL_HOURS);
+        return configured > 0 ? configured : DEFAULT_TRIAL_HOURS;
+    }
+
+    /** The optional traffic package promoted to newly registered users. */
+    public Optional<UUID> newUserOfferPlanId() {
+        return read(NEW_USER_OFFER_PLAN_ID_KEY).flatMap(this::parsePlanId);
+    }
+
+    private Optional<Integer> parseInteger(String value) {
+        try {
+            return Optional.of(Integer.parseInt(value.trim()));
+        } catch (NumberFormatException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private Optional<UUID> parsePlanId(String value) {
+        if (value == null || value.isBlank() || "0".equals(value.trim())) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(UUID.fromString(value.trim()));
+        } catch (IllegalArgumentException exception) {
+            return Optional.empty();
+        }
+    }
+
+    private void saveOptionalPlanId(String key, Object rawValue) {
+        if (rawValue == null) {
+            settings.deleteById(key);
+            return;
+        }
+        if (!(rawValue instanceof String value)) {
+            throw invalidSettingValue();
+        }
+        String normalized = value.trim();
+        if (normalized.isEmpty() || "0".equals(normalized)) {
+            settings.deleteById(key);
+            return;
+        }
+        try {
+            store(key, UUID.fromString(normalized).toString());
+        } catch (IllegalArgumentException exception) {
+            throw invalidSettingValue();
+        }
+    }
+
+    private void saveTrialPlanId(Object rawValue) {
+        saveOptionalPlanId(TRIAL_PLAN_ID_KEY, rawValue);
+        settings.deleteById(LEGACY_TRIAL_PLAN_ID_KEY);
     }
 
     private void saveSupportContact(String key, Object rawValue) {

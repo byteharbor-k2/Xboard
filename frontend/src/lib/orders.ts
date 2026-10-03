@@ -21,6 +21,7 @@ const PLAN_OFFER_FIELDS = `
   resettable
   purchaseLimitPerUser
   capacityRemaining
+  newUserOffer
   prices {
     period
     amountMinor
@@ -70,12 +71,20 @@ const ORDER_FIELDS = `
 `;
 
 export async function fetchPlanOffer(
-  planId: string
+  planId: string,
+  accessToken?: string | null
 ): Promise<PlanOffer | null> {
-  const data = await publicGraphQl<{ planOffer: PlanOffer | null }>(
-    `query PlanOffer($id: ID!) { planOffer(id: $id) { ${PLAN_OFFER_FIELDS} } }`,
-    { id: planId }
-  );
+  const query = `query PlanOffer($id: ID!) { planOffer(id: $id) { ${PLAN_OFFER_FIELDS} } }`;
+  const data = accessToken
+    ? await graphQl<{ planOffer: PlanOffer | null }>(
+        accessToken,
+        query,
+        { id: planId }
+      )
+    : await publicGraphQl<{ planOffer: PlanOffer | null }>(
+        query,
+        { id: planId }
+      );
   return data.planOffer;
 }
 

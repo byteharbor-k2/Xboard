@@ -460,6 +460,23 @@
   align-items: center;
 }
 
+.subscription-state-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.trial-state-badge {
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #825400 !important;
+  background: #fff0c7;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .subscription-heading span,
 .traffic-usage span,
 .subscription-empty-copy {
@@ -2576,6 +2593,21 @@ button:disabled {
 .plan-tags .plan-type-badge.subscription {
   color: #087c75;
   background: #e2f7f3;
+}
+
+.plan-tags .new-user-offer-badge,
+.new-user-offer-badge {
+  color: #825400;
+  background: #fff0c7;
+  font-weight: 800;
+}
+
+.checkout-offer-badge {
+  width: fit-content;
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
 }
 
 .plan-price-list {

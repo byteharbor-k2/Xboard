@@ -64,6 +64,8 @@ const copy = {
     remaining: "剩余流量",
     uploadDownload: "上传 / 下载",
     expires: "有效期至",
+    trial: "免费试用",
+    trialExpires: "试用有效期至",
     nextReset: "下次重置",
     speed: "峰值速率",
     unlimitedSpeed: "不限速",
@@ -101,6 +103,8 @@ const copy = {
     remaining: "Remaining data",
     uploadDownload: "Upload / download",
     expires: "Expires",
+    trial: "Free trial",
+    trialExpires: "Trial expires",
     nextReset: "Next reset",
     speed: "Peak speed",
     unlimitedSpeed: "Unlimited",
@@ -220,6 +224,7 @@ export function AccountOverviewPage() {
           startsAt
           expiresAt
           nextResetAt
+          isTrial
         }
       }`
     )
@@ -279,11 +284,16 @@ export function AccountOverviewPage() {
               </h2>
             </div>
             {entitlement ? (
-              <span
-                className={`entitlement-state ${entitlement.state.toLowerCase()}`}
-              >
-                {entitlementStateLabel(entitlement.state, language)}
-              </span>
+              <div className="subscription-state-badges">
+                {entitlement.isTrial && (
+                  <span className="trial-state-badge">{labels.trial}</span>
+                )}
+                <span
+                  className={`entitlement-state ${entitlement.state.toLowerCase()}`}
+                >
+                  {entitlementStateLabel(entitlement.state, language)}
+                </span>
+              </div>
             ) : (
               <AppLink className="secondary-button compact-link" href="/plans">
                 {labels.viewPlans}
@@ -328,7 +338,7 @@ export function AccountOverviewPage() {
                   </dd>
                 </div>
                 <div>
-                  <dt>{labels.expires}</dt>
+                  <dt>{entitlement.isTrial ? labels.trialExpires : labels.expires}</dt>
                   <dd>{formatDateTime(entitlement.expiresAt, language)}</dd>
                 </div>
                 <div>

@@ -105,6 +105,10 @@ public class ServiceOrder {
     )
     private String surplusOrderIds = "[]";
 
+    /** Snapshot that this order was placed under the configured new-user offer. */
+    @Column(name = "is_new_user_offer", nullable = false)
+    private boolean newUserOffer;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -138,6 +142,7 @@ public class ServiceOrder {
         OrderPricing.Breakdown breakdown,
         UUID couponId,
         String surplusOrderIds,
+        boolean newUserOffer,
         Instant now
     ) {
         ServiceOrder order = new ServiceOrder();
@@ -157,6 +162,7 @@ public class ServiceOrder {
         order.totalAmount = breakdown.totalAmount();
         order.couponId = couponId;
         order.surplusOrderIds = surplusOrderIds == null ? "[]" : surplusOrderIds;
+        order.newUserOffer = newUserOffer;
         // Every order starts unpaid, however much of it the discounts covered.
         // A total of zero is not a settled order: nothing is provisioned until
         // a payment - or an admin settling it by hand - moves it on.
@@ -164,6 +170,34 @@ public class ServiceOrder {
         order.createdAt = now;
         order.updatedAt = now;
         return order;
+    }
+
+    /** Keeps existing order fixtures source-compatible for ordinary purchases. */
+    public static ServiceOrder create(
+        String tradeNo,
+        UserAccount user,
+        ServicePlan plan,
+        BillingPeriod period,
+        OrderType orderType,
+        String currency,
+        OrderPricing.Breakdown breakdown,
+        UUID couponId,
+        String surplusOrderIds,
+        Instant now
+    ) {
+        return create(
+            tradeNo,
+            user,
+            plan,
+            period,
+            orderType,
+            currency,
+            breakdown,
+            couponId,
+            surplusOrderIds,
+            false,
+            now
+        );
     }
 
     public void cancel(Instant now) {
@@ -339,6 +373,10 @@ public class ServiceOrder {
     /** The orders a later upgrade consumed, as a JSON array of ids. */
     public String getSurplusOrderIds() {
         return surplusOrderIds;
+    }
+
+    public boolean isNewUserOffer() {
+        return newUserOffer;
     }
 
     public String getCallbackNo() {

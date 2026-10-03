@@ -1,8 +1,11 @@
 package com.sinx.platform.catalog.graphql;
 
 import java.util.List;
+import java.util.UUID;
 
 import org.springframework.graphql.data.method.annotation.QueryMapping;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Controller;
 
 import com.sinx.platform.catalog.application.CatalogService;
@@ -18,7 +21,10 @@ public class CatalogController {
     }
 
     @QueryMapping
-    List<PlanOfferView> offerCatalog() {
-        return catalogService.availableOffers();
+    List<PlanOfferView> offerCatalog(
+        @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt
+    ) {
+        UUID viewerId = jwt == null ? null : UUID.fromString(jwt.getSubject());
+        return catalogService.availableOffers(viewerId);
     }
 }

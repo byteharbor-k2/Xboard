@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
-import { ApiError, publicGraphQl } from "../lib/http";
+import { ApiError, graphQl, publicGraphQl } from "../lib/http";
 import { navigate } from "../lib/navigation";
+import { useAuthStore } from "../store/auth";
 import {
   billingPeriodLabel,
   formatBytes,
@@ -27,6 +28,7 @@ const offerQuery = `
       resettable
       purchaseLimitPerUser
       capacityRemaining
+      newUserOffer
       prices {
         period
         amountMinor
@@ -53,7 +55,8 @@ const copy = {
     trafficPackage: "流量包",
     subscription: "月订阅",
     remainingPrefix: "当前剩余",
-    remainingSuffix: "个名额"
+    remainingSuffix: "个名额",
+    newUserOffer: "新用户专属流量包 · 仅可购买一次"
   },
   "en-US": {
     title: "Choose your plan",
@@ -70,20 +73,24 @@ const copy = {
     trafficPackage: "Traffic package",
     subscription: "Monthly subscription",
     remainingPrefix: "",
-    remainingSuffix: "spots remaining"
+    remainingSuffix: "spots remaining",
+    newUserOffer: "New-user traffic package · One-time purchase"
   }
 };
 
 export function PlansPage() {
   const language = useUserPreferences((state) => state.language);
   const labels = copy[language];
+  const accessToken = useAuthStore((state) => state.accessToken);
   const [offers, setOffers] = useState<PlanOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let active = true;
-    publicGraphQl<{ offerCatalog: PlanOffer[] }>(offerQuery)
+    (accessToken
+      ? graphQl<{ offerCatalog: PlanOffer[] }>(accessToken, offerQuery)
+      : publicGraphQl<{ offerCatalog: PlanOffer[] }>(offerQuery))
       .then((result) => {
         if (active) {
           setOffers(result.offerCatalog);
@@ -106,7 +113,7 @@ export function PlansPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [accessToken]);
 
   return (
     <AppShell>
@@ -152,6 +159,11 @@ export function PlansPage() {
                 )).map((tag) => (
                   <span key={tag}>{tag}</span>
                 ))}
+                {offer.newUserOffer && (
+                  <span className="new-user-offer-badge">
+                    {labels.newUserOffer}
+                  </span>
+                )}
               </div>
               <h2>{offer.name}</h2>
               <p>{offer.description}</p>

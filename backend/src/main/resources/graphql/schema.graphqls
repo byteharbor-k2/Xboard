@@ -141,6 +141,7 @@ type PlanOffer {
     resettable: Boolean!
     purchaseLimitPerUser: Int
     capacityRemaining: Int
+    newUserOffer: Boolean!
     prices: [PlanPrice!]!
 }
 
@@ -168,6 +169,7 @@ type SubscriptionEntitlement {
     startsAt: String!
     expiresAt: String
     nextResetAt: String
+    isTrial: Boolean!
 }
 
 enum BillingPeriod {

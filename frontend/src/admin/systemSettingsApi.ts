@@ -12,12 +12,12 @@ export const systemSettingsEndpoints = {
   emailTemplateGet: `${adminApiPrefix}/mail/template/get`,
   emailTemplateSave: `${adminApiPrefix}/mail/template/save`,
   emailTemplateReset: `${adminApiPrefix}/mail/template/reset`,
-  emailTemplateTest: `${adminApiPrefix}/mail/template/test`,
-  plans: `${adminApiPrefix}/plan/fetch`
+  emailTemplateTest: `${adminApiPrefix}/mail/template/test`
 } as const;
 
 export type SystemSettingsSection =
   | "site"
+  | "new_user"
   | "support"
   | "safe"
   | "subscribe"
@@ -54,8 +54,10 @@ export type MailTemplateDetail = {
 };
 
 export type PlanOption = {
-  id: number;
+  id: string;
   name: string;
+  planType: "SUBSCRIPTION" | "TRAFFIC_PACKAGE";
+  prices: Array<{ period: string }>;
 };
 
 async function settingsRequest<T>(
@@ -203,8 +205,8 @@ export function testMailTemplate(
 }
 
 export function getPlanOptions(accessToken: string) {
-  return settingsRequest<XboardResponse<PlanOption[]>>(
+  return settingsRequest<PlanOption[]>(
     accessToken,
-    systemSettingsEndpoints.plans
-  ).then((response) => response.data);
+    "/control/catalog/plans"
+  );
 }

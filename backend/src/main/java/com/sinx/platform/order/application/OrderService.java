@@ -16,9 +16,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
+import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.ServicePlanPrice;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.Coupon;
@@ -71,6 +73,7 @@ public class OrderService {
     private final SurplusValuation surplusValuation;
     private final OrderFulfilmentService fulfilment;
     private final ObjectMapper objectMapper;
+    private final PlatformConfigurationService configuration;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
 
@@ -85,6 +88,7 @@ public class OrderService {
         SurplusValuation surplusValuation,
         OrderFulfilmentService fulfilment,
         ObjectMapper objectMapper,
+        PlatformConfigurationService configuration,
         Clock clock
     ) {
         this.plans = plans;
@@ -97,6 +101,7 @@ public class OrderService {
         this.surplusValuation = surplusValuation;
         this.fulfilment = fulfilment;
         this.objectMapper = objectMapper;
+        this.configuration = configuration;
         this.clock = clock;
     }
 
@@ -113,6 +118,7 @@ public class OrderService {
         SubscriptionEntitlement entitlement =
             entitlements.findByUserId(userId).orElse(null);
 
+        boolean newUserOffer = validateNewUserOffer(userId, plan, period);
         validatePurchasable(user, plan, period, entitlement, now);
 
         OrderType type = classify(plan, period, entitlement, now);
@@ -125,6 +131,7 @@ public class OrderService {
             now
         );
         SurplusValuation.Surplus surplus = type == OrderType.UPGRADE
+                && (entitlement == null || !entitlement.isTrial())
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
 
@@ -158,7 +165,16 @@ public class OrderService {
         String couponCode
     ) {
         Instant now = Instant.now(clock);
-        UserAccount user = requireUser(userId);
+        // The user row is the serialization point for new-user promotions. It
+        // prevents two simultaneous placements from both observing an eligible
+        // account before either has committed its open order.
+        UserAccount user = users.findByIdForUpdate(userId).orElseThrow(() ->
+            problem(
+                HttpStatus.NOT_FOUND,
+                "USER_NOT_FOUND",
+                "The account does not exist"
+            )
+        );
         ServicePlan plan = requirePlan(planId);
         ServicePlanPrice price = requirePrice(plan, period);
         SubscriptionEntitlement entitlement =
@@ -171,6 +187,7 @@ public class OrderService {
                 "An unpaid order is already open. Pay or cancel it first."
             );
         }
+        boolean newUserOffer = validateNewUserOffer(userId, plan, period);
         validatePurchasable(user, plan, period, entitlement, now);
 
         OrderType type = classify(plan, period, entitlement, now);
@@ -184,6 +201,7 @@ public class OrderService {
             true
         );
         SurplusValuation.Surplus surplus = type == OrderType.UPGRADE
+                && (entitlement == null || !entitlement.isTrial())
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
 
@@ -217,6 +235,7 @@ public class OrderService {
             breakdown,
             coupon.map(applied -> applied.coupon().getId()).orElse(null),
             encode(surplus.consumedOrderIds()),
+            newUserOffer,
             now
         ));
 
@@ -344,6 +363,9 @@ public class OrderService {
         if (period == BillingPeriod.RESET_TRAFFIC) {
             return OrderType.RESET_TRAFFIC;
         }
+        if (entitlement != null && entitlement.isTrial()) {
+            return OrderType.NEW_PURCHASE;
+        }
         if (entitlement == null || !stillCovered(entitlement, now)) {
             return OrderType.NEW_PURCHASE;
         }
@@ -381,6 +403,7 @@ public class OrderService {
         }
 
         boolean holdsThisPlan = entitlement != null
+            && !entitlement.isTrial()
             && entitlement.getPlanId().equals(plan.getId())
             && stillCovered(entitlement, now);
 
@@ -409,6 +432,41 @@ public class OrderService {
                 ) >= perUser) {
             throw rejected("You have reached the purchase limit for this plan");
         }
+    }
+
+    /**
+     * Enforces the configured offer at both quote and placement boundaries.
+     * The configured plan is a dedicated ONETIME traffic package; the promo
+     * classification is persisted on the resulting order rather than inferred
+     * later from mutable settings.
+     */
+    private boolean validateNewUserOffer(
+        UUID userId,
+        ServicePlan plan,
+        BillingPeriod period
+    ) {
+        UUID configuredPlanId = configuration.newUserOfferPlanId().orElse(null);
+        if (!plan.getId().equals(configuredPlanId)) {
+            return false;
+        }
+        if (plan.getPlanType() != PlanType.TRAFFIC_PACKAGE
+                || period != BillingPeriod.ONETIME
+                || !plan.isPublished()
+                || !plan.isSellable()
+                || plan.getPrices().stream().noneMatch(price ->
+                    price.getBillingPeriod() == BillingPeriod.ONETIME
+                )) {
+            throw rejected("This new-user traffic package is not available");
+        }
+        if (orders.existsByUserIdAndStatusIn(userId, Set.of(
+                OrderStatus.COMPLETED,
+                OrderStatus.DISCOUNTED
+            ))) {
+            throw rejected(
+                "The new-user traffic package can only be purchased once"
+            );
+        }
+        return true;
     }
 
     private UserAccount requireUser(UUID userId) {

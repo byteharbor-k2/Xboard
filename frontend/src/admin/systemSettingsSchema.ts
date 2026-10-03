@@ -84,14 +84,27 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       field("tos_url", "用户条款(TOS)URL", "Terms of service URL", "用于跳转到用户条款(TOS)。", "Used to open the terms of service.", "url", "", {
         placeholder: text("请输入用户条款URL，末尾不要/", "Enter terms URL without a trailing slash")
       }),
-      field("stop_register", "停止新用户注册", "Disable new registrations", "开启后任何人都将无法进行注册。", "No one can register after this is enabled.", "toggle", 0),
-      field("try_out_plan_id", "注册试用", "Registration trial", "选择需要试用的订阅，如果没有选项请先前往订阅管理添加。", "Select the trial plan. Add a plan first if no option is available.", "select", 0, {
-        options: [option(0, "关闭", "Disabled")]
+      field("stop_register", "停止新用户注册", "Disable new registrations", "开启后任何人都将无法进行注册。", "No one can register after this is enabled.", "toggle", 0)
+    ]
+  },
+  {
+    id: "new_user",
+    glyph: "✦",
+    title: text("新用户福利", "New user benefits"),
+    description: text(
+      "为新注册用户配置免费试用与专属流量包优惠。套餐权益和价格沿用套餐管理中的设置。",
+      "Configure a trial and a special traffic-package offer for new users. Plan benefits and prices come from plan management."
+    ),
+    fields: [
+      field("try_out_plan_id", "注册试用套餐", "Registration trial plan", "新用户注册成功后立即获得该订阅套餐的流量、限速和权限组；留空则不赠送试用。", "Newly registered users immediately receive this subscription plan's traffic, speed, and access group. Leave blank to disable the trial.", "select", "", {
+        options: [option("", "关闭试用", "Disabled")]
       }),
-      field("try_out_hour", "注册试用时长", "Trial duration", "注册试用时长，单位为小时。", "Trial duration in hours.", "number", 0, {
-        min: 0,
-        placeholder: text("0", "0"),
+      field("try_out_hour", "试用时长（小时）", "Trial duration (hours)", "试用从注册成功时开始计时，默认 3 小时。", "The trial starts at successful registration and defaults to 3 hours.", "number", 3, {
+        min: 1,
         visibleWhen: { key: "try_out_plan_id" }
+      }),
+      field("new_user_offer_plan_id", "新用户专属流量包", "New user traffic-package offer", "选择现有流量包；其一次性价格即为新用户专属优惠价，不会创建额外套餐。", "Choose an existing traffic package. Its one-time price is the special offer price; no extra product is created.", "select", "", {
+        options: [option("", "不展示专属优惠", "No special offer")]
       })
     ]
   },

@@ -46,6 +46,16 @@ export const adminNavigation: AdminNavGroup[] = [
         }
       },
       {
+        id: "new-user-benefits",
+        href: "/admin/system/settings/new-user",
+        glyph: "✦",
+        label: { "zh-CN": "新用户福利", "en-US": "New user benefits" },
+        description: {
+          "zh-CN": "配置注册试用和新用户专属流量包优惠。",
+          "en-US": "Configure registration trials and special new-user traffic offers."
+        }
+      },
+      {
         id: "support-inbox",
         href: "/admin/support",
         glyph: "✉",

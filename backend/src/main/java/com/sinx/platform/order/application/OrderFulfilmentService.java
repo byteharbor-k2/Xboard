@@ -295,6 +295,7 @@ public class OrderFulfilmentService {
                 );
             }
             entitlement.provisionPackage(plan, now);
+            entitlement.markPurchased(now);
             return entitlement;
         }
 
@@ -316,6 +317,7 @@ public class OrderFulfilmentService {
             startsTrafficFresh(order, entitlement),
             now
         );
+        entitlement.markPurchased(now);
         return entitlement;
     }
 
@@ -337,6 +339,7 @@ public class OrderFulfilmentService {
             throw inconsistent(order, "the billing period has no length");
         }
         Instant base = order.getOrderType() == OrderType.UPGRADE
+                || entitlement != null && entitlement.isTrial()
             ? now
             : latestOf(now, entitlement == null ? null : entitlement.getExpiresAt());
         return ZonedDateTime.ofInstant(base, ZoneOffset.UTC)

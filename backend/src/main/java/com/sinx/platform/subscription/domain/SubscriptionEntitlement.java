@@ -66,6 +66,9 @@ public class SubscriptionEntitlement {
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
+    @Column(name = "is_trial", nullable = false)
+    private boolean trial;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -153,6 +156,25 @@ public class SubscriptionEntitlement {
     public void provisionPackage(ServicePlan plan, Instant now) {
         applyPlan(plan, null, now);
         clearCounters(now);
+    }
+
+    /** Marks an entitlement granted without a paid order as a registration trial. */
+    public void markTrial(Instant now) {
+        trial = true;
+        updatedAt = now;
+    }
+
+    /** A completed purchase turns the account's current entitlement into paid service. */
+    public void markPurchased(Instant now) {
+        if (trial) {
+            startsAt = now;
+            nextResetAt = resetPolicy
+                == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+                ? MonthlyResetSchedule.initialBoundary(now)
+                : null;
+        }
+        trial = false;
+        updatedAt = now;
     }
 
     /** Zeroes the counters, leaving the plan and its expiry untouched. */
@@ -341,6 +363,10 @@ public class SubscriptionEntitlement {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isTrial() {
+        return trial;
     }
 
     private long saturatedAdd(long left, long right) {

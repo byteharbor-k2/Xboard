@@ -26,6 +26,7 @@ import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.identity.security.IdentitySecurityProperties;
 import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
+import com.sinx.platform.subscription.application.RegistrationTrialService;
 import com.sinx.platform.identity.application.ScopedSessionService.SessionGrant;
 import com.sinx.platform.shared.web.ApiProblemException;
 
@@ -47,6 +48,7 @@ public class IdentityService {
     private final RegistrationVerificationService registrationVerification;
     private final InvitationService invitations;
     private final PlatformConfigurationService configuration;
+    private final RegistrationTrialService registrationTrial;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
     private final String dummyPasswordHash;
@@ -65,6 +67,7 @@ public class IdentityService {
         RegistrationVerificationService registrationVerification,
         InvitationService invitations,
         PlatformConfigurationService configuration,
+        RegistrationTrialService registrationTrial,
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
@@ -81,6 +84,7 @@ public class IdentityService {
         this.registrationVerification = registrationVerification;
         this.invitations = invitations;
         this.configuration = configuration;
+        this.registrationTrial = registrationTrial;
         this.eventPublisher = eventPublisher;
         this.clock = clock;
         this.dummyPasswordHash = passwordEncoder.encode(
@@ -143,6 +147,7 @@ public class IdentityService {
         } catch (DataIntegrityViolationException exception) {
             throw emailAlreadyRegistered();
         }
+        registrationTrial.grantTo(user, now);
         eventPublisher.publishEvent(new RegistrationCompleted(
             normalizedEmail,
             remoteIp

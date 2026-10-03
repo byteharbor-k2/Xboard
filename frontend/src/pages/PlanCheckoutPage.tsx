@@ -27,6 +27,7 @@ const copy = {
     loading: "正在加载套餐…",
     notFound: "套餐不存在或已下架",
     planDetail: "套餐详情",
+    newUserOffer: "新用户专属流量包 · 仅可购买一次",
     serviceNotes: "服务说明",
     traffic: "流量",
     speed: "速度限制",
@@ -61,6 +62,7 @@ const copy = {
     loading: "Loading plan…",
     notFound: "This plan does not exist or is no longer on sale",
     planDetail: "Plan details",
+    newUserOffer: "New-user traffic package · One-time purchase",
     serviceNotes: "What is included",
     traffic: "Traffic",
     speed: "Speed limit",
@@ -115,7 +117,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
   useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchPlanOffer(planId)
+      fetchPlanOffer(planId, accessToken)
       .then((result) => {
         if (!active) return;
         setOffer(result);
@@ -132,7 +134,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
     return () => {
       active = false;
     };
-  }, [planId, text.notFound]);
+  }, [accessToken, planId, text.notFound]);
 
   const refreshQuote = useCallback(
     async (chosen: BillingPeriod, coupon: string) => {
@@ -237,6 +239,11 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
       <div className="checkout-grid">
         <section className="checkout-card checkout-detail">
           <p className="checkout-plan-name">{offer.name}</p>
+          {offer.newUserOffer && (
+            <p className="new-user-offer-badge checkout-offer-badge">
+              {text.newUserOffer}
+            </p>
+          )}
           <h2>{text.planDetail}</h2>
           <ul className="checkout-facts">
             <li>

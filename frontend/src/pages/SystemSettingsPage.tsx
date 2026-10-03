@@ -36,6 +36,7 @@ import { useAdminAuthStore } from "../store/adminAuth";
 
 const sectionPaths: Record<SystemSettingsSection, string> = {
   site: "/admin/system/settings",
+  new_user: "/admin/system/settings/new-user",
   support: "/admin/system/settings/support",
   safe: "/admin/system/settings/safe",
   subscribe: "/admin/system/settings/subscribe",
@@ -467,9 +468,9 @@ export function SystemSettingsPage() {
   });
 
   const plans = useQuery({
-    queryKey: ["admin-plans", "settings-trial"],
+    queryKey: ["admin-plans", "settings-new-user-benefits"],
     queryFn: () => getPlanOptions(accessToken),
-    enabled: selectedSection === "site",
+    enabled: selectedSection === "new_user",
     retry: false
   });
 
@@ -635,19 +636,29 @@ export function SystemSettingsPage() {
     }
 
     if (field.type === "select") {
-      const options =
-        field.key === "try_out_plan_id"
-          ? [
-              ...(field.options ?? []),
-              ...(plans.data ?? []).map((plan) => ({
-                value: plan.id,
-                label: {
-                  "zh-CN": plan.name,
-                  "en-US": plan.name
-                }
-              }))
-            ]
-          : field.options;
+      const eligiblePlans = (plans.data ?? []).filter((plan) => {
+        if (field.key === "try_out_plan_id") {
+          return plan.planType === "SUBSCRIPTION";
+        }
+        if (field.key === "new_user_offer_plan_id") {
+          return plan.planType === "TRAFFIC_PACKAGE" &&
+            plan.prices.some((price) => price.period === "ONETIME");
+        }
+        return false;
+      });
+      const options = field.key === "try_out_plan_id" ||
+        field.key === "new_user_offer_plan_id"
+        ? [
+            ...(field.options ?? []),
+            ...eligiblePlans.map((plan) => ({
+              value: plan.id,
+              label: {
+                "zh-CN": plan.name,
+                "en-US": plan.name
+              }
+            }))
+          ]
+        : field.options;
       return (
         <select
           value={inputValue(field, value)}

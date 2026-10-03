@@ -24,6 +24,7 @@ import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
@@ -76,6 +77,7 @@ class OrderServicePlacementTest {
             mock(SurplusValuation.class),
             fulfilment,
             new ObjectMapper(),
+            mock(PlatformConfigurationService.class),
             Clock.fixed(NOW, ZoneOffset.UTC)
         );
         user = UserAccount.register(
@@ -89,6 +91,7 @@ class OrderServicePlacementTest {
         );
         plan = plan();
         when(users.findById(user.getId())).thenReturn(Optional.of(user));
+        when(users.findByIdForUpdate(user.getId())).thenReturn(Optional.of(user));
         when(plans.findById(plan.getId())).thenReturn(Optional.of(plan));
         when(entitlements.findByUserId(user.getId())).thenReturn(Optional.empty());
         when(orders.existsByUserIdAndStatusIn(any(), any())).thenReturn(false);

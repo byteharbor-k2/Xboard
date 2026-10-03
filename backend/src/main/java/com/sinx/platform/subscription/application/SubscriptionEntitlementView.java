@@ -24,7 +24,8 @@ public record SubscriptionEntitlementView(
     TrafficResetPolicy resetPolicy,
     Instant startsAt,
     Instant expiresAt,
-    Instant nextResetAt
+    Instant nextResetAt,
+    boolean isTrial
 ) {
     static SubscriptionEntitlementView from(
         SubscriptionEntitlement entitlement,
@@ -55,7 +56,8 @@ public record SubscriptionEntitlementView(
             entitlement.getResetPolicy(),
             entitlement.getStartsAt(),
             entitlement.getExpiresAt(),
-            entitlement.getNextResetAt()
+            entitlement.getNextResetAt(),
+            entitlement.isTrial()
         );
     }
 }
