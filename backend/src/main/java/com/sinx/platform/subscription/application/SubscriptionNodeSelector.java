@@ -34,7 +34,8 @@ import tools.jackson.databind.ObjectMapper;
  *       report. A second gate here would make a node vanish from subscriptions
  *       while it is still being pushed users, which is the one state that
  *       cannot be explained to a customer.</li>
- *   <li>The account's node identity is the account id itself, matching
+ *   <li>The account's node identity is its independently rotatable proxy UUID,
+ *       matching
  *       {@code NodeProtocolService.userPayload}. It is not the uuid column the
  *       node database carries for other purposes.</li>
  * </ul>
@@ -71,7 +72,7 @@ public class SubscriptionNodeSelector {
             return List.of();
         }
 
-        String identity = user.getId().toString();
+        String identity = user.getProxyUuid().toString();
         List<NodeClientView> selected = new ArrayList<>();
         for (ProxyNode node : nodes.findByEnabledTrueAndShowTrueOrderBySortOrderAscIdAsc()) {
             if (!serves(node, groupId)) {

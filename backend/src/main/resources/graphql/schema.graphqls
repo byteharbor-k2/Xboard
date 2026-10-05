@@ -9,6 +9,10 @@ type Query {
     siteName: String!
     viewer: Viewer!
     deviceSessions: [DeviceSession!]!
+    """Nodes this account can currently use, without client credentials."""
+    viewerNodes: [ViewerNode!]!
+    """Invitation codes owned by this account and their configured limits."""
+    viewerInvitations: ViewerInvitationSummary!
     offerCatalog: [PlanOffer!]!
     planOffer(id: ID!): PlanOffer
     viewerEntitlement: SubscriptionEntitlement
@@ -46,10 +50,12 @@ type Mutation {
     revokeDeviceSession(id: ID!): Boolean!
     """
     Retires the current subscription link and answers with its replacement. The
-    old address stops working as soon as this returns, which is the only reason
-    to call it.
+    old address stops working as soon as this returns. The account's node
+    credentials are rotated at the same time.
     """
     rotateSubscriptionCredential: String
+    """Creates one invitation code for this account, subject to configured limits."""
+    createInvitationCode: InvitationCode!
     updateViewerProfile(displayName: String!): Viewer!
     """
     Sets the account's own reminder-mail switches. Returns the whole viewer so
@@ -126,6 +132,37 @@ type DeviceSession {
     lastUsedAt: String!
     expiresAt: String!
     current: Boolean!
+}
+
+type ViewerNode {
+    id: ID!
+    name: String!
+    protocol: String!
+    """The current node traffic multiplier, including any scheduled override."""
+    trafficRate: String!
+    onlineStatus: ViewerNodeOnlineStatus!
+    lastSeenAt: String
+    tags: [String!]!
+}
+
+enum ViewerNodeOnlineStatus {
+    ONLINE
+    OFFLINE
+    UNKNOWN
+}
+
+type InvitationCode {
+    id: ID!
+    code: String!
+    createdAt: String!
+}
+
+type ViewerInvitationSummary {
+    codes: [InvitationCode!]!
+    availableCodeCount: Int!
+    invitedUserCount: Int!
+    generationLimit: Int!
+    neverExpire: Boolean!
 }
 
 type PlanOffer {

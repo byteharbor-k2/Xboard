@@ -119,6 +119,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### P2
 
+- [ ] User-core completion (invitations, paired subscription/proxy credential reset, real viewer nodes): implementation, 604-test full backend gate and independent review passed; pending dev deployment and browser/node acceptance. Invitation cache and node panel are scoped to viewer identity. V31 preserves initial credentials and immutable account IDs; user/admin reset shares one locked transaction and after-commit node synchronization.
 - [ ] Turnstile configuration/retry refinement: implementation and independent review passed; backend full gate (604 tests), frontend build/check/audit passed. Pending deployment and desktop/mobile browser acceptance. Keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
@@ -131,8 +132,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] 独立订阅域名：后台配多个域名 + 按用户确定性轮发
 - [ ] 订阅访问限速：每用户每秒最多 2 次
 - [ ] 客户端版本闸门（原版 `protocolRequirements`）
-- [ ] 真实客户端导入验证（目前只验过输出结构与 `curl -A` 响应）
-- [ ] 用户侧：知识库 / 流量明细 / 邀请页接后端、订阅分类页签、续费提醒、通知中心
+- [x] Real client import/connectivity baseline: external sing-box and xboard-node acceptance recorded in §7; current VLESS Reality configuration remains a separate user follow-up.
+- [ ] User-side remaining delivery: invitation page browser acceptance (implementation ready), subscription category tabs, notification center. Knowledge base, traffic details and renewal reminders are complete (§3).
 
 ### 上线验收
 

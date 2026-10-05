@@ -79,6 +79,14 @@ public class UserAccount {
     private String subscriptionToken;
 
     /**
+     * The UUID xboard-node uses to authenticate this account's proxy traffic.
+     * It is independent of {@link #id}, which remains the stable account key
+     * used by sessions, orders and other foreign keys.
+     */
+    @Column(name = "proxy_uuid")
+    private UUID proxyUuid;
+
+    /**
      * Whether the daily sweep may send this account the expiry reminder.
      *
      * Defaults to on, like the original panel's {@code remind_expire}, so an
@@ -135,6 +143,8 @@ public class UserAccount {
         user.displayName = displayName;
         user.status = UserStatus.ACTIVE;
         user.subscriptionToken = requireSubscriptionToken(subscriptionToken);
+        // Keep the original node credential until a customer explicitly rotates it.
+        user.proxyUuid = id;
         user.remindExpire = true;
         user.remindTraffic = true;
         user.createdAt = now;
@@ -291,6 +301,26 @@ public class UserAccount {
 
     public String getSubscriptionToken() {
         return subscriptionToken;
+    }
+
+    /**
+     * The proxy credential UUID, falling back to the account UUID for legacy
+     * rows and SQL fixtures that predate the independent credential column.
+     */
+    public UUID getProxyUuid() {
+        return proxyUuid == null ? id : proxyUuid;
+    }
+
+    /**
+     * Replaces only the credential presented to proxy nodes. The account key
+     * remains stable so sessions, orders and entitlement relationships survive.
+     */
+    public void rotateProxyUuid(UUID proxyUuid, Instant now) {
+        if (proxyUuid == null) {
+            throw new IllegalArgumentException("A proxy UUID cannot be null");
+        }
+        this.proxyUuid = proxyUuid;
+        this.updatedAt = now;
     }
 
     /**

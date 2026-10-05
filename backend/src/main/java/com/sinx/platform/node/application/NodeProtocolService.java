@@ -428,7 +428,7 @@ public class NodeProtocolService {
         UserAccount user = entitlement.getUser();
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("id", user.getNodeUserId());
-        value.put("uuid", user.getId().toString());
+        value.put("uuid", user.getProxyUuid().toString());
         value.put("speed_limit", entitlement.getSpeedLimitMbps() == null ? 0 : entitlement.getSpeedLimitMbps());
         // Always zero: the per-plan device ceiling was removed, so no plan caps
         // how many devices may connect. The key itself stays on the wire because

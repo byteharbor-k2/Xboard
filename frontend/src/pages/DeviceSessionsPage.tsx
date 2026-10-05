@@ -53,12 +53,13 @@ const copy = {
     revoke: "撤销",
     credentialTitle: "订阅凭据",
     credentialDescription:
-      "订阅地址本身就是凭据，任何拿到它的人都能读取你的节点配置。如果链接曾经外泄，在这里重置：旧地址立即失效，已导入的客户端需要重新导入。",
-    rotate: "重置订阅链接",
+      "订阅地址和导入客户端使用的代理凭据都可用于访问节点。如果任一凭据曾经外泄，在这里重置：旧订阅地址立即失效，节点代理凭据也会更换。",
+    rotate: "重置订阅凭据",
     rotateConfirm:
-      "重置后旧地址立即失效，已经导入的客户端需要重新导入。确定继续吗？",
-    rotateFailed: "订阅链接重置失败",
-    rotated: "订阅链接已重置。请到仪表盘的「快速开始使用」重新导入客户端。"
+      "重置会立即使旧订阅地址失效，并更换已导入客户端使用的代理凭据。你需要刷新订阅并重新导入客户端。确定继续吗？",
+    rotateFailed: "订阅凭据重置失败",
+    rotated:
+      "订阅地址和代理凭据均已重置。请刷新订阅，并到仪表盘的「快速开始使用」重新导入客户端。"
   },
   "en-US": {
     title: "Signed-in devices",
@@ -73,13 +74,13 @@ const copy = {
     revoke: "Revoke",
     credentialTitle: "Subscription credential",
     credentialDescription:
-      "The subscription address is the credential itself — anyone who has it can read your node config. Reset it here if the link ever leaked: the old address stops working at once, and clients that already imported it must import the new one.",
-    rotate: "Reset subscription link",
+      "Both the subscription URL and the proxy credential imported by your clients grant access to nodes. Reset them here if either credential leaked: the old URL stops working at once and the node-facing proxy UUID is replaced.",
+    rotate: "Reset credentials",
     rotateConfirm:
-      "The old link stops working immediately and clients that already imported it must import the new one. Continue?",
-    rotateFailed: "The subscription link could not be reset",
+      "This immediately invalidates the old subscription URL and replaces the proxy credential already imported by clients. You will need to refresh the subscription and re-import clients. Continue?",
+    rotateFailed: "The subscription credentials could not be reset",
     rotated:
-      "The subscription link has been reset. Re-import your client from the dashboard's Quick start."
+      "The subscription URL and proxy credential have both been reset. Refresh the subscription and re-import clients from the dashboard's Quick start."
   }
 };
 

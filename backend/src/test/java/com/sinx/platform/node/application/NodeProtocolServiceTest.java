@@ -52,6 +52,7 @@ class NodeProtocolServiceTest {
         when(user.getStatus()).thenReturn(UserStatus.ACTIVE);
         when(user.getNodeUserId()).thenReturn(101L);
         when(user.getId()).thenReturn(userId);
+        when(user.getProxyUuid()).thenReturn(userId);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
@@ -212,6 +213,7 @@ class NodeProtocolServiceTest {
         UUID ledgerUserId =
             UUID.fromString("00000000-0000-0000-0000-000000000201");
         when(user.getId()).thenReturn(ledgerUserId);
+        when(user.getProxyUuid()).thenReturn(ledgerUserId);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);
@@ -445,7 +447,9 @@ class NodeProtocolServiceTest {
         SubscriptionEntitlement entitlement = mock(SubscriptionEntitlement.class);
         when(user.getStatus()).thenReturn(UserStatus.ACTIVE);
         when(user.getNodeUserId()).thenReturn(nodeUserId);
-        when(user.getId()).thenReturn(new UUID(0, nodeUserId));
+        UUID userId = new UUID(0, nodeUserId);
+        when(user.getId()).thenReturn(userId);
+        when(user.getProxyUuid()).thenReturn(userId);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(10L);
         when(entitlement.stateAt(NOW)).thenReturn(EntitlementState.ACTIVE);

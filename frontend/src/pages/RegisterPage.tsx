@@ -113,7 +113,9 @@ export function RegisterPage() {
   const [emailCode, setEmailCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
+  const [inviteCode, setInviteCode] = useState(
+    () => new URLSearchParams(window.location.search).get("invite") ?? ""
+  );
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileReset, setTurnstileReset] = useState(0);
   const [turnstileWidgetAttempt, setTurnstileWidgetAttempt] = useState(0);

@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.identity.repository.UserAccountRepository;
-import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 
 @Service
@@ -18,20 +17,20 @@ public class SubscriptionService {
     private final SubscriptionEntitlementRepository entitlementRepository;
     private final UserAccountRepository users;
     private final SubscriptionLinkService links;
-    private final IdentityTokenService tokens;
+    private final SubscriptionCredentialRotationService credentialRotations;
     private final Clock clock;
 
     public SubscriptionService(
         SubscriptionEntitlementRepository entitlementRepository,
         UserAccountRepository users,
         SubscriptionLinkService links,
-        IdentityTokenService tokens,
+        SubscriptionCredentialRotationService credentialRotations,
         Clock clock
     ) {
         this.entitlementRepository = entitlementRepository;
         this.users = users;
         this.links = links;
-        this.tokens = tokens;
+        this.credentialRotations = credentialRotations;
         this.clock = clock;
     }
 
@@ -61,21 +60,12 @@ public class SubscriptionService {
     /**
      * Retires the current subscription link and answers with the new one.
      *
-     * A customer asks for this when a link has leaked - it was pasted into a
-     * chat, it is on a screenshot, a shared computer kept it - and the only
-     * thing that makes that request worth anything is that the old address stops
-     * working immediately. There is nothing to revoke besides the token itself:
-     * no session, no config cached anywhere, so writing the new value is the
-     * whole of it.
+     * A customer asks for this when a link or imported proxy credential has
+     * leaked. The URL token and node-facing UUID change together; account
+     * identity and login sessions remain untouched.
      */
     @Transactional
     public Optional<String> rotateSubscriptionCredential(UUID userId) {
-        return users.findById(userId).map(user -> {
-            user.rotateSubscriptionToken(
-                tokens.newOpaqueToken(),
-                Instant.now(clock)
-            );
-            return links.subscriptionUrl(user);
-        });
+        return credentialRotations.rotate(userId).map(links::subscriptionUrl);
     }
 }

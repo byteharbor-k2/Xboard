@@ -8,10 +8,7 @@ import {
   AnnouncementCarousel,
   type PortalAnnouncement
 } from "../components/AnnouncementCarousel";
-import {
-  NetworkGlobe,
-  type NetworkMapNode
-} from "../components/NetworkGlobe";
+import { ViewerNodePanel } from "../components/ViewerNodePanel";
 import {
   ApiError,
   graphQl
@@ -28,28 +25,11 @@ import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import type { SubscriptionEntitlement } from "../types";
 
-const networkPreviewNodes: NetworkMapNode[] = [
-  { id: "hkg-01", label: "Hong Kong 01", latitude: 22.3, longitude: 114.2, state: "AVAILABLE" },
-  { id: "hkg-02", label: "Hong Kong 02", latitude: 24.2, longitude: 112.2, state: "AVAILABLE" },
-  { id: "hkg-03", label: "Hong Kong 03", latitude: 20.7, longitude: 116.1, state: "AVAILABLE" },
-  { id: "tyo-01", label: "Tokyo 01", latitude: 35.7, longitude: 139.7, state: "AVAILABLE" },
-  { id: "tyo-02", label: "Tokyo 02", latitude: 37.4, longitude: 137.3, state: "AVAILABLE" },
-  { id: "osa-01", label: "Osaka 01", latitude: 34.7, longitude: 135.5, state: "AVAILABLE" },
-  { id: "kul-01", label: "Kuala Lumpur 01", latitude: 3.1, longitude: 101.7, state: "AVAILABLE" },
-  { id: "sin-01", label: "Singapore 01", latitude: 1.4, longitude: 103.8, state: "AVAILABLE" },
-  { id: "fra-01", label: "Frankfurt 01", latitude: 50.1, longitude: 8.7, state: "AVAILABLE" },
-  { id: "fra-02", label: "Frankfurt 02", latitude: 48.6, longitude: 11.2, state: "AVAILABLE" },
-  { id: "lax-01", label: "Los Angeles 01", latitude: 34.1, longitude: -118.2, state: "AVAILABLE" },
-  { id: "lax-02", label: "Los Angeles 02", latitude: 36.2, longitude: -116.5, state: "AVAILABLE" },
-  { id: "sea-01", label: "Seattle 01", latitude: 47.6, longitude: -122.3, state: "AVAILABLE" },
-  { id: "syd-01", label: "Sydney 01", latitude: -33.9, longitude: 151.2, state: "AVAILABLE" }
-];
-
 const copy = {
   "zh-CN": {
     kicker: "PRIVATE NETWORK",
     greeting: "欢迎回来",
-    description: "订阅状态、用量和全球网络，一眼掌握。",
+    description: "当前订阅、用量与可用节点，一眼掌握。",
     announcement: "公告",
     previousAnnouncement: "上一篇公告",
     nextAnnouncement: "下一篇公告",
@@ -75,20 +55,12 @@ const copy = {
     quickStart: "快速开始使用",
     quickStartHint:
       "订阅地址不再直接显示。选择客户端后复制链接或扫码导入；链接本身就是凭据，请勿分享。",
-    chooseClient: "订阅导入",
-    networkTitle: "全球节点网络",
-    networkDescription: "从地图查看服务覆盖与节点状态。",
-    availableNodes: "可用节点",
-    locations: "覆盖区域",
-    live: "运行正常",
-    preview: "界面预览",
-    previewDescription: "实时节点接口接入后，将自动替换当前预览数据。",
-    selectedNode: "当前节点"
+    chooseClient: "订阅导入"
   },
   "en-US": {
     kicker: "PRIVATE NETWORK",
     greeting: "Welcome back",
-    description: "Your subscription, usage, and global network at a glance.",
+    description: "Your subscription, usage, and available nodes at a glance.",
     announcement: "Announcement",
     previousAnnouncement: "Previous announcement",
     nextAnnouncement: "Next announcement",
@@ -114,15 +86,7 @@ const copy = {
     quickStart: "Quick start",
     quickStartHint:
       "The address is no longer shown here. Choose your client, then copy the link or scan its QR code. The link is the credential itself — do not share it.",
-    chooseClient: "Import subscription",
-    networkTitle: "Global node network",
-    networkDescription: "Explore service coverage and node availability.",
-    availableNodes: "Available nodes",
-    locations: "Regions",
-    live: "Operational",
-    preview: "UI preview",
-    previewDescription: "Live node data will replace this preview after the new endpoint is connected.",
-    selectedNode: "Selected node"
+    chooseClient: "Import subscription"
   }
 };
 
@@ -139,9 +103,6 @@ export function AccountOverviewPage() {
   const [siteName, setSiteName] = useState("");
   const [balanceMinor, setBalanceMinor] = useState<string>();
   const [clientChooserOpen, setClientChooserOpen] = useState(false);
-  const [selectedNode, setSelectedNode] = useState<NetworkMapNode>(
-    networkPreviewNodes[0]
-  );
   const [announcements, setAnnouncements] = useState<PortalAnnouncement[]>([]);
   const [selectedNotice, setSelectedNotice] = useState<{ id: string; title: string; content: string; imgUrl?: string | null } | null>(null);
   const [noticeDetails, setNoticeDetails] = useState<Record<string, { id: string; title: string; content: string; imgUrl?: string | null }>>({});
@@ -390,39 +351,7 @@ export function AccountOverviewPage() {
             />
           )}
         </section>
-        <section className="network-atlas-card">
-          <header>
-            <div>
-              <span>{labels.live}</span>
-              <h2>{labels.networkTitle}</h2>
-              <p>{labels.networkDescription}</p>
-            </div>
-            <strong>{networkPreviewNodes.length}</strong>
-          </header>
-          <NetworkGlobe
-            nodes={networkPreviewNodes}
-            onSelect={setSelectedNode}
-            selectedNodeId={selectedNode.id}
-          />
-          <div className="network-atlas-stats">
-            <div>
-              <span>{labels.availableNodes}</span>
-              <strong>{networkPreviewNodes.length}</strong>
-            </div>
-            <div>
-              <span>{labels.locations}</span>
-              <strong>8</strong>
-            </div>
-            <div>
-              <span>{labels.selectedNode}</span>
-              <strong>{selectedNode.label}</strong>
-            </div>
-          </div>
-          <p className="network-preview-note">
-            <span>{labels.preview}</span>
-            {labels.previewDescription}
-          </p>
-        </section>
+        <ViewerNodePanel key={viewer.id} accessToken={accessToken} language={language} />
       </section>
     </AppShell>
   );

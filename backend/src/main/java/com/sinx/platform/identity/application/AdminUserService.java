@@ -25,11 +25,11 @@ import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
 import com.sinx.platform.identity.repository.UserAccountRepository;
-import com.sinx.platform.identity.security.IdentityTokenService;
 import com.sinx.platform.node.application.NodeDeviceStateService;
 import com.sinx.platform.notification.email.ConfiguredNotificationMailSender;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.application.SubscriptionLinkService;
+import com.sinx.platform.subscription.application.SubscriptionCredentialRotationService;
 import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
@@ -64,8 +64,8 @@ public class AdminUserService {
     private final ServicePlanRepository plans;
     private final NodeDeviceStateService deviceStates;
     private final PasswordEncoder passwordEncoder;
-    private final IdentityTokenService tokens;
     private final SubscriptionLinkService subscriptionLinks;
+    private final SubscriptionCredentialRotationService credentialRotations;
     private final DeviceSessionRepository deviceSessions;
     private final ConfiguredNotificationMailSender mail;
     private final ApplicationEventPublisher events;
@@ -78,8 +78,8 @@ public class AdminUserService {
         ServicePlanRepository plans,
         NodeDeviceStateService deviceStates,
         PasswordEncoder passwordEncoder,
-        IdentityTokenService tokens,
         SubscriptionLinkService subscriptionLinks,
+        SubscriptionCredentialRotationService credentialRotations,
         DeviceSessionRepository deviceSessions,
         ConfiguredNotificationMailSender mail,
         ApplicationEventPublisher events,
@@ -91,8 +91,8 @@ public class AdminUserService {
         this.plans = plans;
         this.deviceStates = deviceStates;
         this.passwordEncoder = passwordEncoder;
-        this.tokens = tokens;
         this.subscriptionLinks = subscriptionLinks;
+        this.credentialRotations = credentialRotations;
         this.deviceSessions = deviceSessions;
         this.mail = mail;
         this.events = events;
@@ -260,10 +260,13 @@ public class AdminUserService {
      */
     @Transactional
     public String resetSubscriptionToken(UUID userId) {
-        UserAccount account = requireForUpdate(userId);
-        String token = tokens.newOpaqueToken();
-        account.rotateSubscriptionToken(token, clock.instant());
-        return subscriptionLinks.subscriptionUrl(token);
+        return credentialRotations.rotate(userId)
+            .map(subscriptionLinks::subscriptionUrl)
+            .orElseThrow(() -> problem(
+                HttpStatus.NOT_FOUND,
+                "USER_NOT_FOUND",
+                "The account does not exist"
+            ));
     }
 
     /**

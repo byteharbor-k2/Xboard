@@ -137,7 +137,9 @@ class SubscriptionNodeSelectorTest {
         SubscriptionEntitlement entitlement = mock(SubscriptionEntitlement.class);
         when(user.getStatus()).thenReturn(status);
         when(user.getNodeUserId()).thenReturn(hasNodeIdentity ? nodeUserId : null);
-        when(user.getId()).thenReturn(java.util.UUID.randomUUID());
+        java.util.UUID userId = java.util.UUID.randomUUID();
+        when(user.getId()).thenReturn(userId);
+        when(user.getProxyUuid()).thenReturn(userId);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getEffectiveServerGroupId()).thenReturn(groupId);
         return entitlement;

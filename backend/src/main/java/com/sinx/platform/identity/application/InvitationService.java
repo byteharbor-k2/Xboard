@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.InviteCode;
 import com.sinx.platform.identity.repository.InviteCodeRepository;
+import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 
 @Service
@@ -24,16 +25,19 @@ public class InvitationService {
         "ABCDEFGHJKLMNPQRSTUVWXYZ23456789".toCharArray();
 
     private final InviteCodeRepository inviteCodes;
+    private final UserAccountRepository users;
     private final PlatformConfigurationService configuration;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Clock clock;
 
     public InvitationService(
         InviteCodeRepository inviteCodes,
+        UserAccountRepository users,
         PlatformConfigurationService configuration,
         Clock clock
     ) {
         this.inviteCodes = inviteCodes;
+        this.users = users;
         this.configuration = configuration;
         this.clock = clock;
     }
@@ -68,6 +72,12 @@ public class InvitationService {
 
     @Transactional
     public InviteCode create(UUID userId) {
+        // Serialize a user's code creations so two concurrent requests cannot
+        // both pass the configured active-code limit.
+        users.findByIdForUpdate(userId)
+            .orElseThrow(() -> new IllegalStateException(
+                "Invitation owner account is missing"
+            ));
         int limit = configuration.invitationPolicy().generationLimit();
         if (
             limit <= 0
@@ -102,6 +112,20 @@ public class InvitationService {
                 code.getCreatedAt()
             ))
             .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ViewerInvitationSummary summary(UUID userId) {
+        List<InvitationCodeView> codes = available(userId);
+        PlatformConfigurationService.InvitationPolicy policy =
+            configuration.invitationPolicy();
+        return new ViewerInvitationSummary(
+            codes,
+            codes.size(),
+            Math.toIntExact(users.countByInviterUserId(userId)),
+            policy.generationLimit(),
+            policy.neverExpire()
+        );
     }
 
     private String randomCode() {
@@ -141,6 +165,15 @@ public class InvitationService {
         UUID id,
         String code,
         Instant createdAt
+    ) {
+    }
+
+    public record ViewerInvitationSummary(
+        List<InvitationCodeView> codes,
+        int availableCodeCount,
+        int invitedUserCount,
+        int generationLimit,
+        boolean neverExpire
     ) {
     }
 }

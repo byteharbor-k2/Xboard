@@ -31,6 +31,8 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
 
     long countByServerGroupId(Long serverGroupId);
 
+    long countByInviterUserId(UUID inviterUserId);
+
     /**
      * The administrator's user list.
      *
