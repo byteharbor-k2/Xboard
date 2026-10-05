@@ -75,6 +75,7 @@ const copy = {
     subscriptionFormat: "订阅入口固定为 {path}/xxxxxxxxxx，不可自定义。",
     generateToken: "生成随机通信密钥",
     rangeError: "请输入 {min} 到 {max} 之间的整数。",
+    turnstileIncomplete: "Cloudflare Turnstile 配置不完整：请填写公开站点密钥和服务器密钥。启用开关不会绕过缺失配置，公开注册请求将被拒绝。",
     templateName: "邮件模板",
     subject: "邮件主题",
     content: "模板内容 (HTML)",
@@ -114,6 +115,7 @@ const copy = {
       "The subscription endpoint is fixed at {path}/xxxxxxxxxx and is not configurable.",
     generateToken: "Generate a random communication key",
     rangeError: "Enter an integer between {min} and {max}.",
+    turnstileIncomplete: "Cloudflare Turnstile is incomplete. Enter both the public site key and server secret. Enabling the switch does not bypass missing configuration; public registration requests will be refused.",
     templateName: "Email template",
     subject: "Email subject",
     content: "Template content (HTML)",
@@ -491,11 +493,33 @@ export function SystemSettingsPage() {
     onSuccess: (_response, request) => {
       queryClient.setQueryData<SettingsValues>(
         ["admin-system-settings", request.section],
-        (current) => ({
-          ...(current ?? {}),
-          [request.key]: request.value
-        })
+        (current) => {
+          const next = {
+            ...(current ?? {}),
+            [request.key]: request.value
+          };
+          if (
+            request.section === "safe" &&
+            request.key === "turnstile_secret_key" &&
+            typeof request.value === "string" &&
+            request.value.trim()
+          ) {
+            next.turnstile_secret_key_configured = true;
+          }
+          return next;
+        }
       );
+      if (
+        request.section === "safe" &&
+        request.key === "turnstile_secret_key" &&
+        typeof request.value === "string" &&
+        request.value.trim()
+      ) {
+        setDraft((current) => ({
+          ...current,
+          turnstile_secret_key_configured: true
+        }));
+      }
       if (currentSection.current === request.section) {
         setStatus(labels.autoSaved);
       }
@@ -607,9 +631,6 @@ export function SystemSettingsPage() {
   }
 
   function isVisible(field: SettingsField) {
-    if (field.key.startsWith("turnstile") && !draft.captcha_enable) {
-      return false;
-    }
     if (!field.visibleWhen) return true;
     const current = draft[field.visibleWhen.key];
     return field.visibleWhen.value === undefined
@@ -619,6 +640,16 @@ export function SystemSettingsPage() {
 
   function renderControl(field: SettingsField) {
     const value = draft[field.key] ?? field.defaultValue;
+
+    if (field.type === "status") {
+      return (
+        <strong className="settings-readonly-value">
+          {Boolean(value)
+            ? language === "zh-CN" ? "已保存" : "Configured"
+            : language === "zh-CN" ? "未配置" : "Not configured"}
+        </strong>
+      );
+    }
 
     if (field.type === "toggle") {
       const enabled = Boolean(value);
@@ -870,6 +901,15 @@ export function SystemSettingsPage() {
                   ⓘ {labels.subscriptionFormat.replace("{path}", "/sub")}
                 </div>
               )}
+
+              {selectedSection === "safe" &&
+                Boolean(draft.captcha_enable) &&
+                (!String(draft.turnstile_site_key ?? "").trim() ||
+                  !Boolean(draft.turnstile_secret_key_configured)) && (
+                  <div className="settings-info">
+                    ⓘ {labels.turnstileIncomplete}
+                  </div>
+                )}
 
               {selectedSection === "server" &&
                 Boolean(draft.server_ws_enable) && (

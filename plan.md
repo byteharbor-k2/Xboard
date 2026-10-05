@@ -1,6 +1,6 @@
 # SinX Platform 开发计划
 
-> 分支 `dev` · 更新 2026-10-03
+> 分支 `dev` · 更新 2026-10-05
 
 ## 1. 目标
 
@@ -119,6 +119,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### P2
 
+- [ ] Turnstile configuration/retry refinement: implementation and independent review passed; backend full gate (604 tests), frontend build/check/audit passed. Pending deployment and desktop/mobile browser acceptance. Keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）

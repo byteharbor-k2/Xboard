@@ -43,7 +43,10 @@ const copy = {
     inviteRequired: "必填",
     finishInvitation: "请输入邀请码",
     verifyAgain: "验证码发送后，请再次完成人机验证再提交注册。",
-    turnstileIncomplete: "人机验证配置不完整。",
+    turnstileIncomplete: "人机验证配置不完整，请联系管理员补充 Cloudflare Turnstile 的站点密钥和服务器密钥。",
+    turnstileInstructions: "请先完成人机验证，再发送邮箱验证码或提交注册。发送邮箱验证码会消耗本次验证；提交注册前需要重新验证。",
+    turnstileRetry: "人机验证暂不可用或已过期，请重试。",
+    retryHumanCheck: "重试人机验证",
     termsPrefix: "我已阅读并同意",
     terms: "用户条款",
     submitting: "正在创建…",
@@ -79,7 +82,10 @@ const copy = {
     inviteRequired: "Required",
     finishInvitation: "Enter an invitation code",
     verifyAgain: "Complete the human check again before submitting.",
-    turnstileIncomplete: "Human verification is not fully configured.",
+    turnstileIncomplete: "Human verification is not fully configured. Ask the administrator to provide both the Cloudflare Turnstile site key and server secret.",
+    turnstileInstructions: "Complete the human check before requesting an email code or submitting registration. Sending the email code consumes this proof; complete a fresh check before registering.",
+    turnstileRetry: "Human verification is unavailable or expired. Please retry.",
+    retryHumanCheck: "Retry human verification",
     termsPrefix: "I have read and agree to the",
     terms: "Terms of Service",
     submitting: "Creating…",
@@ -110,6 +116,8 @@ export function RegisterPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
   const [turnstileReset, setTurnstileReset] = useState(0);
+  const [turnstileWidgetAttempt, setTurnstileWidgetAttempt] = useState(0);
+  const [turnstileMessage, setTurnstileMessage] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [codeSent, setCodeSent] = useState(false);
   const [error, setError] = useState("");
@@ -117,9 +125,16 @@ export function RegisterPage() {
   const [sendingCode, setSendingCode] = useState(false);
   const setSession = useAuthStore((state) => state.setSession);
   const handleTurnstileToken = useCallback(
-    (token: string) => setTurnstileToken(token),
+    (token: string) => {
+      setTurnstileToken(token);
+      if (token) setTurnstileMessage("");
+    },
     []
   );
+  const handleTurnstileError = useCallback(() => {
+    setTurnstileToken("");
+    setTurnstileMessage(labels.turnstileRetry);
+  }, [labels.turnstileRetry]);
 
   useEffect(() => {
     void getRegistrationConfig()
@@ -320,6 +335,37 @@ export function RegisterPage() {
             />
           )}
         </label>
+        {config?.turnstileEnabled && config.turnstileSiteKey && (
+          <div className="registration-human-check">
+            <p>{labels.turnstileInstructions}</p>
+            <TurnstileWidget
+              key={turnstileWidgetAttempt}
+              onError={handleTurnstileError}
+              onToken={handleTurnstileToken}
+              resetCounter={turnstileReset}
+              siteKey={config.turnstileSiteKey}
+            />
+            {turnstileMessage && (
+              <div className="registration-human-check-error">
+                <small>{turnstileMessage}</small>
+                <button
+                  onClick={() => {
+                    setTurnstileToken("");
+                    setTurnstileMessage("");
+                    setTurnstileReset((value) => value + 1);
+                    setTurnstileWidgetAttempt((value) => value + 1);
+                  }}
+                  type="button"
+                >
+                  {labels.retryHumanCheck}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {config?.turnstileEnabled && !config.turnstileSiteKey && (
+          <p className="error-message">{labels.turnstileIncomplete}</p>
+        )}
         {config?.emailVerificationRequired && (
           <label>
             {labels.emailCode}
@@ -387,20 +433,8 @@ export function RegisterPage() {
             onChange={(event) => setInviteCode(event.target.value)}
           />
         </label>
-        {config?.turnstileEnabled && config.turnstileSiteKey && (
-          <>
-            <TurnstileWidget
-              onToken={handleTurnstileToken}
-              resetCounter={turnstileReset}
-              siteKey={config.turnstileSiteKey}
-            />
-            {codeSent && (
-              <small>{labels.verifyAgain}</small>
-            )}
-          </>
-        )}
-        {config?.turnstileEnabled && !config.turnstileSiteKey && (
-          <p className="error-message">{labels.turnstileIncomplete}</p>
+        {config?.turnstileEnabled && codeSent && (
+          <small>{labels.verifyAgain}</small>
         )}
         {config?.termsUrl && (
           <label className="freedom-terms">

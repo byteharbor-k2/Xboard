@@ -7,7 +7,7 @@ type TurnstileApi = {
       sitekey: string;
       callback: (token: string) => void;
       "expired-callback": () => void;
-      "error-callback": () => void;
+      "error-callback": () => boolean;
       theme: "dark";
     }
   ) => string;
@@ -21,16 +21,32 @@ declare global {
   }
 }
 
+function trackTurnstileScriptState(script: HTMLScriptElement) {
+  if (script.dataset.sinxTurnstileStateTracking === "true") return;
+
+  // These shared-script listeners only persist load state. Unlike widget
+  // callbacks, they must outlive an individual component to catch late errors.
+  script.dataset.sinxTurnstileStateTracking = "true";
+  script.addEventListener("load", () => {
+    script.dataset.sinxTurnstileLoaded = "true";
+  });
+  script.addEventListener("error", () => {
+    script.dataset.sinxTurnstileFailed = "true";
+  });
+}
+
 type TurnstileWidgetProps = {
   siteKey: string;
   resetCounter: number;
   onToken: (token: string) => void;
+  onError: () => void;
 };
 
 export function TurnstileWidget({
   siteKey,
   resetCounter,
-  onToken
+  onToken,
+  onError
 }: TurnstileWidgetProps) {
   const container = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
@@ -40,18 +56,36 @@ export function TurnstileWidget({
       if (!container.current || !window.turnstile || widgetId.current) {
         return;
       }
-      widgetId.current = window.turnstile.render(container.current, {
-        sitekey: siteKey,
-        callback: onToken,
-        "expired-callback": () => onToken(""),
-        "error-callback": () => onToken(""),
-        theme: "dark"
-      });
+      try {
+        widgetId.current = window.turnstile.render(container.current, {
+          sitekey: siteKey,
+          callback: (token) => {
+            onToken(token);
+          },
+          "expired-callback": () => {
+            onToken("");
+            onError();
+          },
+          "error-callback": () => {
+            onToken("");
+            onError();
+            return false;
+          },
+          theme: "dark"
+        });
+      } catch {
+        onError();
+      }
     }
 
     let script = document.querySelector<HTMLScriptElement>(
       'script[data-sinx-turnstile="true"]'
     );
+    if (script?.dataset.sinxTurnstileFailed === "true") {
+      script.remove();
+      script = null;
+    }
+    let appendScript = false;
     if (!script) {
       script = document.createElement("script");
       script.src =
@@ -59,19 +93,33 @@ export function TurnstileWidget({
       script.async = true;
       script.defer = true;
       script.dataset.sinxTurnstile = "true";
-      document.head.appendChild(script);
+      appendScript = true;
     }
-    script.addEventListener("load", renderWidget);
+    trackTurnstileScriptState(script);
+    const scriptError = () => {
+      onError();
+    };
+    const scriptLoad = () => {
+      renderWidget();
+      if (!window.turnstile) onError();
+    };
+    script.addEventListener("load", scriptLoad);
+    script.addEventListener("error", scriptError);
+    if (appendScript) document.head.appendChild(script);
     renderWidget();
+    if (script.dataset.sinxTurnstileLoaded === "true" && !window.turnstile) {
+      scriptError();
+    }
 
     return () => {
-      script?.removeEventListener("load", renderWidget);
+      script?.removeEventListener("load", scriptLoad);
+      script?.removeEventListener("error", scriptError);
       if (widgetId.current && window.turnstile) {
         window.turnstile.remove(widgetId.current);
       }
       widgetId.current = null;
     };
-  }, [onToken, siteKey]);
+  }, [onError, onToken, siteKey]);
 
   useEffect(() => {
     if (widgetId.current && window.turnstile) {

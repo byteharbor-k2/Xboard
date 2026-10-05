@@ -159,10 +159,11 @@ class SafetySwitchIntegrationTest {
         saveSetting("register_limit_expire", "30");
         expect(fetchSafe(), "$.data.safe.register_limit_expire", 30);
 
-        // The provider switch stores whatever the operator chose; the
-        // section keeps reporting the provider the platform actually runs
-        // (turnstile) and an unknown stored type simply disables captcha.
+        // Legacy provider values may remain stored, but the section reports
+        // and the policy continues to use the only supported provider.
         saveSetting("captcha_type", "recaptcha");
+        saveSetting("captcha_enable", true);
+        expect(fetchSafe(), "$.data.safe.captcha_type", "turnstile");
         saveSetting("captcha_type", "turnstile");
     }
 

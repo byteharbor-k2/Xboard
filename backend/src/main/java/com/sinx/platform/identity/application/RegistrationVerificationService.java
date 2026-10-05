@@ -84,10 +84,10 @@ public class RegistrationVerificationService {
         }
         configuration.assertEmailDomainAllowed(normalizedEmail);
         configuration.assertGmailAliasAllowed(normalizedEmail);
+        turnstile.verify(turnstileToken, remoteIp);
         if (!configuration.emailVerificationRequired()) {
             return;
         }
-        turnstile.verify(turnstileToken, remoteIp);
         assertRegistrationAllowed(remoteIp);
 
         String emailHash = tokenService.hashOpaqueToken(normalizedEmail);

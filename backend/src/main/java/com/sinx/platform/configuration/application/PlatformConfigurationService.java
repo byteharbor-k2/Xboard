@@ -228,6 +228,10 @@ public class PlatformConfigurationService {
                     ),
                     Map.entry("turnstile_secret_key", ""),
                     Map.entry(
+                        "turnstile_secret_key_configured",
+                        turnstile.secretKey() != null
+                    ),
+                    Map.entry(
                         "register_limit_by_ip_enable",
                         registrationIpLimit().enabled()
                     ),
@@ -562,10 +566,8 @@ public class PlatformConfigurationService {
 
     public TurnstilePolicy turnstilePolicy() {
         boolean enabled = readBoolean(CAPTCHA_ENABLED_KEY, false);
-        String type = read(CAPTCHA_TYPE_KEY).orElse("turnstile");
-        if (!"turnstile".equals(type)) {
-            return new TurnstilePolicy(false, null, null);
-        }
+        // Turnstile is the only supported provider. Unknown legacy values
+        // must not turn an enabled human-verification switch into a bypass.
         return new TurnstilePolicy(
             enabled,
             read(TURNSTILE_SITE_KEY).filter(value -> !value.isBlank())
@@ -901,8 +903,8 @@ public class PlatformConfigurationService {
         if (!(rawValue instanceof String type)) {
             throw invalidSettingValue();
         }
-        // Stored as given: the read side already treats a type it does not
-        // know as "no captcha provider", so a junk value cannot break reads.
+        // Preserve legacy values in storage; the effective read policy always
+        // normalizes to the one implemented provider, Turnstile.
         store(CAPTCHA_TYPE_KEY, type);
     }
 

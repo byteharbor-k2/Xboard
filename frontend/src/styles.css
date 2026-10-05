@@ -3856,6 +3856,36 @@ button:disabled {
   min-height: 65px;
 }
 
+.registration-human-check {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.registration-human-check > p,
+.registration-human-check-error small {
+  margin: 0;
+  color: #b9c9dd;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.registration-human-check-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.registration-human-check-error button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(67, 207, 239, 0.42);
+  border-radius: 0.55rem;
+  background: rgba(36, 198, 235, 0.12);
+  color: #d8f8ff;
+  cursor: pointer;
+  padding: 0.4rem 0.7rem;
+}
+
 /* SinX user workspace: deliberately independent from the Xboard client UI. */
 .user-app-frame {
   min-height: 100vh;

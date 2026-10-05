@@ -11,7 +11,7 @@ export type SettingsField = {
   label: Localized;
   description: Localized;
   placeholder?: Localized;
-  type: "text" | "password" | "url" | "number" | "toggle" | "select" | "textarea" | "list";
+  type: "text" | "password" | "url" | "number" | "toggle" | "select" | "textarea" | "list" | "status";
   defaultValue: SettingValue;
   options?: Array<{ value: string | number; label: Localized }>;
   min?: number;
@@ -124,17 +124,20 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
         placeholder: text("输入邮箱后缀，每行一个", "Enter one email suffix per line"),
         visibleWhen: { key: "email_whitelist_enable" }
       }),
-      field("captcha_enable", "启用验证码", "Enable CAPTCHA", "开启后用户注册时需要通过验证码验证。", "Require CAPTCHA verification during registration.", "toggle", false),
-      field("captcha_type", "验证码类型", "CAPTCHA provider", "选择要使用的验证码服务类型。", "Select the CAPTCHA provider.", "select", "turnstile", {
-        visibleWhen: { key: "captcha_enable" },
+      field("captcha_enable", "启用人机验证", "Enable human verification", "开启后注册及邮箱验证码请求需要通过人机验证。", "Require human verification for registration and email-code requests.", "toggle", false),
+      field("captcha_type", "人机验证服务", "Human verification provider", "目前仅支持 Cloudflare Turnstile。", "Cloudflare Turnstile is the supported provider.", "select", "turnstile", {
         options: [
           option("turnstile", "Cloudflare Turnstile", "Cloudflare Turnstile")
         ]
       }),
-      field("turnstile_secret_key", "Turnstile密钥", "Turnstile secret key", "输入您的Cloudflare Turnstile密钥。", "Enter the Cloudflare Turnstile secret key.", "password", "", {
+      field("turnstile_site_key", "Turnstile站点密钥（公开）", "Turnstile site key (public)", "填写 Cloudflare 提供的 Site Key。Cloudflare 小组件的 hostname allowlist 需包含 dev.sinx.it.com；生产环境请另行加入生产域名。", "Enter the public Site Key from Cloudflare. The widget hostname allowlist must include dev.sinx.it.com; add the production hostname separately.", "text", "", {
         visibleWhen: { key: "captcha_type", value: "turnstile" }
       }),
-      field("turnstile_site_key", "Turnstile站点密钥", "Turnstile site key", "输入您的Cloudflare Turnstile站点密钥。", "Enter the Cloudflare Turnstile site key.", "text", "", {
+      field("turnstile_secret_key", "Turnstile密钥（仅服务器）", "Turnstile secret key (server only)", "密钥仅保存在服务器，不会返回给用户端；留空保存或编辑其他设置不会清除已保存密钥。", "This secret stays on the server and is never returned to users. Leave blank when saving or editing other settings to keep the stored secret.", "password", "", {
+        placeholder: text("输入新密钥；留空保留已保存值", "Enter a new secret; leave blank to keep the stored value"),
+        visibleWhen: { key: "captcha_type", value: "turnstile" }
+      }),
+      field("turnstile_secret_key_configured", "服务器密钥状态", "Server secret status", "仅显示是否已保存，不会显示密钥内容。", "Shows whether a secret is stored without exposing its value.", "status", false, {
         visibleWhen: { key: "captcha_type", value: "turnstile" }
       }),
       field("register_limit_by_ip_enable", "IP注册限制", "IP registration limit", "开启后将限制同一IP的注册次数。", "Limit registrations from the same IP address.", "toggle", false),

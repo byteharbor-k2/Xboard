@@ -2,6 +2,7 @@ package com.sinx.platform.identity.application;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
@@ -20,6 +21,7 @@ public class TurnstileVerificationService {
     private final RestClient restClient;
     private final PlatformConfigurationService configuration;
 
+    @Autowired
     public TurnstileVerificationService(
         PlatformConfigurationService configuration
     ) {
@@ -33,13 +35,22 @@ public class TurnstileVerificationService {
         this.configuration = configuration;
     }
 
+    TurnstileVerificationService(
+        PlatformConfigurationService configuration,
+        RestClient restClient
+    ) {
+        this.configuration = configuration;
+        this.restClient = restClient;
+    }
+
     public void verify(String token, String remoteIp) {
         PlatformConfigurationService.TurnstilePolicy policy =
             configuration.turnstilePolicy();
         if (!policy.enabled()) {
             return;
         }
-        if (policy.secretKey() == null || policy.secretKey().isBlank()) {
+        if (policy.siteKey() == null || policy.siteKey().isBlank()
+            || policy.secretKey() == null || policy.secretKey().isBlank()) {
             throw new ApiProblemException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "TURNSTILE_NOT_CONFIGURED",
