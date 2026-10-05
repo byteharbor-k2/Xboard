@@ -161,6 +161,9 @@ public class SubscriptionEntitlement {
     /** Marks an entitlement granted without a paid order as a registration trial. */
     public void markTrial(Instant now) {
         trial = true;
+        // A trial is bounded by its expiry, not by the plan's paid traffic
+        // cycle. Its plan policy is retained for a later purchase conversion.
+        nextResetAt = null;
         updatedAt = now;
     }
 
@@ -192,7 +195,7 @@ public class SubscriptionEntitlement {
      */
     public void resetTrafficInCycle(Instant now, Instant nextBoundary) {
         clearCounters(now);
-        nextResetAt = nextBoundary;
+        nextResetAt = trial ? null : nextBoundary;
     }
 
     /**
@@ -202,7 +205,9 @@ public class SubscriptionEntitlement {
      * forward to today's boundary, and the rhythm starts there.
      */
     public void seedPeriodicBoundary() {
-        nextResetAt = MonthlyResetSchedule.initialBoundary(startsAt);
+        nextResetAt = trial
+            ? null
+            : MonthlyResetSchedule.initialBoundary(startsAt);
     }
 
     /**

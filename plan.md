@@ -67,6 +67,12 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   管理员回复→用户收到的真实浏览器流程通过，并检查桌面与手机截图；全量 577 测试通过。
 - 新用户注册试用：后台选订阅套餐，默认成功注册起 3 小时，继承其流量/限速/权限组；
   不产生购买订单，试用无折抵金额。公网注册与邮箱验证流程验收通过。
+- Trial reset correction (2026-10-05): trials have no monthly reset boundary; automatic
+  reset/backfill excludes them, including direct service entrypoints. Manual reset still
+  clears usage and records it without adding a monthly boundary. V32 clears legacy trial
+  boundaries; paid purchase starts its own cycle. Dashboard hides the next-reset fact for
+  trials. Full backend verification: 611 tests passed; independent review and frontend
+  build/check passed. Frontend acceptance remains user-owned.
 - 新用户专属流量包：后台选品、沿用一次性价格；未完成正式购买的账号可购买一次，
   取消可重试，完成后目录隐藏且直接报价/下单被拒绝。试用转正式权益正确清除试用标记与期限。
 - User-core APIs (2026-10-05): invitation summary/create and actual invitation counts;
@@ -126,6 +132,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 ### P2
 
 - [ ] User-core frontend acceptance is user-owned (2026-10-05 instruction); implementation is deployed, build/check/audit and independent review passed. Invitation cache and node panel are scoped to viewer identity. Agent browser acceptance stopped at user request; no QA credential rotation was performed on dev.
+- [ ] Investigate user-reported invitation-button failure: deployed API successfully created a code for a separate QA account (available count 0 → 1). Frontend handler is implemented, but the reported account's click result/request error has not yet been captured; do not mark this incident resolved based on API success alone.
 - [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`

@@ -302,17 +302,19 @@ export function AccountOverviewPage() {
                   <dt>{entitlement.isTrial ? labels.trialExpires : labels.expires}</dt>
                   <dd>{formatDateTime(entitlement.expiresAt, language)}</dd>
                 </div>
-                <div>
-                  <dt>{labels.nextReset}</dt>
-                  <dd>
-                    {entitlement.nextResetAt
-                      ? formatDateTime(entitlement.nextResetAt, language)
-                      : trafficResetLabel(
-                          entitlement.resetPolicy,
-                          language
-                        )}
-                  </dd>
-                </div>
+                {!entitlement.isTrial && (
+                  <div>
+                    <dt>{labels.nextReset}</dt>
+                    <dd>
+                      {entitlement.nextResetAt
+                        ? formatDateTime(entitlement.nextResetAt, language)
+                        : trafficResetLabel(
+                            entitlement.resetPolicy,
+                            language
+                          )}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>{labels.speed}</dt>
                   <dd>

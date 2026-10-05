@@ -198,6 +198,7 @@ public class TrafficResetService {
     private boolean isDue(SubscriptionEntitlement entitlement, Instant now) {
         return entitlement.getResetPolicy()
             == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+            && !entitlement.isTrial()
             && entitlement.getNextResetAt() != null
             && !entitlement.getNextResetAt().isAfter(now)
             && entitlement.getCanceledAt() == null
@@ -236,6 +237,7 @@ public class TrafficResetService {
         SubscriptionEntitlement entitlement =
             entitlements.findByIdForUpdate(entitlementId).orElse(null);
         if (entitlement == null
+            || entitlement.isTrial()
             || entitlement.getNextResetAt() != null
             || entitlement.getResetPolicy()
                 != TrafficResetPolicy.MONTHLY_FROM_ACTIVATION

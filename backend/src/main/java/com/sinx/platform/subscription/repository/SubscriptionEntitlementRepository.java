@@ -157,6 +157,7 @@ public interface SubscriptionEntitlementRepository
     @Query("""
         select entitlement.id from SubscriptionEntitlement entitlement
         where entitlement.resetPolicy = :policy
+          and entitlement.trial = false
           and entitlement.canceledAt is null
           and (entitlement.expiresAt is null or entitlement.expiresAt > :now)
           and entitlement.nextResetAt is not null
@@ -175,6 +176,7 @@ public interface SubscriptionEntitlementRepository
     @Query("""
         select entitlement.id from SubscriptionEntitlement entitlement
         where entitlement.resetPolicy = :policy
+          and entitlement.trial = false
           and entitlement.canceledAt is null
           and entitlement.nextResetAt is null
         """)
