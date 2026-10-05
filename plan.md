@@ -69,6 +69,12 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   不产生购买订单，试用无折抵金额。公网注册与邮箱验证流程验收通过。
 - 新用户专属流量包：后台选品、沿用一次性价格；未完成正式购买的账号可购买一次，
   取消可重试，完成后目录隐藏且直接报价/下单被拒绝。试用转正式权益正确清除试用标记与期限。
+- User-core APIs (2026-10-05): invitation summary/create and actual invitation counts;
+  paired subscription-token/proxy-UUID rotation through shared user/admin service;
+  entitlement-filtered viewer node metadata with report-derived status. Full backend
+  verification passed: 604 tests, zero failures/errors; independent review passed.
+  Deployed code revision `968e211` to dev; V31 migration succeeded, no null proxy UUIDs,
+  and backend/frontend containers are healthy. Existing credentials were preserved by migration.
 
 **管理侧**
 
@@ -119,8 +125,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### P2
 
-- [ ] User-core completion (invitations, paired subscription/proxy credential reset, real viewer nodes): implementation, 604-test full backend gate and independent review passed; pending dev deployment and browser/node acceptance. Invitation cache and node panel are scoped to viewer identity. V31 preserves initial credentials and immutable account IDs; user/admin reset shares one locked transaction and after-commit node synchronization.
-- [ ] Turnstile configuration/retry refinement: implementation and independent review passed; backend full gate (604 tests), frontend build/check/audit passed. Pending deployment and desktop/mobile browser acceptance. Keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
+- [ ] User-core frontend acceptance is user-owned (2026-10-05 instruction); implementation is deployed, build/check/audit and independent review passed. Invitation cache and node panel are scoped to viewer identity. Agent browser acceptance stopped at user request; no QA credential rotation was performed on dev.
+- [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
@@ -234,6 +240,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 5. **测试不许塞进长期共享的大文件**（如 `InfrastructureIntegrationTest`，1900+ 行）。
    新功能用自己的测试类。
 6. **提交由主 agent 做**，按逻辑单元分批，**reviewer 通过后才提交**。
+
+2026-10-05 user instruction: after backend API implementation, full tests and review pass,
+stop agent-led frontend/browser acceptance; the user checks frontend behavior. Record UI
+acceptance as pending user confirmation rather than claiming agent browser completion.
 
 ## 7. 已知取舍与风险
 
