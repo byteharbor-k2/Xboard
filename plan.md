@@ -93,6 +93,11 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   earned amounts, current site balance and paginated ledger; admin settings, user overrides
   and order confirmation/detail/filter controls are connected. Creation action is now
   prominent. Main-agent frontend build/check/audit passed; visual acceptance is user-owned.
+  Dev deployment `8c64e4c` succeeded after a database backup; V33 applied successfully and
+  all containers are healthy. Public QA GraphQL verified effective default 10%, first-only,
+  automatic confirmation, site-balance destination and paginated logs. Historical orders
+  have no commission snapshots and were not retroactively credited. Full commercial-loop
+  proof is integration-tested; the user checks the newly deployed frontend flow.
 
 **管理侧**
 
@@ -148,7 +153,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] User acceptance of the more prominent invitation creation action (implementation delivered with the commission frontend).
 - [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [x] Commission backend commercial loop, reprioritized by the user on 2026-10-06; ledger credits are spendable through existing order balance deductions. Withdrawal remains excluded.
-- [ ] Commission dev deployment and user-owned frontend visual acceptance (implementation and build/check/audit complete).
+- [ ] User-owned commission frontend acceptance; code `8c64e4c` is deployed, V33 and public API smoke checks passed.
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
 
