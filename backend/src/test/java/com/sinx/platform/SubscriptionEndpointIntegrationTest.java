@@ -26,6 +26,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -96,6 +97,9 @@ class SubscriptionEndpointIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private StringRedisTemplate redis;
 
     @Autowired
     private MockMvc mockMvc;
@@ -463,6 +467,7 @@ class SubscriptionEndpointIntegrationTest {
             // The stored template is the shape of the config; the nodes are
             // written into it either way. What changes is which rules are in
             // force, so that is what is asserted.
+            clearSubscriptionRequestWindow(subscriber.userId());
             assertThat(servedTo(subscriber, "clash"))
                 .contains("MATCH,DIRECT")
                 .doesNotContain("MATCH,SinX Cloud")
@@ -493,6 +498,7 @@ class SubscriptionEndpointIntegrationTest {
                 [Proxy Group]
                 Proxy = select, $proxy_group
                 """).andExpect(status().isOk());
+            clearSubscriptionRequestWindow(subscriber.userId());
             assertThat(servedTo(subscriber, "surge"))
                 .contains("# an administrator's own header")
                 .contains("香港 01 = vmess");
@@ -502,8 +508,11 @@ class SubscriptionEndpointIntegrationTest {
                 .andExpect(jsonPath("$.code").value("SUBSCRIBE_TEMPLATE_INVALID"));
 
             // Neither refusal disturbed what was already stored.
+            clearSubscriptionRequestWindow(subscriber.userId());
             assertThat(servedTo(subscriber, "clash")).contains("MATCH,DIRECT");
+            clearSubscriptionRequestWindow(subscriber.userId());
             assertThat(servedTo(subscriber, "sing-box")).contains("香港 01");
+            clearSubscriptionRequestWindow(subscriber.userId());
             assertThat(servedTo(subscriber, "surge"))
                 .contains("# an administrator's own header");
         } finally {
@@ -688,6 +697,15 @@ class SubscriptionEndpointIntegrationTest {
             key,
             value
         );
+    }
+
+    /**
+     * Gives each format assertion a fresh production Redis bucket. The focused
+     * rate-limiter tests exercise sharing and the real two-request limit; this
+     * class checks template rendering, not request timing between assertions.
+     */
+    private void clearSubscriptionRequestWindow(UUID userId) {
+        redis.delete("subscription:request-window:" + userId);
     }
 
     // ------------------------------------------------------------------

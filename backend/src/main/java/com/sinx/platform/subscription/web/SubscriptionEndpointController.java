@@ -5,6 +5,7 @@ import java.time.Clock;
 import java.time.Instant;
 
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,6 +18,7 @@ import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.subscription.application.SubscriptionLinkService;
+import com.sinx.platform.subscription.application.SubscriptionRequestRateLimiter;
 import com.sinx.platform.subscription.client.ClientConfigService;
 import com.sinx.platform.subscription.client.RenderedConfig;
 import com.sinx.platform.subscription.domain.EntitlementState;
@@ -57,6 +59,7 @@ public class SubscriptionEndpointController {
     private final SubscriptionEntitlementRepository entitlements;
     private final ClientConfigService configs;
     private final SubscriptionLinkService links;
+    private final SubscriptionRequestRateLimiter requestRateLimiter;
     private final Clock clock;
 
     public SubscriptionEndpointController(
@@ -64,12 +67,14 @@ public class SubscriptionEndpointController {
         SubscriptionEntitlementRepository entitlements,
         ClientConfigService configs,
         SubscriptionLinkService links,
+        SubscriptionRequestRateLimiter requestRateLimiter,
         Clock clock
     ) {
         this.users = users;
         this.entitlements = entitlements;
         this.configs = configs;
         this.links = links;
+        this.requestRateLimiter = requestRateLimiter;
         this.clock = clock;
     }
 
@@ -85,6 +90,12 @@ public class SubscriptionEndpointController {
         UserAccount user = users.findBySubscriptionToken(token).orElse(null);
         if (user == null) {
             return unavailable(404);
+        }
+        if (!requestRateLimiter.tryAcquire(user.getId())) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, "1")
+                .contentType(MediaType.TEXT_PLAIN)
+                .build();
         }
         if (user.getStatus() != UserStatus.ACTIVE) {
             return unavailable(403);

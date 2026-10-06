@@ -26,6 +26,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -85,6 +86,9 @@ class SubscriptionCredentialRotationIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private StringRedisTemplate redis;
+
+    @Autowired
     private MockMvc mockMvc;
 
     @Autowired
@@ -108,6 +112,7 @@ class SubscriptionCredentialRotationIntegrationTest {
         UUID oldProxyUuid = proxyUuid(userId);
         assertThat(oldProxyUuid).isEqualTo(userId);
 
+        clearSubscriptionRequestWindow(userId);
         MvcResult originalConfig = fetch(oldToken, "singbox")
             .andExpect(status().isOk())
             .andReturn();
@@ -136,6 +141,7 @@ class SubscriptionCredentialRotationIntegrationTest {
         assertThat(rotatedProxyUuid).isNotEqualTo(oldProxyUuid);
         assertThat(rotatedProxyUuid).isNotEqualTo(userId);
         fetch(oldToken, "singbox").andExpect(status().isNotFound());
+        clearSubscriptionRequestWindow(userId);
         String updatedConfig = fetch(newToken, "singbox")
             .andExpect(status().isOk())
             .andReturn()
@@ -177,6 +183,7 @@ class SubscriptionCredentialRotationIntegrationTest {
         assertThat(adminToken).isNotEqualTo(newToken);
         assertThat(adminProxyUuid).isNotEqualTo(rotatedProxyUuid);
         fetch(newToken, "singbox").andExpect(status().isNotFound());
+        clearSubscriptionRequestWindow(userId);
         String adminConfig = fetch(adminToken, "singbox")
             .andExpect(status().isOk())
             .andReturn()
@@ -352,6 +359,14 @@ class SubscriptionCredentialRotationIntegrationTest {
             Integer.class,
             userId.toString()
         );
+    }
+
+    /**
+     * Separates config-rendering assertions from the request-rate contract,
+     * which is covered against the real Redis limiter in its own tests.
+     */
+    private void clearSubscriptionRequestWindow(UUID userId) {
+        redis.delete("subscription:request-window:" + userId);
     }
 
     private Map<String, Object> entitlement(UUID userId) {

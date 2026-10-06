@@ -154,18 +154,21 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [x] Commission backend commercial loop, reprioritized by the user on 2026-10-06; ledger credits are spendable through existing order balance deductions. Withdrawal remains excluded.
 - [ ] User-owned commission frontend acceptance; code `8c64e4c` is deployed, V33 and public API smoke checks passed.
-- [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
-- [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
+- [x] Subscription throttling (2026-10-06): Redis-atomic rolling-second window allows at most two requests per user across formats and rotated tokens; the third returns empty 429 with `Retry-After: 1`, without exposing credentials. Real Redis concurrency and endpoint tests pass; main full backend gate: 644 tests, independent review passed.
+- [ ] Current batch remaining delivery: subscription commercial/reset settings and catalogue category tabs (implemented and verified; pending commit/deployment and user-owned visual acceptance).
+- [ ] Next batch after the current delivery: complete user account editing for nickname, email and login password. Nickname/password have existing implementations to retain and verify; email change is newly authorized and supersedes the previous exclusion.
+- [ ] Following account editing: dedicated user balance page and commission payout-record page. Existing invitation-page commission ledger remains implemented; the dedicated finance pages are additional presentation work.
+- [ ] Remaining admin field wiring: re-audit supported settings as needed; the old 74/33 count is obsolete after onboarding and commission work.
 
 ### P3
 
-- [ ] `telegram`、`app` 分区字段级落库 + Telegram Webhook 端点
-- [ ] 品牌 `logo`；应用下载配置 `windows_*` / `macos_*` / `android_*`
-- [ ] 独立订阅域名：后台配多个域名 + 按用户确定性轮发
-- [ ] 订阅访问限速：每用户每秒最多 2 次
-- [ ] 客户端版本闸门（原版 `protocolRequirements`）
+- [ ] Telegram configuration/webhook remains unscheduled.
+- Deferred by user (2026-10-06): client-version compatibility filtering; most users use current Clash Verge kernels.
+- Deferred by user (2026-10-06): multi-domain subscription allocation, reserved for future domain-blocking mitigation; currently one domain.
+- Deferred by user (2026-10-06): dedicated client/download configuration; distribute open-source proxy-client links through the knowledge base instead. Logo branding remains unscheduled.
+- Deferred by user (2026-10-06): station notification centre.
 - [x] Real client import/connectivity baseline: external sing-box and xboard-node acceptance recorded in §7; current VLESS Reality configuration remains a separate user follow-up.
-- [ ] User-side remaining delivery: invitation page browser acceptance (implementation ready), subscription category tabs, notification center. Knowledge base, traffic details and renewal reminders are complete (§3).
+- Knowledge base, traffic details, renewal reminders and invitation registration flow are complete; current category-tab work and subsequent account/finance pages are tracked above.
 
 ### 上线验收
 
@@ -200,7 +203,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 | `subscribe_path` / `currency` / `currency_symbol` / `force_https` / `app_description` | 架构已变更，原语义不存在；价格自带 ISO 币种 |
 | 「Clash」「通用订阅」两个客户端入口 | 前者只承载旧内核窄协议集，后者按 UA 猜格式对新手有误导 |
 | 兼容非 xboard-node 代理（V2bX / XrayR 等） | **只用 xboard-node**（2026-09-19 定）。不补 `/api/v2/server/push\|alive\|alivelist\|status` 与 Tidalab 端点 |
-| 用户自助改邮箱 / 重新验证邮箱 | 原版也没有（`/user/update` 只接受 `remind_expire` / `remind_traffic`），不做 |
+| Commission withdrawal | Explicitly excluded again by user on 2026-10-06; commissions credit ordinary site balance |
 | Loon / QuantumultX / Shadowrocket 专属订阅格式 | 不补；Shadowrocket 走通用 v2ray 列表 |
 | 管理台设置保存的字段级校验（数值范围、枚举白名单）与发信 503/500 错误分类 | 单管理员一次配置，写侧校验徒增复杂度；读侧对无效存值回落默认值，发信失败原样透传、管理台直接显示邮件服务器的真实报错（2026-09-29 定）。公开用户面的防护（限流、优惠券校验、CSV 防注入、开通邮件 log-and-drop）不受此原则影响 |
 
