@@ -67,4 +67,15 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from UserAccount user where user.id = :id")
     Optional<UserAccount> findByIdForUpdate(@Param("id") UUID id);
+
+    /** Locks potential commission recipients in UUID order for deterministic payouts. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select user from UserAccount user where user.id in :ids order by user.id")
+    java.util.List<UserAccount> findAllForUpdateByIdOrderById(
+        @Param("ids") Collection<UUID> ids
+    );
+
+    /** Reads only the referral edge, without caching an unlocked balance entity. */
+    @Query("select user.inviterUserId from UserAccount user where user.id = :id")
+    UUID findInviterUserIdById(@Param("id") UUID id);
 }

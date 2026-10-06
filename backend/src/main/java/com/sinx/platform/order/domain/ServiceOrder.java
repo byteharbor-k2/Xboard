@@ -81,6 +81,26 @@ public class ServiceOrder {
     @Column(name = "total_amount", nullable = false)
     private long totalAmount;
 
+    /** Direct inviter and commission calculation frozen at checkout. */
+    @Column(name = "invite_user_id")
+    private UUID inviteUserId;
+
+    @Column(name = "commission_buyer_user_id", updatable = false)
+    private UUID commissionBuyerUserId;
+
+    @Column(name = "commission_base", nullable = false)
+    private long commissionBase;
+
+    @Column(name = "commission_balance", nullable = false)
+    private long commissionBalance;
+
+    /** 0 pending, 1 confirmed, 2 paid, 3 invalid; null means ineligible. */
+    @Column(name = "commission_status")
+    private Integer commissionStatus;
+
+    @Column(name = "actual_commission_balance", nullable = false)
+    private long actualCommissionBalance;
+
     @Column(name = "coupon_id")
     private UUID couponId;
 
@@ -149,6 +169,7 @@ public class ServiceOrder {
         order.id = UUID.randomUUID();
         order.tradeNo = tradeNo;
         order.user = user;
+        order.commissionBuyerUserId = user.getId();
         order.plan = plan;
         order.planName = plan.getName();
         order.period = period;
@@ -273,6 +294,40 @@ public class ServiceOrder {
         updatedAt = now;
     }
 
+    /** Captures the eligible referral pool before any zero-balance fulfilment. */
+    public void snapshotCommission(
+        UUID inviterUserId,
+        long baseMinor,
+        long poolMinor,
+        boolean eligible
+    ) {
+        this.inviteUserId = inviterUserId;
+        this.commissionBase = Math.max(baseMinor, 0);
+        this.commissionBalance = Math.max(poolMinor, 0);
+        this.commissionStatus = inviterUserId == null
+            ? null
+            : eligible && poolMinor > 0 ? 0 : 3;
+    }
+
+    public void setCommissionStatus(Integer status, Instant now) {
+        if (commissionStatus != null && commissionStatus == 2) {
+            throw new IllegalStateException("Paid commission cannot be reset");
+        }
+        if (status == null || (status != 0 && status != 1 && status != 3)) {
+            throw new IllegalArgumentException("Invalid commission status");
+        }
+        commissionStatus = status;
+        updatedAt = now;
+    }
+
+    public void markCommissionPaid(long actualMinor) {
+        if (commissionStatus == null || commissionStatus != 1) {
+            throw new IllegalStateException("Only confirmed commission can be paid");
+        }
+        commissionStatus = 2;
+        actualCommissionBalance = actualMinor;
+    }
+
     /**
      * Records that a later upgrade spent whatever value was left in this order.
      */
@@ -354,6 +409,30 @@ public class ServiceOrder {
         return totalAmount;
     }
 
+    public UUID getInviteUserId() {
+        return inviteUserId;
+    }
+
+    public UUID getCommissionBuyerUserId() {
+        return commissionBuyerUserId == null ? user.getId() : commissionBuyerUserId;
+    }
+
+    public long getCommissionBase() {
+        return commissionBase;
+    }
+
+    public long getCommissionBalance() {
+        return commissionBalance;
+    }
+
+    public Integer getCommissionStatus() {
+        return commissionStatus;
+    }
+
+    public long getActualCommissionBalance() {
+        return actualCommissionBalance;
+    }
+
     public UUID getCouponId() {
         return couponId;
     }
@@ -389,5 +468,9 @@ public class ServiceOrder {
 
     public Instant getPaidAt() {
         return paidAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
     }
 }

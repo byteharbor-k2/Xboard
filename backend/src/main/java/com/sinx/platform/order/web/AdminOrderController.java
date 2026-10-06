@@ -3,6 +3,7 @@ package com.sinx.platform.order.web;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -15,6 +16,7 @@ import com.sinx.platform.order.application.OrderAdminView;
 import com.sinx.platform.order.application.OrderAssignmentService;
 import com.sinx.platform.order.application.OrderFulfilmentService;
 import com.sinx.platform.order.application.OrderService;
+import com.sinx.platform.order.application.CommissionService;
 import com.sinx.platform.order.domain.OrderStatus;
 
 /**
@@ -35,15 +37,28 @@ public class AdminOrderController {
     private final OrderService orders;
     private final OrderFulfilmentService fulfilment;
     private final OrderAssignmentService assignments;
+    private final CommissionService commissions;
 
+    @Autowired
+    public AdminOrderController(
+        OrderService orders,
+        OrderFulfilmentService fulfilment,
+        OrderAssignmentService assignments,
+        CommissionService commissions
+    ) {
+        this.orders = orders;
+        this.fulfilment = fulfilment;
+        this.assignments = assignments;
+        this.commissions = commissions;
+    }
+
+    /** Keeps existing controller unit fixtures source-compatible. */
     public AdminOrderController(
         OrderService orders,
         OrderFulfilmentService fulfilment,
         OrderAssignmentService assignments
     ) {
-        this.orders = orders;
-        this.fulfilment = fulfilment;
-        this.assignments = assignments;
+        this(orders, fulfilment, assignments, null);
     }
 
     @GetMapping("/fetch")
@@ -51,9 +66,27 @@ public class AdminOrderController {
         @RequestParam(name = "status", required = false)
         OrderStatus status,
         @RequestParam(name = "limit", defaultValue = "" + DEFAULT_LIMIT)
-        int limit
+        int limit,
+        @RequestParam(name = "is_commission", required = false) Boolean isCommission,
+        @RequestParam(name = "commission_status", required = false) Integer commissionStatus
     ) {
-        return XboardResponse.of(orders.adminList(status, limit));
+        if (isCommission == null && commissionStatus == null) {
+            return XboardResponse.of(orders.adminList(status, limit));
+        }
+        return XboardResponse.of(orders.adminList(status, limit, isCommission, commissionStatus));
+    }
+
+    @PostMapping("/detail")
+    XboardResponse<CommissionService.OrderAdminDetailView> detail(
+        @RequestBody TradeNoRequest request
+    ) {
+        return XboardResponse.of(commissions.adminDetail(request.tradeNo()));
+    }
+
+    @PostMapping("/update")
+    XboardResponse<Boolean> updateCommission(@RequestBody CommissionUpdateRequest request) {
+        commissions.updateStatus(request.tradeNo(), request.commissionStatus());
+        return XboardResponse.of(true);
     }
 
     @PostMapping("/paid")
@@ -84,6 +117,12 @@ public class AdminOrderController {
     record AssignRequest(
         @JsonProperty("trade_no") String tradeNo,
         @JsonProperty("user_id") UUID userId
+    ) {
+    }
+
+    record CommissionUpdateRequest(
+        @JsonProperty("trade_no") String tradeNo,
+        @JsonProperty("commission_status") int commissionStatus
     ) {
     }
 

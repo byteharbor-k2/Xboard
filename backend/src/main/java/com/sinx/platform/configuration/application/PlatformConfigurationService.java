@@ -107,6 +107,18 @@ public class PlatformConfigurationService {
         "invite.invite_gen_limit";
     private static final String INVITE_NEVER_EXPIRE_KEY =
         "invite.invite_never_expire";
+    private static final String COMMISSION_FIRST_TIME_KEY =
+        "invite.commission_first_time_enable";
+    private static final String COMMISSION_AUTO_CHECK_KEY =
+        "invite.commission_auto_check_enable";
+    private static final String COMMISSION_DISTRIBUTION_KEY =
+        "invite.commission_distribution_enable";
+    private static final String COMMISSION_DISTRIBUTION_L1_KEY =
+        "invite.commission_distribution_l1";
+    private static final String COMMISSION_DISTRIBUTION_L2_KEY =
+        "invite.commission_distribution_l2";
+    private static final String COMMISSION_DISTRIBUTION_L3_KEY =
+        "invite.commission_distribution_l3";
     private static final String EMAIL_DELIVERY_KEY = "email.email_delivery";
     /**
      * How outbound mail is transported: written to the log for development
@@ -259,15 +271,31 @@ public class PlatformConfigurationService {
             }
             case "invite" -> {
                 InvitationPolicy policy = invitationPolicy();
-                yield Map.of(
-                    "invite_force",
-                    policy.required(),
-                    "invite_commission",
-                    policy.commissionPercent(),
-                    "invite_gen_limit",
-                    policy.generationLimit(),
-                    "invite_never_expire",
-                    policy.neverExpire()
+                CommissionPolicy commission = commissionPolicy();
+                yield Map.ofEntries(
+                    Map.entry(
+                        "invite_force",
+                        policy.required()
+                    ),
+                    Map.entry("invite_commission", policy.commissionPercent()),
+                    Map.entry("invite_gen_limit", policy.generationLimit()),
+                    Map.entry("invite_never_expire", policy.neverExpire()),
+                    Map.entry(
+                        "commission_first_time_enable",
+                        commission.firstPaymentOnly()
+                    ),
+                    Map.entry(
+                        "commission_auto_check_enable",
+                        commission.autoConfirmEnabled()
+                    ),
+                    Map.entry(
+                        "commission_distribution_enable",
+                        commission.distributionEnabled()
+                    ),
+                    Map.entry("commission_distribution_l1", commission.level1Percent()),
+                    Map.entry("commission_distribution_l2", commission.level2Percent()),
+                    Map.entry("commission_distribution_l3", commission.level3Percent()),
+                    Map.entry("withdraw_close_enable", true)
                 );
             }
             case "email" -> {
@@ -397,6 +425,19 @@ public class PlatformConfigurationService {
                 saveInteger(INVITE_GENERATION_LIMIT_KEY, entry.getValue());
             case INVITE_NEVER_EXPIRE_KEY ->
                 saveBoolean(INVITE_NEVER_EXPIRE_KEY, entry.getValue());
+            case "invite.withdraw_close_enable" -> { /* Payout is always the site balance. */ }
+            case COMMISSION_FIRST_TIME_KEY ->
+                saveBoolean(COMMISSION_FIRST_TIME_KEY, entry.getValue());
+            case COMMISSION_AUTO_CHECK_KEY ->
+                saveBoolean(COMMISSION_AUTO_CHECK_KEY, entry.getValue());
+            case COMMISSION_DISTRIBUTION_KEY ->
+                saveBoolean(COMMISSION_DISTRIBUTION_KEY, entry.getValue());
+            case COMMISSION_DISTRIBUTION_L1_KEY ->
+                saveInteger(COMMISSION_DISTRIBUTION_L1_KEY, entry.getValue());
+            case COMMISSION_DISTRIBUTION_L2_KEY ->
+                saveInteger(COMMISSION_DISTRIBUTION_L2_KEY, entry.getValue());
+            case COMMISSION_DISTRIBUTION_L3_KEY ->
+                saveInteger(COMMISSION_DISTRIBUTION_L3_KEY, entry.getValue());
             case EMAIL_DELIVERY_KEY -> saveMailDelivery(entry.getValue());
             case EMAIL_HOST_KEY -> saveMailHost(entry.getValue());
             case EMAIL_PORT_KEY ->
@@ -583,6 +624,18 @@ public class PlatformConfigurationService {
             readInteger(INVITE_COMMISSION_KEY, 10),
             readInteger(INVITE_GENERATION_LIMIT_KEY, 5),
             readBoolean(INVITE_NEVER_EXPIRE_KEY, false)
+        );
+    }
+
+    /** Effective commission switches, with the original panel's defaults. */
+    public CommissionPolicy commissionPolicy() {
+        return new CommissionPolicy(
+            readBoolean(COMMISSION_FIRST_TIME_KEY, true),
+            readBoolean(COMMISSION_AUTO_CHECK_KEY, true),
+            readBoolean(COMMISSION_DISTRIBUTION_KEY, false),
+            readInteger(COMMISSION_DISTRIBUTION_L1_KEY, 0),
+            readInteger(COMMISSION_DISTRIBUTION_L2_KEY, 0),
+            readInteger(COMMISSION_DISTRIBUTION_L3_KEY, 0)
         );
     }
 
@@ -1269,6 +1322,16 @@ public class PlatformConfigurationService {
         int commissionPercent,
         int generationLimit,
         boolean neverExpire
+    ) {
+    }
+
+    public record CommissionPolicy(
+        boolean firstPaymentOnly,
+        boolean autoConfirmEnabled,
+        boolean distributionEnabled,
+        int level1Percent,
+        int level2Percent,
+        int level3Percent
     ) {
     }
 

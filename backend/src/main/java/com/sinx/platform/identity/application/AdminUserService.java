@@ -206,6 +206,31 @@ public class AdminUserService {
                 now
             );
         }
+        if (update.commissionType() != null || update.commissionRate() != null
+                || Boolean.TRUE.equals(update.clearCommissionRate())) {
+            if (update.commissionType() != null
+                    && (update.commissionType() < 0 || update.commissionType() > 2)) {
+                throw problem(
+                    HttpStatus.BAD_REQUEST,
+                    "COMMISSION_TYPE_INVALID",
+                    "Commission type must be system, period, or one-time"
+                );
+            }
+            if (update.commissionRate() != null
+                    && (update.commissionRate() < 0 || update.commissionRate() > 100)) {
+                throw problem(
+                    HttpStatus.BAD_REQUEST,
+                    "COMMISSION_RATE_INVALID",
+                    "Commission rate must be between 0 and 100 percent"
+                );
+            }
+            account.updateCommissionPolicy(
+                update.commissionType(),
+                update.commissionRate(),
+                Boolean.TRUE.equals(update.clearCommissionRate()),
+                now
+            );
+        }
 
         boolean touchesSubscription = update.planId() != null
             || update.transferLimitBytes() != null
@@ -669,7 +694,10 @@ public class AdminUserService {
         UUID planId,
         Long transferLimitBytes,
         Instant expiresAt,
-        Boolean clearExpiry
+        Boolean clearExpiry,
+        Integer commissionType,
+        Integer commissionRate,
+        Boolean clearCommissionRate
     ) {
     }
 }

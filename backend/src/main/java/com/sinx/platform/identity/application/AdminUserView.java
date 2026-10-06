@@ -30,6 +30,8 @@ public record AdminUserView(
     @JsonProperty("remarks") String remarks,
     @JsonProperty("speed_limit_mbps") Integer speedLimitMbps,
     @JsonProperty("balance") long balance,
+    @JsonProperty("commission_type") int commissionType,
+    @JsonProperty("commission_rate") Integer commissionRate,
     @JsonProperty("plan_id") UUID planId,
     @JsonProperty("plan_name") String planName,
     @JsonProperty("transfer_limit_bytes") String transferLimitBytes,
@@ -56,6 +58,8 @@ public record AdminUserView(
             account.getRemarks(),
             account.getSpeedLimitMbps(),
             account.getBalanceMinor(),
+            account.getCommissionType(),
+            account.getCommissionRate(),
             entitlement == null ? null : entitlement.getPlanId(),
             entitlement == null ? null : entitlement.getPlanName(),
             entitlement == null

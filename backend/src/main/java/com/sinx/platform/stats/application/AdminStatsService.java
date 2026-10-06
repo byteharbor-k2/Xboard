@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.order.repository.ServiceOrderRepository;
+import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.stats.repository.TrafficDailyRepository;
 
 /**
@@ -78,9 +79,9 @@ public class AdminStatsService {
         view.put("monthlyIncome", toMajorUnit(
             orders.sumPaidOrderAmountSince(monthStart)
         ));
-        // Referral commissions are not a feature of this panel; the slot stays
-        // on the wire because the dashboard card is part of the shared layout.
-        view.put("pendingCommission", 0);
+        view.put("pendingCommission", orders.countPendingCommissionOrders(
+            java.util.Set.of(OrderStatus.PENDING, OrderStatus.CANCELLED)
+        ));
         view.put("monthlyUsers", countNewUsers(Date.from(monthStart)));
         view.put("totalUsers", countUsers());
         view.put("monthlyUploadBytes", totals.getUploadBytes());

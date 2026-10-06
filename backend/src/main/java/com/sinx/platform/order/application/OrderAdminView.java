@@ -33,8 +33,42 @@ public record OrderAdminView(
     @JsonProperty("total_amount") long totalAmount,
     @JsonProperty("callback_no") String callbackNo,
     @JsonProperty("created_at") long createdAt,
-    @JsonProperty("paid_at") Long paidAt
+    @JsonProperty("paid_at") Long paidAt,
+    @JsonProperty("invite_user_id") UUID inviteUserId,
+    @JsonProperty("commission_base") long commissionBase,
+    @JsonProperty("commission_balance") long commissionBalance,
+    @JsonProperty("commission_status") Integer commissionStatus,
+    @JsonProperty("actual_commission_balance") long actualCommissionBalance
 ) {
+    /** Keeps existing callers that build pre-commission admin fixtures compatible. */
+    public OrderAdminView(
+        String tradeNo,
+        UUID userId,
+        String email,
+        UUID planId,
+        String planName,
+        BillingPeriod period,
+        OrderType orderType,
+        OrderStatus status,
+        String currency,
+        long originalAmount,
+        long discountAmount,
+        long surplusAmount,
+        long surplusCredit,
+        long balanceAmount,
+        long totalAmount,
+        String callbackNo,
+        long createdAt,
+        Long paidAt
+    ) {
+        this(
+            tradeNo, userId, email, planId, planName, period, orderType, status,
+            currency, originalAmount, discountAmount, surplusAmount,
+            surplusCredit, balanceAmount, totalAmount, callbackNo, createdAt,
+            paidAt, null, 0, 0, null, 0
+        );
+    }
+
     static OrderAdminView from(ServiceOrder order) {
         return new OrderAdminView(
             order.getTradeNo(),
@@ -54,7 +88,12 @@ public record OrderAdminView(
             order.getTotalAmount(),
             order.getCallbackNo(),
             order.getCreatedAt().getEpochSecond(),
-            order.getPaidAt() == null ? null : order.getPaidAt().getEpochSecond()
+            order.getPaidAt() == null ? null : order.getPaidAt().getEpochSecond(),
+            order.getInviteUserId(),
+            order.getCommissionBase(),
+            order.getCommissionBalance(),
+            order.getCommissionStatus(),
+            order.getActualCommissionBalance()
         );
     }
 }

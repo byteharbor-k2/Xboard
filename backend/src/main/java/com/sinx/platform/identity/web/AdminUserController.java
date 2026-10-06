@@ -67,7 +67,10 @@ public class AdminUserController {
                 request.expiresAt() == null
                     ? null
                     : Instant.ofEpochSecond(request.expiresAt()),
-                request.clearExpiry()
+                request.clearExpiry(),
+                request.commissionType(),
+                request.commissionRate(),
+                request.clearCommissionRate()
             )
         ));
     }
@@ -178,7 +181,10 @@ public class AdminUserController {
         @JsonProperty("plan_id") UUID planId,
         @JsonProperty("transfer_limit_bytes") Long transferLimitBytes,
         @JsonProperty("expires_at") Long expiresAt,
-        @JsonProperty("clear_expiry") Boolean clearExpiry
+        @JsonProperty("clear_expiry") Boolean clearExpiry,
+        @JsonProperty("commission_type") Integer commissionType,
+        @JsonProperty("commission_rate") Integer commissionRate,
+        @JsonProperty("clear_commission_rate") Boolean clearCommissionRate
     ) {
     }
 

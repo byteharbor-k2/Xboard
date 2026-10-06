@@ -1,6 +1,6 @@
 # SinX Platform 开发计划
 
-> 分支 `dev` · 更新 2026-10-05
+> 分支 `dev` · 更新 2026-10-06
 
 ## 1. 目标
 
@@ -81,6 +81,14 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   verification passed: 604 tests, zero failures/errors; independent review passed.
   Deployed code revision `968e211` to dev; V31 migration succeeded, no null proxy UUIDs,
   and backend/frontend containers are healthy. Existing credentials were preserved by migration.
+- Commission backend (2026-10-06): order-time eligibility/base/pool snapshots, SYSTEM /
+  PERIOD / ONETIME inviter overrides, default 10% first-purchase commission, 72-hour
+  completion-update maturity, automatic/manual confirmation, optional three-level
+  distribution, atomic ordinary-balance credits and recipient ledger. V33 preserves
+  historical orders without retrospective commission. User GraphQL summary/logs,
+  admin policy/status/detail/filter APIs and real pending-order statistics are wired.
+  Main-agent full backend verification: 619 tests passed; independent adversarial
+  review passed after fixing payout-chain races and effective-policy display.
 
 **管理侧**
 
@@ -132,9 +140,11 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 ### P2
 
 - [ ] User-core frontend acceptance is user-owned (2026-10-05 instruction); implementation is deployed, build/check/audit and independent review passed. Invitation cache and node panel are scoped to viewer identity. Agent browser acceptance stopped at user request; no QA credential rotation was performed on dev.
-- [ ] Investigate user-reported invitation-button failure: deployed API successfully created a code for a separate QA account (available count 0 → 1). Frontend handler is implemented, but the reported account's click result/request error has not yet been captured; do not mark this incident resolved based on API success alone.
+- [x] Invitation flow user acceptance (2026-10-06): the user confirmed the creation button works but is too inconspicuous, and completed invitation-link registration plus a paid order. Read-only dev inspection confirmed both accounts have USER roles, the inviter relation and one consumed code, one invited account, and a completed CNY 50 monthly first purchase with zero trial surplus. Paid entitlement is no longer a trial and starts at fulfilment, with matching next-month expiry/reset. Current paid state overwrites the prior trial; historical trial values were not independently snapshotted. Independent read-only business-logic review found no blocker in this flow.
+- [ ] Make the invitation creation action more prominent; user-reported discoverability issue, not a failed API or missing frontend handler.
 - [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
-- [ ] 佣金体系 `commission_*`(9) 与提现（**优先级后置**，2026-09-19）
+- [x] Commission backend commercial loop, reprioritized by the user on 2026-10-06; ledger credits are spendable through existing order balance deductions. Withdrawal remains excluded.
+- [ ] Commission frontend implementation/deployment and user-owned visual acceptance.
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
 
@@ -198,7 +208,17 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   新用户特惠流量包由管理员选品与定价，仅未完成正式套餐购买的账号可购买；试用不消耗资格，
   取消/过期待支付订单可重试，完成正式购买后不再符合新用户资格。购买流量包替换当前试用，不重复叠加权益。
 - **返佣**：照搬原版（全局默认比例 + 用户级覆盖、仅首次支付、完成 3 日后自动确认、
-  三级分销可关）；**提现不做**，客服私聊。**优先级后置**（2026-09-19）
+  三级分销可关）；2026-10-06 用户要求实现商业闭环，佣金直接进入普通站点余额供下次购买抵扣，提现不做。
+- Commission parity details: eligibility is snapshotted at order placement; valid history
+  excludes only pending/cancelled orders, so trials do not consume eligibility but completed
+  zero-cost purchases do. Base excludes coupon/surplus deductions and payment fees, but
+  includes the portion paid from balance. Rate null/zero follows the global rate. Automatic
+  confirmation uses completed order `updated_at` plus 72 hours; manual confirmation queues
+  immediate settlement. Existing orders are not backfilled. Integer-cent amounts truncate
+  per calculation; zero-share levels still advance to the actual ancestor, and paid orders
+  cannot be requeued. These last rules normalize legacy rounding and prevent duplicate or
+  misdirected balance credits. No automatic invitee first-purchase discount was found in
+  original core code, so none is added.
 - **知识库**：自建文档系统，参考原版
 - **内容交付**：公告和知识库保留 Markdown 源文，编辑预览与用户展示使用同一渲染器；桌面与手机截图验收，不能只以构建成功/HTTP 200 标记页面可用。
 - **封号语义**：禁止登录 + 断开订阅。**断开 = 从所有节点用户表移除 + 踢掉已连接代理**，

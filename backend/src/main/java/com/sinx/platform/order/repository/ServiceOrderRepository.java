@@ -140,4 +140,67 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
           and o.paidAt >= :from
         """)
     long sumPaidOrderAmountSince(@Param("from") Instant from);
+
+    /** Any non-pending, non-cancelled purchase consumes first-payment status. */
+    @Query("""
+        select count(o) from ServiceOrder o
+        where o.user.id = :userId
+          and o.status not in :excluded
+        """)
+    long countFirstPaymentHistory(
+        @Param("userId") UUID userId,
+        @Param("excluded") Collection<OrderStatus> excluded
+    );
+
+    @EntityGraph(attributePaths = {"user", "plan"})
+    @Query("""
+        select o from ServiceOrder o
+        where (:status is null or o.status = :status)
+          and (:commissionOnly = false or
+               (o.inviteUserId is not null and o.status not in :notCommissionable
+                and o.commissionBalance > 0))
+          and (:commissionStatus is null or o.commissionStatus = :commissionStatus)
+        order by o.createdAt desc
+        """)
+    List<ServiceOrder> adminCommissionSearch(
+        @Param("status") OrderStatus status,
+        @Param("commissionOnly") boolean commissionOnly,
+        @Param("notCommissionable") Collection<OrderStatus> notCommissionable,
+        @Param("commissionStatus") Integer commissionStatus,
+        Pageable pageable
+    );
+
+    @Query("""
+        select o.tradeNo from ServiceOrder o
+        where o.commissionStatus = :commissionStatus
+          and o.status = :orderStatus
+          and o.updatedAt <= :before
+        order by o.updatedAt asc
+        """)
+    List<String> findCommissionTradeNosForConfirmation(
+        @Param("commissionStatus") Integer commissionStatus,
+        @Param("orderStatus") OrderStatus orderStatus,
+        @Param("before") Instant before
+    );
+
+    @Query("select o.tradeNo from ServiceOrder o where o.commissionStatus = :status order by o.createdAt asc")
+    List<String> findCommissionTradeNosByStatus(@Param("status") Integer status);
+
+    @Query("select count(o) from ServiceOrder o where o.commissionStatus = 0 and o.commissionBalance > 0 and o.status not in :excluded")
+    long countPendingCommissionOrders(
+        @Param("excluded") Collection<OrderStatus> excluded
+    );
+
+    @EntityGraph(attributePaths = "user")
+    List<ServiceOrder> findByInviteUserIdAndCommissionStatusAndStatus(
+        UUID inviteUserId,
+        Integer commissionStatus,
+        OrderStatus status
+    );
+
+    @EntityGraph(attributePaths = "user")
+    List<ServiceOrder> findByInviteUserIdAndCommissionStatus(
+        UUID inviteUserId,
+        Integer commissionStatus
+    );
 }

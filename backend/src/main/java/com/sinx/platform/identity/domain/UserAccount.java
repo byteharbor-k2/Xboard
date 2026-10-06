@@ -47,6 +47,14 @@ public class UserAccount {
     @Column(name = "inviter_user_id")
     private UUID inviterUserId;
 
+    /** Referral policy selected by this account when it invites buyers. */
+    @Column(name = "commission_type", nullable = false)
+    private int commissionType;
+
+    /** A whole-percent override; null or zero uses the site's default. */
+    @Column(name = "commission_rate")
+    private Integer commissionRate;
+
     @Column(name = "server_group_id")
     private Long serverGroupId;
 
@@ -237,6 +245,31 @@ public class UserAccount {
 
     public UUID getInviterUserId() {
         return inviterUserId;
+    }
+
+    public int getCommissionType() {
+        return commissionType;
+    }
+
+    public Integer getCommissionRate() {
+        return commissionRate;
+    }
+
+    public void updateCommissionPolicy(
+        Integer commissionType,
+        Integer commissionRate,
+        boolean clearCommissionRate,
+        Instant now
+    ) {
+        if (commissionType != null) {
+            this.commissionType = commissionType;
+        }
+        if (clearCommissionRate) {
+            this.commissionRate = null;
+        } else if (commissionRate != null) {
+            this.commissionRate = commissionRate;
+        }
+        this.updatedAt = now;
     }
 
     public Long getServerGroupId() {

@@ -22,6 +22,9 @@ type Query {
     account, so the rows reconcile with the subscription counters.
     """
     viewerTrafficDaily: [ViewerTrafficDaily!]!
+    """This account's referral commission settings and balance-ledger history."""
+    viewerCommissionSummary: ViewerCommissionSummary!
+    viewerCommissionLogs(page: Int = 0, limit: Int = 20): CommissionLogPage!
     """
     The address this account's client subscribes to. It carries the account's
     credential, so it is only ever returned to the account itself.
@@ -252,6 +255,38 @@ type ViewerTrafficDaily {
     uploadBytes: String!
     downloadBytes: String!
     billedBytes: String!
+}
+
+type ViewerCommissionSummary {
+    effectiveRatePercent: Int!
+    commissionType: Int!
+    firstPaymentOnly: Boolean!
+    pendingMinor: String!
+    confirmedPendingMinor: String!
+    earnedMinor: String!
+    autoConfirmEnabled: Boolean!
+    distributionEnabled: Boolean!
+    distributionL1: Int!
+    distributionL2: Int!
+    distributionL3: Int!
+    payoutDestination: String!
+}
+
+type CommissionLogPage {
+    items: [CommissionLog!]!
+    totalCount: Int!
+    page: Int!
+    limit: Int!
+}
+
+type CommissionLog {
+    id: ID!
+    tradeNo: String!
+    orderAmountMinor: String!
+    commissionBaseMinor: String!
+    amountMinor: String!
+    level: Int!
+    createdAt: String!
 }
 
 """

@@ -1,6 +1,7 @@
 package com.sinx.platform.order.application;
 
 import java.security.SecureRandom;
+import java.math.BigInteger;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -25,6 +26,7 @@ import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.Coupon;
 import com.sinx.platform.order.domain.CouponRedemption;
+import com.sinx.platform.order.domain.CommissionEligibilityPolicy;
 import com.sinx.platform.order.domain.OrderPricing;
 import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.domain.OrderType;
@@ -59,6 +61,10 @@ public class OrderService {
         OrderStatus.PROCESSING,
         OrderStatus.COMPLETED,
         OrderStatus.DISCOUNTED
+    );
+    private static final Set<OrderStatus> EXCLUDED_FROM_FIRST_PAYMENT = Set.of(
+        OrderStatus.PENDING,
+        OrderStatus.CANCELLED
     );
     private static final DateTimeFormatter TRADE_NO_STAMP =
         DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC);
@@ -225,7 +231,7 @@ public class OrderService {
             );
         }
 
-        ServiceOrder order = orders.save(ServiceOrder.create(
+        ServiceOrder order = ServiceOrder.create(
             nextTradeNo(now),
             user,
             plan,
@@ -237,7 +243,15 @@ public class OrderService {
             encode(surplus.consumedOrderIds()),
             newUserOffer,
             now
-        ));
+        );
+        CommissionSnapshot commission = commissionSnapshot(user, breakdown);
+        order.snapshotCommission(
+            commission.inviterId(),
+            commission.baseMinor(),
+            commission.poolMinor(),
+            commission.eligible()
+        );
+        ServiceOrder placedOrder = orders.save(order);
 
         coupon.ifPresent(applied -> {
             Coupon redeemed = applied.coupon();
@@ -245,7 +259,7 @@ public class OrderService {
             redemptions.save(CouponRedemption.create(
                 redeemed.getId(),
                 userId,
-                order.getId(),
+                placedOrder.getId(),
                 now
             ));
         });
@@ -254,11 +268,69 @@ public class OrderService {
         // and the customer should not be left holding an order they cannot act
         // on. Whichever deduction emptied it - coupon, upgrade surplus or
         // balance - it is opened here rather than left pending.
-        if (order.getTotalAmount() <= 0) {
-            return fulfilment.settleCovered(order.getTradeNo());
+        if (placedOrder.getTotalAmount() <= 0) {
+            return fulfilment.settleCovered(placedOrder.getTradeNo());
         }
 
-        return order;
+        return placedOrder;
+    }
+
+    /**
+     * Freezes the direct inviter and commission pool at order placement. The
+     * base is what the buyer pays or consumes after coupon/surplus deductions,
+     * before the buyer's balance deduction; it excludes gateway handling fees.
+     * Whole-cent percentages truncate down, matching the original integer
+     * minor-unit storage (no rounding fraction is carried to another order).
+     */
+    private CommissionSnapshot commissionSnapshot(
+        UserAccount buyer,
+        OrderPricing.Breakdown breakdown
+    ) {
+        UUID inviterId = buyer.getInviterUserId();
+        long base = Math.addExact(breakdown.totalAmount(), breakdown.balanceAmount());
+        if (inviterId == null) {
+            return new CommissionSnapshot(null, base, 0, false);
+        }
+        UserAccount inviter = users.findById(inviterId).orElse(null);
+        if (inviter == null || base <= 0) {
+            return new CommissionSnapshot(inviterId, base, 0, false);
+        }
+
+        int type = inviter.getCommissionType();
+        boolean globalFirstPaymentOnly = configuration.commissionPolicy()
+            .firstPaymentOnly();
+        boolean firstOnly = CommissionEligibilityPolicy.isFirstPaymentOnly(
+            type,
+            globalFirstPaymentOnly
+        );
+        // The original first-order test excluded only unpaid and cancelled
+        // history. PROCESSING, COMPLETED, DISCOUNTED, and zero-value rows count.
+        boolean hasEligibleHistory = firstOnly
+            && orders.countFirstPaymentHistory(
+                buyer.getId(), EXCLUDED_FROM_FIRST_PAYMENT
+            ) > 0;
+        boolean eligible = CommissionEligibilityPolicy.isEligible(
+            type,
+            globalFirstPaymentOnly,
+            hasEligibleHistory
+        );
+        int rate = inviter.getCommissionRate() != null
+                && inviter.getCommissionRate() > 0
+            ? inviter.getCommissionRate()
+            : configuration.invitationPolicy().commissionPercent();
+        long pool = eligible && rate > 0
+            ? BigInteger.valueOf(base).multiply(BigInteger.valueOf(rate))
+                .divide(BigInteger.valueOf(100)).longValueExact()
+            : 0;
+        return new CommissionSnapshot(inviterId, base, pool, eligible);
+    }
+
+    private record CommissionSnapshot(
+        UUID inviterId,
+        long baseMinor,
+        long poolMinor,
+        boolean eligible
+    ) {
     }
 
     @Transactional
@@ -340,13 +412,27 @@ public class OrderService {
      * The newest orders, for the admin list an operator settles from. Newest
      * first, capped at what the caller asked for.
      */
-    public List<OrderAdminView> adminList(OrderStatus status, int limit) {
+    public List<OrderAdminView> adminList(
+        OrderStatus status,
+        int limit,
+        Boolean commissionOnly,
+        Integer commissionStatus
+    ) {
         int safeLimit = Math.max(1, Math.min(limit, 200));
         PageRequest page = PageRequest.of(0, safeLimit);
-        List<ServiceOrder> found = status == null
-            ? orders.findAllByOrderByCreatedAtDesc(page)
-            : orders.findByStatusOrderByCreatedAtDesc(status, page);
+        List<ServiceOrder> found = orders.adminCommissionSearch(
+            status,
+            Boolean.TRUE.equals(commissionOnly),
+            Set.of(OrderStatus.PENDING, OrderStatus.CANCELLED),
+            commissionStatus,
+            page
+        );
         return found.stream().map(OrderAdminView::from).toList();
+    }
+
+    /** Retained for existing admin callers that do not request commission filters. */
+    public List<OrderAdminView> adminList(OrderStatus status, int limit) {
+        return adminList(status, limit, null, null);
     }
 
     /**
