@@ -147,7 +147,7 @@ public interface SubscriptionEntitlementRepository
     );
 
     /**
-     * The activations whose monthly cycle has caught up with today.
+     * The activations whose selected reset cycle has caught up with today.
      *
      * A candidate pre-filter, deliberately id-only: the run locks each row
      * one at a time and re-judges the entity's own state under the lock, so
@@ -169,20 +169,33 @@ public interface SubscriptionEntitlementRepository
     );
 
     /**
-     * The monthly entitlements granted before a cycle existed, whose
-     * boundary still reads NULL. Only these, and only the ones with no other
-     * reset policy: a traffic package and a NEVER plan live without a cycle.
+     * Periodic entitlements granted before a cycle existed, whose boundary
+     * still reads NULL. A traffic package and a NEVER plan live without one.
      */
     @Query("""
         select entitlement.id from SubscriptionEntitlement entitlement
         where entitlement.resetPolicy = :policy
           and entitlement.trial = false
           and entitlement.canceledAt is null
+          and (entitlement.expiresAt is null or entitlement.expiresAt > :now)
           and entitlement.nextResetAt is null
         """)
     List<UUID> findIdsWithoutMonthlyBoundary(
-        @Param("policy") TrafficResetPolicy policy
+        @Param("policy") TrafficResetPolicy policy,
+        @Param("now") Instant now
     );
+
+    @Query("""
+        select entitlement.id from SubscriptionEntitlement entitlement
+        where entitlement.plan.id = :planId
+        """)
+    List<UUID> findIdsForPlan(@Param("planId") UUID planId);
+
+    @Query("""
+        select entitlement.id from SubscriptionEntitlement entitlement
+        where entitlement.plan.resetPolicy is null
+        """)
+    List<UUID> findIdsInheritingResetPolicy();
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @EntityGraph(attributePaths = {"user", "plan"})

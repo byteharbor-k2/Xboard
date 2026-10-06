@@ -9,10 +9,9 @@ import org.springframework.stereotype.Component;
  *
  * All the logic lives in {@link TrafficResetService#runMonthlyResets()}; this
  * class only decides when it runs, so the sweep itself is testable without
- * waiting for the cron. Hourly, on the half hour - monthly boundaries land
- * inside whichever hour they fall due, so a daily slot would lag behind by
- * close to a day - and the zone is pinned because a server moved between time
- * zones must not silently push every customer's renewal day along with it.
+ * waiting for the cron. Hourly, on the half hour, so any calendar or activation
+ * boundary lands inside whichever hour it falls due. The zone is pinned because
+ * a server moved between time zones must not silently move reset days.
  */
 @Component
 public class MonthlyTrafficResetJob {

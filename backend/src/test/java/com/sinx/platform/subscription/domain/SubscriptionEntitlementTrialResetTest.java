@@ -29,7 +29,7 @@ class SubscriptionEntitlementTrialResetTest {
 
         assertThat(trial.isTrial()).isTrue();
         assertThat(trial.getResetPolicy())
-            .isEqualTo(TrafficResetPolicy.MONTHLY_FROM_ACTIVATION);
+            .isEqualTo(TrafficResetPolicy.NEVER);
         assertThat(trial.getNextResetAt()).isNull();
         assertThat(trial.stateAt(ACTIVATED_AT.plusSeconds(3 * 60 * 60)))
             .isEqualTo(EntitlementState.EXPIRED);

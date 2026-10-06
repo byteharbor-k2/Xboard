@@ -105,7 +105,7 @@ class RegistrationTrialResetIntegrationTest {
             .andExpect(jsonPath("$.errors").doesNotExist())
             .andExpect(jsonPath("$.data.viewerEntitlement.isTrial").value(true))
             .andExpect(jsonPath("$.data.viewerEntitlement.resetPolicy")
-                .value("MONTHLY_FROM_ACTIVATION"))
+                .value("NEVER"))
             .andExpect(jsonPath("$.data.viewerEntitlement.expiresAt").isNotEmpty())
             .andReturn();
         Object nextResetAt = JsonPath.read(

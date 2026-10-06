@@ -11,6 +11,7 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +20,9 @@ import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
+import com.sinx.platform.catalog.domain.TrafficResetPolicyResolver;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.node.repository.NodeAccessGroupRepository;
 import com.sinx.platform.node.application.NodeAccessGroupsChangedEvent;
 import com.sinx.platform.shared.web.ApiProblemException;
@@ -36,7 +39,26 @@ public class PlanManagementService {
     private final NodeAccessGroupRepository groupRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
+    private final PlatformConfigurationService configuration;
 
+    @Autowired
+    public PlanManagementService(
+        ServicePlanRepository planRepository,
+        SubscriptionEntitlementRepository entitlementRepository,
+        NodeAccessGroupRepository groupRepository,
+        ApplicationEventPublisher eventPublisher,
+        Clock clock,
+        PlatformConfigurationService configuration
+    ) {
+        this.planRepository = planRepository;
+        this.entitlementRepository = entitlementRepository;
+        this.groupRepository = groupRepository;
+        this.eventPublisher = eventPublisher;
+        this.clock = clock;
+        this.configuration = configuration;
+    }
+
+    /** Compatibility constructor for isolated plan-management tests. */
     public PlanManagementService(
         ServicePlanRepository planRepository,
         SubscriptionEntitlementRepository entitlementRepository,
@@ -44,11 +66,8 @@ public class PlanManagementService {
         ApplicationEventPublisher eventPublisher,
         Clock clock
     ) {
-        this.planRepository = planRepository;
-        this.entitlementRepository = entitlementRepository;
-        this.groupRepository = groupRepository;
-        this.eventPublisher = eventPublisher;
-        this.clock = clock;
+        this(planRepository, entitlementRepository, groupRepository,
+            eventPublisher, clock, null);
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +78,10 @@ public class PlanManagementService {
         ).stream().map(plan -> ManagedPlanView.from(
             plan,
             entitlementRepository.countForPlan(plan.getId()),
-            entitlementRepository.countActiveForPlan(plan.getId(), now)
+            entitlementRepository.countActiveForPlan(plan.getId(), now),
+            TrafficResetPolicyResolver.effective(
+                plan, globalResetPolicy()
+            )
         )).toList();
     }
 
@@ -88,7 +110,11 @@ public class PlanManagementService {
         plan.assignServerGroup(values.serverGroupId(), now);
         syncPrices(plan, values.prices());
         ServicePlan saved = planRepository.save(plan);
-        return ManagedPlanView.from(saved, 0, 0);
+        return ManagedPlanView.from(
+            saved, 0, 0, TrafficResetPolicyResolver.effective(
+                saved, globalResetPolicy()
+            )
+        );
     }
 
     @Transactional
@@ -96,6 +122,7 @@ public class PlanManagementService {
         ValidatedDraft values = validate(draft);
         ServicePlan plan = find(id);
         Long previousServerGroupId = plan.getServerGroupId();
+        TrafficResetPolicy previousResetPolicy = plan.getResetPolicy();
         Instant now = Instant.now(clock);
         plan.update(
             values.name(),
@@ -116,6 +143,11 @@ public class PlanManagementService {
         );
         plan.assignServerGroup(values.serverGroupId(), now);
         syncPrices(plan, values.prices());
+        if (!Objects.equals(previousResetPolicy, values.resetPolicy())) {
+            eventPublisher.publishEvent(
+                new PlanTrafficResetPolicyChangedEvent(plan.getId())
+            );
+        }
         if (!Objects.equals(previousServerGroupId, values.serverGroupId())) {
             eventPublisher.publishEvent(NodeAccessGroupsChangedEvent.of(
                 java.util.Arrays.asList(
@@ -128,7 +160,10 @@ public class PlanManagementService {
         return ManagedPlanView.from(
             plan,
             entitlementRepository.countForPlan(id),
-            entitlementRepository.countActiveForPlan(id, Instant.now(clock))
+            entitlementRepository.countActiveForPlan(id, Instant.now(clock)),
+            TrafficResetPolicyResolver.effective(
+                plan, globalResetPolicy()
+            )
         );
     }
 
@@ -201,9 +236,6 @@ public class PlanManagementService {
         );
         if (draft.planType() == null) {
             throw invalid("Plan type is required");
-        }
-        if (draft.resetPolicy() == null) {
-            throw invalid("Traffic reset policy is required");
         }
         if (draft.serverGroupId() != null && !groupRepository.existsById(draft.serverGroupId())) {
             throw invalid("The selected server group does not exist");
@@ -342,6 +374,12 @@ public class PlanManagementService {
             "PLAN_DEFINITION_INVALID",
             detail
         );
+    }
+
+    private TrafficResetPolicy globalResetPolicy() {
+        return configuration == null
+            ? TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+            : configuration.globalTrafficResetPolicy();
     }
 
     public record PlanDraft(

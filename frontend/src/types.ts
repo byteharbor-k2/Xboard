@@ -212,7 +212,8 @@ export type ManagedPlan = {
   planType: PlanType;
   transferLimitBytes: string;
   speedLimitMbps: number | null;
-  resetPolicy: TrafficResetPolicy;
+  resetPolicy: TrafficResetPolicy | null;
+  effectiveResetPolicy: TrafficResetPolicy;
   capacityLimit: number | null;
   resettable: boolean;
   purchaseLimitPerUser: number | null;
@@ -228,7 +229,7 @@ export type ManagedPlan = {
 
 export type PlanDraft = Omit<
   ManagedPlan,
-  "id" | "subscriberCount" | "activeSubscriberCount"
+  "id" | "effectiveResetPolicy" | "subscriberCount" | "activeSubscriberCount"
 >;
 
 export type EntitlementState =

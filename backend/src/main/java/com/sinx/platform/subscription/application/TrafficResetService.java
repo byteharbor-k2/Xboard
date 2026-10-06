@@ -7,15 +7,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
+import com.sinx.platform.catalog.domain.ServicePlan;
+import com.sinx.platform.catalog.domain.TrafficResetPolicyResolver;
+import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.subscription.domain.MonthlyResetSchedule;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
@@ -24,14 +30,13 @@ import com.sinx.platform.subscription.repository.SubscriptionEntitlementReposito
 import com.sinx.platform.subscription.repository.TrafficResetRecordRepository;
 
 /**
- * Runs the monthly traffic cycle plans promise.
+ * Runs the traffic reset cycles the plans promise.
  *
- * A {@code MONTHLY_FROM_ACTIVATION} entitlement renews its allowance on the
- * anniversary of the day it was activated; up to now, only a message the
- * administrator pressed by hand made that happen - a scene of thousands of
- * clicks, once every month, forever. This service does it for them: the
- * boundary comes due, the counters drop to zero, the boundary steps one
- * further, and a record keeps what was spent before the release.
+ * Each of the four periodic methods is scheduled on its promised calendar or
+ * activation boundary. When one comes due, the counters drop to zero, its
+ * boundary advances beyond now, and a record keeps what was spent before the
+ * release. A late sweep catches up in one reset rather than replaying missed
+ * cycles or crediting them repeatedly.
  *
  * Every reset is its own transaction and its own row lock, because a reset is
  * nothing to fail in bulk: one account in trouble must not strand the others,
@@ -47,12 +52,36 @@ public class TrafficResetService {
         LoggerFactory.getLogger(TrafficResetService.class);
 
     private final SubscriptionEntitlementRepository entitlements;
+    private final ServicePlanRepository plans;
+    private final PlatformConfigurationService configuration;
     private final TrafficResetRecordRepository records;
     private final com.sinx.platform.identity.repository.UserAccountRepository users;
     private final ApplicationEventPublisher events;
     private final Clock clock;
     private final org.springframework.transaction.support.TransactionTemplate transactions;
 
+    @Autowired
+    public TrafficResetService(
+        SubscriptionEntitlementRepository entitlements,
+        ServicePlanRepository plans,
+        PlatformConfigurationService configuration,
+        TrafficResetRecordRepository records,
+        com.sinx.platform.identity.repository.UserAccountRepository users,
+        ApplicationEventPublisher events,
+        Clock clock,
+        org.springframework.transaction.support.TransactionTemplate transactions
+    ) {
+        this.entitlements = entitlements;
+        this.plans = plans;
+        this.configuration = configuration;
+        this.records = records;
+        this.users = users;
+        this.events = events;
+        this.clock = clock;
+        this.transactions = transactions;
+    }
+
+    /** Compatibility constructor for focused tests of reset-record behavior. */
     public TrafficResetService(
         SubscriptionEntitlementRepository entitlements,
         TrafficResetRecordRepository records,
@@ -61,46 +90,107 @@ public class TrafficResetService {
         Clock clock,
         org.springframework.transaction.support.TransactionTemplate transactions
     ) {
-        this.entitlements = entitlements;
-        this.records = records;
-        this.users = users;
-        this.events = events;
-        this.clock = clock;
-        this.transactions = transactions;
+        this(entitlements, null, null, records, users, events, clock, transactions);
     }
 
     /**
      * The scheduled pass: seeds boundaries that were granted without one,
-     * then resets every entitlement whose boundary has caught up with today.
+     * then resets every periodic entitlement whose boundary has come due.
      *
      * @return how many entitlements were reset
      */
     public int runMonthlyResets() {
         settleMissingBoundaries();
         int resets = 0;
-        for (UUID entitlementId : entitlements.findIdsDueForMonthlyReset(
-            TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
-            Instant.now(clock)
-        )) {
-            try {
-                // One transaction per entitlement: a row that cannot be
-                // reset leaves the others untouched.
-                if (Boolean.TRUE.equals(transactions.execute(
-                    status -> resetDueOnce(entitlementId)
-                ))) {
-                    resets++;
+        Instant now = Instant.now(clock);
+        for (TrafficResetPolicy policy : TrafficResetPolicy.values()) {
+            if (policy == TrafficResetPolicy.NEVER) {
+                continue;
+            }
+            for (UUID entitlementId : entitlements.findIdsDueForMonthlyReset(
+                policy, now
+            )) {
+                try {
+                    // One transaction per entitlement: a row that cannot be
+                    // reset leaves the others untouched.
+                    if (Boolean.TRUE.equals(transactions.execute(
+                        status -> resetDueOnce(entitlementId)
+                    ))) {
+                        resets++;
+                    }
+                } catch (RuntimeException exception) {
+                    log.warn(
+                        "Traffic reset skipped for entitlement {}",
+                        entitlementId,
+                        exception
+                    );
                 }
-            } catch (RuntimeException exception) {
-                // A single account that cannot be reset must not strand the
-                // increments of everyone else's next cycle behind it.
-                log.warn(
-                    "Traffic reset skipped for entitlement {}",
-                    entitlementId,
-                    exception
-                );
             }
         }
         return resets;
+    }
+
+    /** Resolve a plan into the policy copied onto an entitlement snapshot. */
+    public TrafficResetPolicy effectivePolicy(ServicePlan plan) {
+        return TrafficResetPolicyResolver.effective(
+            plan,
+            configuration == null
+                ? TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+                : configuration.globalTrafficResetPolicy()
+        );
+    }
+
+    /** Reconcile snapshots after the global default or an individual plan changed. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int synchronizePoliciesForPlan(UUID planId) {
+        return synchronizePolicyCandidates(entitlements.findIdsForPlan(planId));
+    }
+
+    /** Recheck one committed entitlement against the current source of policy. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean synchronizePolicyForUser(UUID userId) {
+        SubscriptionEntitlement entitlement = entitlements
+            .findByUserIdForUpdate(userId)
+            .orElse(null);
+        if (entitlement == null) {
+            return false;
+        }
+        return synchronizePolicy(entitlement, Instant.now(clock));
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public int synchronizeInheritedPolicies() {
+        return synchronizePolicyCandidates(
+            entitlements.findIdsInheritingResetPolicy()
+        );
+    }
+
+    private int synchronizePolicyCandidates(List<UUID> ids) {
+        int updated = 0;
+        for (UUID id : ids.stream().sorted().toList()) {
+            SubscriptionEntitlement entitlement = entitlements.findByIdForUpdate(id)
+                .orElse(null);
+            if (entitlement == null) {
+                continue;
+            }
+            if (synchronizePolicy(entitlement, Instant.now(clock))) {
+                updated++;
+            }
+        }
+        return updated;
+    }
+
+    private boolean synchronizePolicy(
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        ServicePlan plan = entitlementPlan(entitlement);
+        return plan != null
+            && entitlement.synchronizeResetPolicy(effectivePolicy(plan), now);
+    }
+
+    private ServicePlan entitlementPlan(SubscriptionEntitlement entitlement) {
+        return plans.findById(entitlement.getPlanId()).orElse(null);
     }
 
     /**
@@ -122,7 +212,11 @@ public class TrafficResetService {
         SubscriptionEntitlement entitlement =
             entitlements.findByIdForUpdate(entitlementId).orElse(null);
         Instant now = Instant.now(clock);
-        if (entitlement == null || !isDue(entitlement, now)) {
+        if (entitlement == null) {
+            return false;
+        }
+        synchronizePolicy(entitlement, now);
+        if (!isDue(entitlement, now)) {
             return false;
         }
         resetAndRecord(entitlement, now);
@@ -151,10 +245,15 @@ public class TrafficResetService {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();
         long downloadedBytesBefore = entitlement.getDownloadedBytes();
-        entitlement.resetTrafficInCycle(
-            now,
-            MonthlyResetSchedule.followingBoundary(now, now)
-        );
+        boolean active = entitlement.getCanceledAt() == null
+            && (entitlement.getExpiresAt() == null
+                || entitlement.getExpiresAt().isAfter(now));
+        Instant nextBoundary = active
+            ? MonthlyResetSchedule.nextBoundary(
+                entitlement.getResetPolicy(), now, now
+            )
+            : null;
+        entitlement.resetTrafficInCycle(now, nextBoundary);
         records.save(TrafficResetRecord.create(
             userId,
             entitlement.getId(),
@@ -170,13 +269,10 @@ public class TrafficResetService {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();
         long downloadedBytesBefore = entitlement.getDownloadedBytes();
-        entitlement.resetTrafficInCycle(
-            now,
+        entitlement.resetTrafficInCycle(now,
             MonthlyResetSchedule.followingBoundary(
-                entitlement.getNextResetAt(),
-                now
-            )
-        );
+                entitlement.getResetPolicy(), entitlement.getNextResetAt(), now
+            ));
         records.save(TrafficResetRecord.create(
             userId,
             entitlement.getId(),
@@ -196,8 +292,9 @@ public class TrafficResetService {
 
     /** Judged under the row lock against the entity's own arithmetic. */
     private boolean isDue(SubscriptionEntitlement entitlement, Instant now) {
-        return entitlement.getResetPolicy()
-            == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+        return entitlement.getResetPolicy() != TrafficResetPolicy.NEVER
+            && entitlement.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.SUBSCRIPTION
             && !entitlement.isTrial()
             && entitlement.getNextResetAt() != null
             && !entitlement.getNextResetAt().isAfter(now)
@@ -207,19 +304,24 @@ public class TrafficResetService {
     }
 
     private void settleMissingBoundaries() {
-        for (UUID entitlementId : entitlements.findIdsWithoutMonthlyBoundary(
-            TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
-        )) {
-            try {
-                transactions.executeWithoutResult(status ->
-                    settleMissingBoundary(entitlementId)
-                );
-            } catch (RuntimeException exception) {
-                log.warn(
-                    "Traffic reset boundary seeding skipped for {}",
-                    entitlementId,
-                    exception
-                );
+        for (TrafficResetPolicy policy : TrafficResetPolicy.values()) {
+            if (policy == TrafficResetPolicy.NEVER) {
+                continue;
+            }
+            for (UUID entitlementId : entitlements.findIdsWithoutMonthlyBoundary(
+                policy, Instant.now(clock)
+            )) {
+                try {
+                    transactions.executeWithoutResult(status ->
+                        settleMissingBoundary(entitlementId)
+                    );
+                } catch (RuntimeException exception) {
+                    log.warn(
+                        "Traffic reset boundary seeding skipped for {}",
+                        entitlementId,
+                        exception
+                    );
+                }
             }
         }
     }
@@ -236,11 +338,16 @@ public class TrafficResetService {
     public void settleMissingBoundary(UUID entitlementId) {
         SubscriptionEntitlement entitlement =
             entitlements.findByIdForUpdate(entitlementId).orElse(null);
-        if (entitlement == null
-            || entitlement.isTrial()
+        if (entitlement == null) {
+            return;
+        }
+        Instant now = Instant.now(clock);
+        synchronizePolicy(entitlement, now);
+        if (entitlement.isTrial()
+            || entitlement.getPlanType()
+                != com.sinx.platform.catalog.domain.PlanType.SUBSCRIPTION
             || entitlement.getNextResetAt() != null
-            || entitlement.getResetPolicy()
-                != TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+            || entitlement.getResetPolicy() == TrafficResetPolicy.NEVER
         ) {
             return;
         }

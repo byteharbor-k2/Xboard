@@ -17,6 +17,7 @@ public record ManagedPlanView(
     String transferLimitBytes,
     Integer speedLimitMbps,
     TrafficResetPolicy resetPolicy,
+    TrafficResetPolicy effectiveResetPolicy,
     Integer capacityLimit,
     boolean resettable,
     Integer purchaseLimitPerUser,
@@ -32,7 +33,8 @@ public record ManagedPlanView(
     static ManagedPlanView from(
         ServicePlan plan,
         long subscriberCount,
-        long activeSubscriberCount
+        long activeSubscriberCount,
+        TrafficResetPolicy effectiveResetPolicy
     ) {
         return new ManagedPlanView(
             plan.getId(),
@@ -43,6 +45,7 @@ public record ManagedPlanView(
             Long.toString(plan.getTransferLimitBytes()),
             plan.getSpeedLimitMbps(),
             plan.getResetPolicy(),
+            effectiveResetPolicy,
             plan.getCapacityLimit(),
             plan.isResettable(),
             plan.getPurchaseLimitPerUser(),

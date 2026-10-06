@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
+import com.sinx.platform.catalog.domain.TrafficResetPolicyResolver;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.order.domain.OrderStatus;
@@ -102,7 +103,12 @@ public class CatalogService {
         }
         Integer capacity = plan.getCapacityLimit();
         if (capacity == null) {
-            return PlanOfferView.from(plan, null, newUserOffer);
+            return PlanOfferView.from(
+                plan, null, newUserOffer,
+                TrafficResetPolicyResolver.effective(
+                    plan, configuration.globalTrafficResetPolicy()
+                )
+            );
         }
         long occupied = entitlementRepository.countActiveForPlan(
             plan.getId(),
@@ -111,7 +117,12 @@ public class CatalogService {
         int remaining = Math.max(0, capacity - Math.toIntExact(occupied));
         return remaining == 0
             ? null
-            : PlanOfferView.from(plan, remaining, newUserOffer);
+            : PlanOfferView.from(
+                plan, remaining, newUserOffer,
+                TrafficResetPolicyResolver.effective(
+                    plan, configuration.globalTrafficResetPolicy()
+                )
+            );
     }
 
     private boolean hasCompletedPurchase(UUID userId) {

@@ -155,7 +155,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [x] Commission backend commercial loop, reprioritized by the user on 2026-10-06; ledger credits are spendable through existing order balance deductions. Withdrawal remains excluded.
 - [ ] User-owned commission frontend acceptance; code `8c64e4c` is deployed, V33 and public API smoke checks passed.
 - [x] Subscription throttling (2026-10-06): Redis-atomic rolling-second window allows at most two requests per user across formats and rotated tokens; the third returns empty 429 with `Retry-After: 1`, without exposing credentials. Real Redis concurrency and endpoint tests pass; main full backend gate: 644 tests, independent review passed.
-- [ ] Current batch remaining delivery: subscription commercial/reset settings and catalogue category tabs (implemented and verified; pending commit/deployment and user-owned visual acceptance).
+- [x] Subscription commercial/reset settings: quote and order placement honor `plan_change_enable` and `surplus_enable`; defaults remain enabled. Global reset setting uses original admin key `globalreset_traffic_method` (the requested reset_traffic_method), default 1. Nullable plan policy follows global; explicit overrides take precedence. V34 migrates existing default monthly subscription plans to inheritance. All five modes, setting changes, new-grant races, trial/package exclusions and manual resets are tested; 644-test full backend gate and independent review passed.
+- [ ] Catalogue category tabs implementation/deployment and user-owned visual acceptance.
 - [ ] Next batch after the current delivery: complete user account editing for nickname, email and login password. Nickname/password have existing implementations to retain and verify; email change is newly authorized and supersedes the previous exclusion.
 - [ ] Following account editing: dedicated user balance page and commission payout-record page. Existing invitation-page commission ledger remains implemented; the dedicated finance pages are additional presentation work.
 - [ ] Remaining admin field wiring: re-audit supported settings as needed; the old 74/33 count is obsolete after onboarding and commission work.
@@ -241,19 +242,23 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 ### 5.3 流量重置档位
 
-周期订阅用**按月**（`MONTHLY_FROM_ACTIVATION`，从开通日起满一个月），
-流量包用**不重置**（`NEVER`，代码已强制）。自动重置任务已实现
-（每小时扫一次，Asia/Shanghai；`next_reset_at` 为唯一锚点，手动重置与
-重置包购买把锚移到重置时刻；首次部署对历史开通做一次追平重置；
-月末日期钳位到 28/29 接受漂移）。
+2026-10-06 implementation: the global default remains monthly from activation (1),
+preserving current behavior. Periodic plans may follow the global method (`resetPolicy`
+null) or override it explicitly; traffic packages and registration trials never auto-reset.
+The five methods below are implemented, using Asia/Shanghai calendar boundaries and
+activation-based monthly/yearly anniversaries. Settings/plan changes reconcile boundaries
+without clearing traffic; unchanged policies preserve their anchors. A post-commit check
+also covers new entitlements racing a policy change. Scheduler runs hourly with one reset
+per overdue entitlement, not one reset per missed cycle. V34 preserves current monthly
+behavior while making existing default monthly plans inherit the global setting.
 
-其余三档备查：
-
-| 档位 | 语义 | 代价 |
+| Method | Meaning | Notes |
 | --- | --- | --- |
-| 每月 1 号 | 所有用户在日历月初同时重置 | 月底购买的用户几天后就被重置 |
-| 每年 1 月 1 号 | 年付套餐在日历年初重置 | 同上，年化版本 |
-| 按年 | 年付套餐从开通日起满一年 | 重置日散布全年 |
+| 0 | First day of each month | Asia/Shanghai calendar month |
+| 1 | Monthly from activation | Default; existing short-month clamping behavior retained |
+| 2 | Never | No automatic boundary |
+| 3 | First day of each year | Asia/Shanghai calendar year |
+| 4 | Yearly from activation | Leap-year boundary handling |
 
 ## 6. 开发流程
 

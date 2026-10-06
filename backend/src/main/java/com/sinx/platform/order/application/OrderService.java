@@ -128,6 +128,7 @@ public class OrderService {
         validatePurchasable(user, plan, period, entitlement, now);
 
         OrderType type = classify(plan, period, entitlement, now);
+        assertPlanChangeAllowed(type);
         Optional<CouponEvaluator.Applied> coupon = couponEvaluator.evaluate(
             couponCode,
             userId,
@@ -136,7 +137,8 @@ public class OrderService {
             price.getAmountMinor(),
             now
         );
-        SurplusValuation.Surplus surplus = type == OrderType.UPGRADE
+        SurplusValuation.Surplus surplus = subscriptionPolicy().surplusEnabled()
+                && type == OrderType.UPGRADE
                 && (entitlement == null || !entitlement.isTrial())
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
@@ -197,6 +199,7 @@ public class OrderService {
         validatePurchasable(user, plan, period, entitlement, now);
 
         OrderType type = classify(plan, period, entitlement, now);
+        assertPlanChangeAllowed(type);
         Optional<CouponEvaluator.Applied> coupon = couponEvaluator.evaluate(
             couponCode,
             userId,
@@ -206,7 +209,8 @@ public class OrderService {
             now,
             true
         );
-        SurplusValuation.Surplus surplus = type == OrderType.UPGRADE
+        SurplusValuation.Surplus surplus = subscriptionPolicy().surplusEnabled()
+                && type == OrderType.UPGRADE
                 && (entitlement == null || !entitlement.isTrial())
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
@@ -466,6 +470,22 @@ public class OrderService {
     ) {
         Instant expiresAt = entitlement.getExpiresAt();
         return expiresAt == null || expiresAt.isAfter(now);
+    }
+
+    /** The legacy switch blocks only a live paid cross-plan change. */
+    private void assertPlanChangeAllowed(OrderType type) {
+        if (type == OrderType.UPGRADE
+                && !subscriptionPolicy().planChangeEnabled()) {
+            throw rejected("Changing an active subscription plan is disabled");
+        }
+    }
+
+    private PlatformConfigurationService.SubscriptionPolicy subscriptionPolicy() {
+        PlatformConfigurationService.SubscriptionPolicy policy =
+            configuration.subscriptionPolicy();
+        return policy == null
+            ? new PlatformConfigurationService.SubscriptionPolicy(true, true, 1)
+            : policy;
     }
 
     private void validatePurchasable(

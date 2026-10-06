@@ -68,6 +68,21 @@ public record PlanOfferView(
         Integer capacityRemaining,
         boolean newUserOffer
     ) {
+        TrafficResetPolicy effectivePolicy = plan.getResetPolicy();
+        if (effectivePolicy == null) {
+            effectivePolicy = plan.getPlanType() == PlanType.TRAFFIC_PACKAGE
+                ? TrafficResetPolicy.NEVER
+                : TrafficResetPolicy.MONTHLY_FROM_ACTIVATION;
+        }
+        return from(plan, capacityRemaining, newUserOffer, effectivePolicy);
+    }
+
+    static PlanOfferView from(
+        ServicePlan plan,
+        Integer capacityRemaining,
+        boolean newUserOffer,
+        TrafficResetPolicy effectivePolicy
+    ) {
         return new PlanOfferView(
             plan.getId(),
             plan.getName(),
@@ -76,7 +91,7 @@ public record PlanOfferView(
             plan.getPlanType(),
             Long.toString(plan.getTransferLimitBytes()),
             plan.getSpeedLimitMbps(),
-            plan.getResetPolicy(),
+            effectivePolicy,
             plan.isRenewable(),
             plan.isResettable(),
             plan.getPurchaseLimitPerUser(),

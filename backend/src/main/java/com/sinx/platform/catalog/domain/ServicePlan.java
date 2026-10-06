@@ -47,7 +47,7 @@ public class ServicePlan {
     private Integer speedLimitMbps;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "reset_policy", length = 32, nullable = false)
+    @Column(name = "reset_policy", length = 32)
     private TrafficResetPolicy resetPolicy;
 
     @Column(name = "capacity_limit")

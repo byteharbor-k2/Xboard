@@ -291,6 +291,7 @@ public class OrderFulfilmentService {
                     now,
                     null,
                     null,
+                    trafficResets.effectivePolicy(plan),
                     now
                 );
             }
@@ -308,6 +309,7 @@ public class OrderFulfilmentService {
                 now,
                 expiresAt,
                 null,
+                trafficResets.effectivePolicy(plan),
                 now
             );
         }
@@ -315,6 +317,7 @@ public class OrderFulfilmentService {
             plan,
             expiresAt,
             startsTrafficFresh(order, entitlement),
+            trafficResets.effectivePolicy(plan),
             now
         );
         entitlement.markPurchased(now);

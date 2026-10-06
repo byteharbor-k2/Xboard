@@ -577,10 +577,19 @@ public class AdminUserService {
                 now,
                 expiresAt,
                 null,
+                trafficResets.effectivePolicy(plan),
                 now
             );
         }
-        entitlement.administrate(plan, allowance, expiresAt, now);
+        entitlement.administrate(
+            plan,
+            allowance,
+            expiresAt,
+            now,
+            plan == null
+                ? entitlement.getResetPolicy()
+                : trafficResets.effectivePolicy(plan)
+        );
         entitlements.save(entitlement);
         publishEntitlementChanged(account.getId(), entitlement, now);
     }

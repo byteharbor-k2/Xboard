@@ -79,6 +79,12 @@ const copy = {
     capacity: "可售容量",
     emptyUnlimited: "留空表示不限",
     resetPolicy: "流量重置规则",
+    followGlobal: "跟随全局设置",
+    effectiveReset: "当前生效规则",
+    globalSource: "来源：全局设置",
+    planSource: "来源：套餐覆盖",
+    packageSource: "流量包固定不重置",
+    resetPolicyHint: "跟随全局设置时，重置规则会随全局配置变化；选择其他规则可单独覆盖。",
     resettable: "允许购买流量重置",
     resettableHint: "开启后用户可以按重置价格恢复当前套餐的全部流量",
     purchaseLimit: "每位用户限购次数",
@@ -143,6 +149,12 @@ const copy = {
     capacity: "Sales capacity",
     emptyUnlimited: "Leave blank for unlimited",
     resetPolicy: "Traffic reset policy",
+    followGlobal: "Follow global settings",
+    effectiveReset: "Effective policy",
+    globalSource: "Source: global settings",
+    planSource: "Source: plan override",
+    packageSource: "Traffic packages always use no reset",
+    resetPolicyHint: "Following global settings keeps this plan aligned with the global policy. Choose another rule to override it.",
     resettable: "Allow traffic reset purchase",
     resettableHint: "Users can restore the full plan allowance at the reset price",
     purchaseLimit: "Purchases per user",
@@ -215,7 +227,7 @@ type FormState = {
   capacityLimit: string;
   resettable: boolean;
   purchaseLimitPerUser: string;
-  resetPolicy: TrafficResetPolicy;
+  resetPolicy: TrafficResetPolicy | null;
   sortOrder: string;
   currency: string;
   priceValues: Record<BillingPeriod, string>;
@@ -241,7 +253,7 @@ function emptyForm(): FormState {
     capacityLimit: "",
     resettable: false,
     purchaseLimitPerUser: "",
-    resetPolicy: "MONTHLY_FROM_ACTIVATION",
+    resetPolicy: null,
     sortOrder: "0",
     currency: "CNY",
     priceValues: blankPrices(),
@@ -311,9 +323,7 @@ function toDraft(form: FormState): PlanDraft {
     speedLimitMbps: optionalInteger(form.speedLimitMbps),
     serverGroupId: optionalInteger(form.serverGroupId),
     capacityLimit: optionalInteger(form.capacityLimit),
-    resetPolicy: form.planType === "TRAFFIC_PACKAGE"
-      ? "NEVER"
-      : form.resetPolicy,
+    resetPolicy: form.planType === "TRAFFIC_PACKAGE" ? "NEVER" : form.resetPolicy,
     resettable: form.resettable,
     purchaseLimitPerUser: form.planType === "TRAFFIC_PACKAGE"
       ? optionalInteger(form.purchaseLimitPerUser)
@@ -403,8 +413,8 @@ export function AdminPlansPage() {
       planType,
       resetPolicy: planType === "TRAFFIC_PACKAGE"
         ? "NEVER"
-        : current.resetPolicy === "NEVER"
-          ? "MONTHLY_FROM_ACTIVATION"
+        : current.planType === "TRAFFIC_PACKAGE"
+          ? null
           : current.resetPolicy,
       resettable: current.resettable,
       purchaseLimitPerUser: planType === "TRAFFIC_PACKAGE"
@@ -514,6 +524,14 @@ export function AdminPlansPage() {
                           ))
                           .map((tag) => <span key={tag}>{tag}</span>)}
                       </div>
+                      <small>
+                        {text.effectiveReset}: {resetLabels[language][plan.effectiveResetPolicy]} ·{" "}
+                        {plan.planType === "TRAFFIC_PACKAGE"
+                          ? text.packageSource
+                          : plan.resetPolicy === null
+                            ? text.globalSource
+                            : text.planSource}
+                      </small>
                     </td>
                     <td>{displayTraffic(plan.transferLimitBytes)}</td>
                     <td>
@@ -688,20 +706,24 @@ export function AdminPlansPage() {
                     <label>
                       <span>{text.resetPolicy}</span>
                       <select
-                        value={form.resetPolicy}
+                        value={form.resetPolicy ?? ""}
                         onChange={(event) =>
                           updateForm(
                             "resetPolicy",
-                            event.target.value as TrafficResetPolicy
+                            event.target.value === ""
+                              ? null
+                              : event.target.value as TrafficResetPolicy
                           )
                         }
                       >
-                        {Object.entries(resetLabels[language])
-                          .filter(([value]) => value !== "NEVER")
-                          .map(([value, label]) => (
+                        <option value="">{text.followGlobal}</option>
+                        {Object.entries(resetLabels[language]).map(
+                          ([value, label]) => (
                             <option key={value} value={value}>{label}</option>
-                          ))}
+                          )
+                        )}
                       </select>
+                      <small>{text.resetPolicyHint}</small>
                     </label>
                   ) : (
                     <label>

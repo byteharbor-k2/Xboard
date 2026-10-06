@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.configuration.domain.PlatformSetting;
 import com.sinx.platform.configuration.repository.PlatformSettingRepository;
+import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.shared.web.ApiProblemException;
 
 @Service
@@ -139,6 +140,13 @@ public class PlatformConfigurationService {
         "email.email_from_address";
     private static final String EMAIL_REMINDERS_KEY =
         "email.remind_mail_enable";
+    private static final String PLAN_CHANGE_ENABLED_KEY =
+        "subscribe.plan_change_enable";
+    private static final String SURPLUS_ENABLED_KEY =
+        "subscribe.surplus_enable";
+    private static final String GLOBAL_RESET_METHOD_KEY =
+        "subscribe.globalreset_traffic_method";
+    private static final int DEFAULT_RESET_METHOD = 1;
     private static final String SERVER_TOKEN_KEY = "server.server_token";
     private static final String SERVER_PULL_INTERVAL_KEY =
         "server.server_pull_interval";
@@ -204,6 +212,11 @@ public class PlatformConfigurationService {
                 "try_out_hour", trialHours(),
                 "new_user_offer_plan_id", newUserOfferPlanId()
                     .map(UUID::toString).orElse("")
+            );
+            case "subscribe" -> Map.of(
+                "plan_change_enable", subscriptionPolicy().planChangeEnabled(),
+                "surplus_enable", subscriptionPolicy().surplusEnabled(),
+                "globalreset_traffic_method", subscriptionPolicy().globalResetMethod()
             );
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
@@ -373,6 +386,15 @@ public class PlatformConfigurationService {
         NodeCommunicationSettings before = "server".equals(section)
             ? nodeCommunicationSettings()
             : null;
+        TrafficResetPolicyChangedEvent resetPolicyChange = null;
+        if ("subscribe.globalreset_traffic_method".equals(
+                section + "." + entry.getKey())) {
+            int previous = subscriptionPolicy().globalResetMethod();
+            int requested = integerValue(entry.getValue(), DEFAULT_RESET_METHOD);
+            if (requested != previous) {
+                resetPolicyChange = new TrafficResetPolicyChangedEvent();
+            }
+        }
         switch (section + "." + entry.getKey()) {
             case SITE_STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
             case STOP_REGISTER_KEY -> saveBoolean(STOP_REGISTER_KEY, entry.getValue());
@@ -462,6 +484,12 @@ public class PlatformConfigurationService {
                 saveMailFromAddress(entry.getValue());
             case EMAIL_REMINDERS_KEY ->
                 saveBoolean(EMAIL_REMINDERS_KEY, entry.getValue());
+            case PLAN_CHANGE_ENABLED_KEY ->
+                saveBoolean(PLAN_CHANGE_ENABLED_KEY, entry.getValue());
+            case SURPLUS_ENABLED_KEY ->
+                saveBoolean(SURPLUS_ENABLED_KEY, entry.getValue());
+            case GLOBAL_RESET_METHOD_KEY ->
+                saveInteger(GLOBAL_RESET_METHOD_KEY, entry.getValue());
             case SERVER_TOKEN_KEY -> saveServerToken(entry.getValue());
             case SERVER_PULL_INTERVAL_KEY ->
                 saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue());
@@ -474,6 +502,40 @@ public class PlatformConfigurationService {
         }
         if (before != null) {
             publishNodeCommunicationChange(before, nodeCommunicationSettings());
+        }
+        if (resetPolicyChange != null) {
+            eventPublisher.publishEvent(resetPolicyChange);
+        }
+    }
+
+    /** The three subscription-wide controls retained by the legacy config names. */
+    public SubscriptionPolicy subscriptionPolicy() {
+        int method = readInteger(GLOBAL_RESET_METHOD_KEY, DEFAULT_RESET_METHOD);
+        if (method < 0 || method > 4) {
+            method = DEFAULT_RESET_METHOD;
+        }
+        return new SubscriptionPolicy(
+            readBoolean(PLAN_CHANGE_ENABLED_KEY, true),
+            readBoolean(SURPLUS_ENABLED_KEY, true),
+            method
+        );
+    }
+
+    public TrafficResetPolicy globalTrafficResetPolicy() {
+        return switch (subscriptionPolicy().globalResetMethod()) {
+            case 0 -> TrafficResetPolicy.FIRST_DAY_OF_MONTH;
+            case 2 -> TrafficResetPolicy.NEVER;
+            case 3 -> TrafficResetPolicy.FIRST_DAY_OF_YEAR;
+            case 4 -> TrafficResetPolicy.YEARLY_FROM_ACTIVATION;
+            default -> TrafficResetPolicy.MONTHLY_FROM_ACTIVATION;
+        };
+    }
+
+    private int integerValue(Object value, int fallback) {
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (NumberFormatException exception) {
+            return fallback;
         }
     }
 
@@ -1332,6 +1394,13 @@ public class PlatformConfigurationService {
         int level1Percent,
         int level2Percent,
         int level3Percent
+    ) {
+    }
+
+    public record SubscriptionPolicy(
+        boolean planChangeEnabled,
+        boolean surplusEnabled,
+        int globalResetMethod
     ) {
     }
 

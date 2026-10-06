@@ -91,6 +91,28 @@ public class SubscriptionEntitlement {
         Instant nextResetAt,
         Instant now
     ) {
+        TrafficResetPolicy resetPolicy = plan.getResetPolicy();
+        if (resetPolicy == null) {
+            resetPolicy = plan.getPlanType()
+                    == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+                ? TrafficResetPolicy.NEVER
+                : TrafficResetPolicy.MONTHLY_FROM_ACTIVATION;
+        }
+        return grant(
+            id, user, plan, startsAt, expiresAt, nextResetAt, resetPolicy, now
+        );
+    }
+
+    public static SubscriptionEntitlement grant(
+        UUID id,
+        UserAccount user,
+        ServicePlan plan,
+        Instant startsAt,
+        Instant expiresAt,
+        Instant nextResetAt,
+        TrafficResetPolicy effectiveResetPolicy,
+        Instant now
+    ) {
         SubscriptionEntitlement entitlement =
             new SubscriptionEntitlement();
         entitlement.id = id;
@@ -99,17 +121,19 @@ public class SubscriptionEntitlement {
         entitlement.planName = plan.getName();
         entitlement.transferLimitBytes = plan.getTransferLimitBytes();
         entitlement.speedLimitMbps = plan.getSpeedLimitMbps();
-        entitlement.resetPolicy = plan.getResetPolicy();
+        entitlement.resetPolicy = plan.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+            ? TrafficResetPolicy.NEVER
+            : effectiveResetPolicy;
         entitlement.startsAt = startsAt;
         entitlement.expiresAt = expiresAt;
         // Seed the traffic cycle the plan calls for; a caller that knows
         // better may hand a boundary of its own.
         entitlement.nextResetAt = nextResetAt != null
             ? nextResetAt
-            : entitlement.resetPolicy
-                == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
-                ? MonthlyResetSchedule.initialBoundary(startsAt)
-                : null;
+            : MonthlyResetSchedule.initialBoundary(
+                entitlement.resetPolicy, startsAt
+            );
         entitlement.createdAt = now;
         entitlement.updatedAt = now;
         return entitlement;
@@ -135,13 +159,34 @@ public class SubscriptionEntitlement {
         boolean resetTraffic,
         Instant now
     ) {
+        provisionPeriodic(
+            plan,
+            expiresAt,
+            resetTraffic,
+            effectivePlanPolicy(plan),
+            now
+        );
+    }
+
+    public void provisionPeriodic(
+        ServicePlan plan,
+        Instant expiresAt,
+        boolean resetTraffic,
+        TrafficResetPolicy effectiveResetPolicy,
+        Instant now
+    ) {
         if (expiresAt == null) {
             throw new IllegalArgumentException(
                 "A periodic plan must end at some point"
             );
         }
-        applyPlan(plan, expiresAt, now);
+        applyPlan(plan, expiresAt, effectiveResetPolicy, now);
         if (resetTraffic) {
+            // A fresh paid activation (or conversion from a non-expiring
+            // package) starts its own cycle even when its effective policy
+            // happens to match the previous entitlement's policy.
+            startsAt = now;
+            nextResetAt = MonthlyResetSchedule.initialBoundary(resetPolicy, now);
             clearCounters(now);
         }
     }
@@ -154,7 +199,7 @@ public class SubscriptionEntitlement {
      * because the customer is buying a fresh bucket of traffic.
      */
     public void provisionPackage(ServicePlan plan, Instant now) {
-        applyPlan(plan, null, now);
+        applyPlan(plan, null, TrafficResetPolicy.NEVER, now);
         clearCounters(now);
     }
 
@@ -163,6 +208,7 @@ public class SubscriptionEntitlement {
         trial = true;
         // A trial is bounded by its expiry, not by the plan's paid traffic
         // cycle. Its plan policy is retained for a later purchase conversion.
+        resetPolicy = TrafficResetPolicy.NEVER;
         nextResetAt = null;
         updatedAt = now;
     }
@@ -171,10 +217,7 @@ public class SubscriptionEntitlement {
     public void markPurchased(Instant now) {
         if (trial) {
             startsAt = now;
-            nextResetAt = resetPolicy
-                == TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
-                ? MonthlyResetSchedule.initialBoundary(now)
-                : null;
+            nextResetAt = MonthlyResetSchedule.initialBoundary(resetPolicy, now);
         }
         trial = false;
         updatedAt = now;
@@ -198,6 +241,26 @@ public class SubscriptionEntitlement {
         nextResetAt = trial ? null : nextBoundary;
     }
 
+    /** Changes the effective policy without erasing usage or catching up old cycles. */
+    public boolean synchronizeResetPolicy(
+        TrafficResetPolicy effectivePolicy,
+        Instant now
+    ) {
+        if (trial || plan.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+            || resetPolicy == effectivePolicy) {
+            return false;
+        }
+        resetPolicy = effectivePolicy;
+        boolean active = canceledAt == null
+            && (expiresAt == null || expiresAt.isAfter(now));
+        nextResetAt = active
+            ? MonthlyResetSchedule.nextBoundary(effectivePolicy, now, startsAt)
+            : null;
+        updatedAt = now;
+        return true;
+    }
+
     /**
      * Seeds the entitlement's traffic cycle from its activation instant, for
      * entitlements granted before a cycle existed. Resets nothing and
@@ -207,7 +270,7 @@ public class SubscriptionEntitlement {
     public void seedPeriodicBoundary() {
         nextResetAt = trial
             ? null
-            : MonthlyResetSchedule.initialBoundary(startsAt);
+            : MonthlyResetSchedule.initialBoundary(resetPolicy, startsAt);
     }
 
     /**
@@ -228,36 +291,87 @@ public class SubscriptionEntitlement {
         Instant expiresAt,
         Instant now
     ) {
+        administrate(plan, transferLimitBytes, expiresAt, now,
+            plan == null ? resetPolicy : effectivePlanPolicy(plan));
+    }
+
+    public void administrate(
+        ServicePlan plan,
+        long transferLimitBytes,
+        Instant expiresAt,
+        Instant now,
+        TrafficResetPolicy effectiveResetPolicy
+    ) {
         if (transferLimitBytes <= 0) {
             throw new IllegalArgumentException(
                 "A traffic allowance must be greater than zero"
             );
         }
+        TrafficResetPolicy previousPolicy = resetPolicy;
         if (plan != null) {
             this.plan = plan;
             this.planName = plan.getName();
             this.speedLimitMbps = plan.getSpeedLimitMbps();
-            this.resetPolicy = plan.getResetPolicy();
+            this.resetPolicy = plan.getPlanType()
+                    == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+                    || trial
+                ? TrafficResetPolicy.NEVER
+                : effectiveResetPolicy;
         }
         this.transferLimitBytes = transferLimitBytes;
         this.expiresAt = expiresAt;
+        if (previousPolicy != resetPolicy) {
+            boolean active = !trial && canceledAt == null
+                && (expiresAt == null || expiresAt.isAfter(now));
+            nextResetAt = active
+                ? MonthlyResetSchedule.nextBoundary(resetPolicy, now, startsAt)
+                : null;
+        }
         // An operator granting a subscription is reactivating it, the same way
         // a paid order does.
         this.canceledAt = null;
         this.updatedAt = now;
     }
 
-    private void applyPlan(ServicePlan plan, Instant expiresAt, Instant now) {
+    private void applyPlan(
+        ServicePlan plan,
+        Instant expiresAt,
+        TrafficResetPolicy effectiveResetPolicy,
+        Instant now
+    ) {
+        TrafficResetPolicy previousPolicy = resetPolicy;
         this.plan = plan;
         this.planName = plan.getName();
         this.transferLimitBytes = plan.getTransferLimitBytes();
         this.speedLimitMbps = plan.getSpeedLimitMbps();
-        this.resetPolicy = plan.getResetPolicy();
+        this.resetPolicy = plan.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+            ? TrafficResetPolicy.NEVER
+            : effectiveResetPolicy;
+        if (plan.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE) {
+            nextResetAt = null;
+        }
+        if (previousPolicy != this.resetPolicy) {
+            nextResetAt = MonthlyResetSchedule.nextBoundary(
+                this.resetPolicy, now, startsAt
+            );
+        }
         this.expiresAt = expiresAt;
         // A paid order activates the subscription again, even one that was
         // cancelled while nothing was backing it.
         this.canceledAt = null;
         this.updatedAt = now;
+    }
+
+    private TrafficResetPolicy effectivePlanPolicy(ServicePlan plan) {
+        if (plan.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE) {
+            return TrafficResetPolicy.NEVER;
+        }
+        return plan.getResetPolicy() == null
+            ? TrafficResetPolicy.MONTHLY_FROM_ACTIVATION
+            : plan.getResetPolicy();
     }
 
     private void clearCounters(Instant now) {
@@ -311,6 +425,10 @@ public class SubscriptionEntitlement {
 
     public UUID getPlanId() {
         return plan.getId();
+    }
+
+    public com.sinx.platform.catalog.domain.PlanType getPlanType() {
+        return plan.getPlanType();
     }
 
     public String getPlanName() {

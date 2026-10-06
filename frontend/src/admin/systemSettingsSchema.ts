@@ -161,30 +161,21 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     glyph: "↗",
     title: text("订阅设置", "Subscription settings"),
     description: text(
-      "管理用户订阅相关配置，包括套餐变更、流量重置与订单事件。",
-      "Manage plan changes, traffic resets, and order events."
+      "管理用户套餐变更、折抵与全局流量重置方式。",
+      "Manage plan changes, proration, and the global traffic reset policy."
     ),
     fields: [
-      field("plan_change_enable", "允许用户更改订阅", "Allow subscription changes", "开启后用户将会可以对订阅计划进行变更。", "Allow users to change subscription plans.", "toggle", false),
-      field("reset_traffic_method", "月流量重置方式", "Traffic reset method", "全局流量重置方式，默认每月1号。可以在订阅管理为订阅单独设置。", "Global reset method; individual plans can override it.", "select", 0, {
+      field("plan_change_enable", "允许用户更改订阅", "Allow subscription changes", "开启后用户将会可以对订阅计划进行变更。", "Allow users to change subscription plans.", "toggle", true),
+      field("globalreset_traffic_method", "全局流量重置方式", "Global traffic reset method", "全局流量重置方式，默认按开通日每月重置。日历重置时间使用 Asia/Shanghai 时区；套餐可选择跟随全局设置或单独覆盖。", "Global reset method; the default is monthly from activation. Calendar resets use Asia/Shanghai time. Plans can follow this setting or override it.", "select", 1, {
         options: [
-          option(0, "每月1号", "First day of each month"),
-          option(1, "按月重置", "Monthly reset"),
-          option(2, "不重置", "No reset"),
-          option(3, "每年1月1号", "January 1 each year"),
-          option(4, "按年重置", "Yearly reset")
+          option(0, "每月 1 日（Asia/Shanghai）", "First day of each month (Asia/Shanghai)"),
+          option(1, "按开通日每月", "Monthly from activation"),
+          option(2, "不重置", "Never"),
+          option(3, "每年 1 月 1 日（Asia/Shanghai）", "January 1 each year (Asia/Shanghai)"),
+          option(4, "按开通日每年", "Yearly from activation")
         ]
       }),
-      field("surplus_enable", "开启折抵方案", "Enable proration", "开启后用户更换订阅将会由系统对原有订阅进行折抵，方案参考文档。", "Prorate the existing plan when users change subscriptions.", "toggle", false),
-      field("new_order_event_id", "当订阅新购时触发事件", "New order event", "新购订阅完成时将触发该任务。", "Run after a new subscription order completes.", "select", 0, {
-        options: [option(0, "不执行任何动作", "Do nothing"), option(1, "重置用户流量", "Reset user traffic")]
-      }),
-      field("renew_order_event_id", "当订阅续费时触发事件", "Renewal event", "续费订阅完成时将触发该任务。", "Run after a subscription renewal completes.", "select", 0, {
-        options: [option(0, "不执行任何动作", "Do nothing"), option(1, "重置用户流量", "Reset user traffic")]
-      }),
-      field("change_order_event_id", "当订阅变更时触发事件", "Plan change event", "变更订阅完成时将触发该任务。", "Run after a plan change completes.", "select", 0, {
-        options: [option(0, "不执行任何动作", "Do nothing"), option(1, "重置用户流量", "Reset user traffic")]
-      })
+      field("surplus_enable", "开启折抵方案", "Enable proration", "开启后用户更换订阅将会由系统对原有订阅进行折抵，方案参考文档。", "Prorate the existing plan when users change subscriptions.", "toggle", true)
     ]
   },
   {
