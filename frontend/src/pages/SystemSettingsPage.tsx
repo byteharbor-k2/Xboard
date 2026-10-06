@@ -642,6 +642,15 @@ export function SystemSettingsPage() {
     const value = draft[field.key] ?? field.defaultValue;
 
     if (field.type === "status") {
+      if (field.key === "commission_payout_info") {
+        return (
+          <strong className="settings-readonly-value">
+            {language === "zh-CN"
+              ? "发放至普通站点余额 · 不提供提现"
+              : "Ordinary site balance · no withdrawals"}
+          </strong>
+        );
+      }
       return (
         <strong className="settings-readonly-value">
           {Boolean(value)

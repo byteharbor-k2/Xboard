@@ -22,6 +22,8 @@ export type AdminUser = {
   remarks: string | null;
   speed_limit_mbps: number | null;
   balance: number;
+  commission_type: number;
+  commission_rate: number | null;
   plan_id: string | null;
   plan_name: string | null;
   transfer_limit_bytes: string;
@@ -54,6 +56,10 @@ export type AdminUserUpdate = {
    * own (absent = "leave alone"), so clearing rides this flag.
    */
   clear_expiry?: boolean;
+  commission_type?: number;
+  commission_rate?: number | null;
+  /** Explicitly removes an existing override and restores the global rate. */
+  clear_commission_rate?: boolean;
 };
 
 async function request<T>(

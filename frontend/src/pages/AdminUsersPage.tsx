@@ -67,6 +67,13 @@ const copy = {
     remarksHint: "仅管理员可见",
     speedLimit: "限速（Mbps）",
     speedLimitHint: "留空表示跟随套餐",
+    commissionType: "佣金类型",
+    commissionSystem: "系统类型",
+    commissionPeriodic: "周期类型",
+    commissionOneTime: "一次性类型",
+    commissionRate: "佣金比例（%）",
+    commissionRateHint: "留空不修改；输入 0 表示跟随全局比例。",
+    clearCommissionRate: "清除用户比例覆盖，恢复全局比例",
     transferLimit: "流量额度（GB）",
     expiresHint: "留空表示长期有效",
     save: "保存",
@@ -150,6 +157,13 @@ const copy = {
     remarksHint: "Visible to administrators only",
     speedLimit: "Speed limit (Mbps)",
     speedLimitHint: "Leave blank to follow the plan",
+    commissionType: "Commission type",
+    commissionSystem: "System type",
+    commissionPeriodic: "Periodic",
+    commissionOneTime: "One-time",
+    commissionRate: "Commission rate (%)",
+    commissionRateHint: "Leave blank to keep unchanged; 0 follows the global rate.",
+    clearCommissionRate: "Clear this user's rate override and use the global rate",
     transferLimit: "Traffic allowance (GB)",
     expiresHint: "Leave blank for no expiry",
     save: "Save",
@@ -586,6 +600,11 @@ function EditUserDialog({
     user.speed_limit_mbps?.toString() ?? ""
   );
   const [transferGib, setTransferGib] = useState(toGib(user.transfer_limit_bytes));
+  const [commissionType, setCommissionType] = useState(user.commission_type);
+  const [commissionRate, setCommissionRate] = useState(
+    user.commission_rate?.toString() ?? ""
+  );
+  const [clearCommissionRate, setClearCommissionRate] = useState(false);
   const [expiresAt, setExpiresAt] = useState(
     user.expires_at
       ? new Date(user.expires_at * 1000).toISOString().slice(0, 10)
@@ -626,6 +645,17 @@ function EditUserDialog({
         );
       } else if (user.expires_at !== null) {
         update.clear_expiry = true;
+      }
+      if (commissionType !== user.commission_type) {
+        update.commission_type = commissionType;
+      }
+      if (clearCommissionRate) {
+        update.clear_commission_rate = true;
+      } else if (commissionRate.trim()) {
+        const rate = Number(commissionRate);
+        if (Number.isInteger(rate) && rate >= 0 && rate !== user.commission_rate) {
+          update.commission_rate = rate;
+        }
       }
       return updateUser(accessToken, user.id, update);
     },
@@ -695,6 +725,37 @@ function EditUserDialog({
             style={input}
             value={speedLimit}
           />
+        </label>
+        <label style={field}>
+          <span>{text.commissionType}</span>
+          <select
+            onChange={(event) => setCommissionType(Number(event.target.value))}
+            style={input}
+            value={commissionType}
+          >
+            <option value={0}>{text.commissionSystem}</option>
+            <option value={1}>{text.commissionPeriodic}</option>
+            <option value={2}>{text.commissionOneTime}</option>
+          </select>
+        </label>
+        <label style={field}>
+          <span>{text.commissionRate}</span>
+          <small style={{ display: "block", color: "#707c93", marginTop: 4 }}>{text.commissionRateHint}</small>
+          <input
+            min={0}
+            onChange={(event) => setCommissionRate(event.target.value)}
+            style={input}
+            type="number"
+            value={commissionRate}
+          />
+        </label>
+        <label style={{ ...field, display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            checked={clearCommissionRate}
+            onChange={(event) => setClearCommissionRate(event.target.checked)}
+            type="checkbox"
+          />
+          <span>{text.clearCommissionRate}</span>
         </label>
         <label style={field}>
           <span>{text.remarks}</span>

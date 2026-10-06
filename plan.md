@@ -89,6 +89,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   admin policy/status/detail/filter APIs and real pending-order statistics are wired.
   Main-agent full backend verification: 619 tests passed; independent adversarial
   review passed after fixing payout-chain races and effective-policy display.
+- Commission frontend implementation: invitation page reads live policy, pending/queued/
+  earned amounts, current site balance and paginated ledger; admin settings, user overrides
+  and order confirmation/detail/filter controls are connected. Creation action is now
+  prominent. Main-agent frontend build/check/audit passed; visual acceptance is user-owned.
 
 **管理侧**
 
@@ -141,10 +145,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 - [ ] User-core frontend acceptance is user-owned (2026-10-05 instruction); implementation is deployed, build/check/audit and independent review passed. Invitation cache and node panel are scoped to viewer identity. Agent browser acceptance stopped at user request; no QA credential rotation was performed on dev.
 - [x] Invitation flow user acceptance (2026-10-06): the user confirmed the creation button works but is too inconspicuous, and completed invitation-link registration plus a paid order. Read-only dev inspection confirmed both accounts have USER roles, the inviter relation and one consumed code, one invited account, and a completed CNY 50 monthly first purchase with zero trial surplus. Paid entitlement is no longer a trial and starts at fulfilment, with matching next-month expiry/reset. Current paid state overwrites the prior trial; historical trial values were not independently snapshotted. Independent read-only business-logic review found no blocker in this flow.
-- [ ] Make the invitation creation action more prominent; user-reported discoverability issue, not a failed API or missing frontend handler.
+- [ ] User acceptance of the more prominent invitation creation action (implementation delivered with the commission frontend).
 - [ ] Turnstile frontend acceptance is user-owned. Configuration/retry refinement is deployed and backend verified: keys remain editable while disabled; saved secret is write-only and blank saves preserve it; unsupported legacy provider values no longer bypass verification.
 - [x] Commission backend commercial loop, reprioritized by the user on 2026-10-06; ledger credits are spendable through existing order balance deductions. Withdrawal remains excluded.
-- [ ] Commission frontend implementation/deployment and user-owned visual acceptance.
+- [ ] Commission dev deployment and user-owned frontend visual acceptance (implementation and build/check/audit complete).
 - [ ] 订阅业务开关接线：`plan_change_enable`、`surplus_enable`、`reset_traffic_method`
 - [ ] 后台配置项字段级接通（74 个可编辑字段仅 33 个接通）
 

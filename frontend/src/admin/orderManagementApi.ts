@@ -29,6 +29,27 @@ export type AdminOrder = {
   callback_no: string | null;
   created_at: number;
   paid_at: number | null;
+  invite_user_id: string | null;
+  commission_base: number;
+  commission_balance: number;
+  commission_status: number | null;
+  actual_commission_balance: number;
+};
+
+export type CommissionAdminLog = {
+  id: string;
+  invite_user_id: string;
+  user_id: string;
+  trade_no: string;
+  order_amount: number;
+  commission_base: number;
+  get_amount: number;
+  level: number;
+  created_at: number;
+};
+
+export type AdminOrderDetail = AdminOrder & {
+  commission_log: CommissionAdminLog[];
 };
 
 async function request<T>(
@@ -73,16 +94,43 @@ function dataRequest<T>(
 export function listOrders(
   accessToken: string,
   status: OrderStatus | null,
-  limit = 100
+  limit = 100,
+  filters: { isCommission?: boolean; commissionStatus?: number | null } = {}
 ) {
   const query = new URLSearchParams({ limit: String(limit) });
   if (status) {
     query.set("status", status);
   }
+  if (filters.isCommission) {
+    query.set("is_commission", "true");
+  }
+  if (filters.commissionStatus !== undefined && filters.commissionStatus !== null) {
+    query.set("commission_status", String(filters.commissionStatus));
+  }
   return dataRequest<AdminOrder[]>(
     `/api/v2/admin/order/fetch?${query.toString()}`,
     accessToken
   );
+}
+
+/** Loads the flattened order plus actual commission payout ledger rows. */
+export function getOrderDetail(accessToken: string, tradeNo: string) {
+  return dataRequest<AdminOrderDetail>("/api/v2/admin/order/detail", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ trade_no: tradeNo })
+  });
+}
+
+/** Updates only the commission lifecycle state; paid (2) is intentionally not a writable target. */
+export function updateCommissionStatus(
+  accessToken: string,
+  tradeNo: string,
+  commissionStatus: 0 | 1 | 3
+) {
+  return dataRequest<boolean>("/api/v2/admin/order/update", accessToken, {
+    method: "POST",
+    body: JSON.stringify({ trade_no: tradeNo, commission_status: commissionStatus })
+  });
 }
 
 /** Opens an order without a payment behind it, recorded as a manual settlement. */

@@ -194,22 +194,26 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
     description: text("邀请注册、佣金相关设置。", "Configure invitations and commission."),
     fields: [
       field("invite_force", "开启强制邀请", "Require invitations", "开启后只有被邀请的用户才可以进行注册。", "Only invited users may register.", "toggle", false),
-      field("invite_commission", "邀请佣金百分比", "Invitation commission percent", "默认全局的佣金分配比例，你可以在用户管理单独配置单个比例。", "Default global commission rate; individual users may override it.", "number", 0),
+      field("invite_commission", "邀请佣金百分比", "Invitation commission percent", "默认全局的佣金分配比例，你可以在用户管理单独配置单个比例。", "Default global commission rate; individual users may override it.", "number", 10, { min: 0, max: 100 }),
       field("invite_gen_limit", "用户可创建邀请码上限", "Invitation code limit", "用户可创建邀请码上限。", "Maximum invitation codes a user may create.", "number", 0),
       field("invite_never_expire", "邀请码永不失效", "Invitation codes never expire", "开启后邀请码被使用后将不会失效，否则使用过后即失效。", "Keep invitation codes valid after use.", "toggle", false),
-      field("commission_first_time_enable", "佣金仅首次发放", "First payment commission only", "开启后被邀请人首次支付时才会产生佣金，可以在用户管理对用户进行单独配置。", "Only the invitee's first payment generates commission.", "toggle", false),
-      field("commission_auto_check_enable", "佣金自动确认", "Automatically confirm commission", "开启后佣金将会在订单完成3日后自动进行确认。", "Confirm commission three days after order completion.", "toggle", false),
-      field("commission_withdraw_limit", "提现单申请门槛(元)", "Minimum withdrawal", "小于门槛金额的提现单将不会被提交。", "Withdrawals below this amount cannot be submitted.", "number", 0),
-      field("commission_withdraw_method", "提现方式", "Withdrawal methods", "可以支持的提现方式，多个用逗号分隔。", "Separate supported withdrawal methods with commas.", "list", ["支付宝", "USDT", "Paypal"]),
-      field("withdraw_close_enable", "关闭提现", "Disable withdrawal", "关闭后将禁止用户申请提现，且邀请佣金将会直接进入用户余额。", "Prevent withdrawals and move invitation commission directly into user balance.", "toggle", false),
+      field("commission_first_time_enable", "佣金仅首次发放", "First payment commission only", "开启后被邀请人首次支付时才会产生佣金，可以在用户管理对用户进行单独配置。", "Only the invitee's first payment generates commission.", "toggle", true),
+      field("commission_auto_check_enable", "佣金自动确认", "Automatically confirm commission", "开启后佣金将在订单完成 3 天后自动确认并发放到用户站点余额。", "Automatically confirm and credit commission to the user's site balance 3 days after order completion.", "toggle", true),
+      field("commission_payout_info", "佣金发放方式", "Commission payout", "佣金确认后直接发放至用户普通站点余额，可用于后续订单结算；不提供提现功能。", "Confirmed commission is credited directly to the user's ordinary site balance for future order checkout. Withdrawals are not available.", "status", true),
       field("commission_distribution_enable", "三级分销", "Three-level distribution", "开启后佣金将按照设置的3层比例进行分成，三层比例合计请不要大于100%。", "Distribute commission across three levels; the total must not exceed 100%.", "toggle", false),
       field("commission_distribution_l1", "一级邀请人比例", "Level 1 rate", "请输入比例，如：50。", "Enter a percentage, for example 50.", "number", 0, {
+        min: 0,
+        max: 100,
         visibleWhen: { key: "commission_distribution_enable" }
       }),
       field("commission_distribution_l2", "二级邀请人比例", "Level 2 rate", "请输入比例，如：50。", "Enter a percentage, for example 50.", "number", 0, {
+        min: 0,
+        max: 100,
         visibleWhen: { key: "commission_distribution_enable" }
       }),
       field("commission_distribution_l3", "三级邀请人比例", "Level 3 rate", "请输入比例，如：50。", "Enter a percentage, for example 50.", "number", 0, {
+        min: 0,
+        max: 100,
         visibleWhen: { key: "commission_distribution_enable" }
       })
     ]

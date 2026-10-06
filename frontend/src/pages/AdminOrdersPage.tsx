@@ -3,8 +3,11 @@ import { useState } from "react";
 
 import {
   cancelOrder,
+  getOrderDetail,
   listOrders,
   settleOrder,
+  updateCommissionStatus,
+  type AdminOrderDetail,
   type AdminOrder
 } from "../admin/orderManagementApi";
 import { AdminShell } from "../components/AdminShell";
@@ -36,6 +39,36 @@ const copy = {
     status: "状态",
     createdAt: "创建时间",
     actions: "操作",
+    commission: "佣金",
+    commissionFilter: "仅佣金订单",
+    commissionStatusFilter: "佣金状态",
+    commissionAll: "全部佣金状态",
+    commissionPending: "待确认",
+    commissionQueued: "已确认待入账",
+    commissionCredited: "已入账",
+    commissionInvalid: "无效",
+    commissionLegacy: "历史订单：无佣金记录",
+    noInviter: "无邀请人，不产生佣金",
+    commissionBase: "返佣基数",
+    commissionExpected: "佣金金额",
+    commissionActual: "实际入账",
+    detail: "佣金详情",
+    detailTitle: "订单佣金详情",
+    loadingDetail: "正在加载佣金详情…",
+    detailFailed: "佣金详情加载失败",
+    payoutLog: "实际入账记录",
+    recipient: "收款用户 ID",
+    buyer: "下单用户 ID",
+    creditedAmount: "入账金额",
+    level: "层级",
+    createdAtLog: "入账时间",
+    noPayouts: "暂无实际入账记录。",
+    setPending: "设为待确认",
+    confirmQueue: "确认并排队入账",
+    markInvalid: "标记无效",
+    stateSaved: "佣金状态已更新。入账仍由自动结算任务执行。",
+    paidReadOnly: "此佣金已入账，状态不可更改。",
+    close: "关闭",
     filter: "状态筛选",
     all: "全部状态",
     loading: "正在加载订单…",
@@ -49,8 +82,7 @@ const copy = {
       "这会给用户发放套餐权益，且不经过任何支付。仅用于线下转账或人工补单。",
     confirmCancelTitle: "取消订单",
     confirmCancelBody: "取消后订单不可恢复，已占用的余额和优惠券会退回。",
-    confirm: "确认",
-    close: "关闭"
+    confirm: "确认"
   },
   "en-US": {
     eyebrow: "Subscriptions & finance",
@@ -64,6 +96,36 @@ const copy = {
     status: "Status",
     createdAt: "Created",
     actions: "Actions",
+    commission: "Commission",
+    commissionFilter: "Commission orders only",
+    commissionStatusFilter: "Commission status",
+    commissionAll: "All commission statuses",
+    commissionPending: "Pending confirmation",
+    commissionQueued: "Confirmed, awaiting credit",
+    commissionCredited: "Credited",
+    commissionInvalid: "Invalid",
+    commissionLegacy: "Legacy order: no commission record",
+    noInviter: "No inviter; no commission",
+    commissionBase: "Commission base",
+    commissionExpected: "Commission amount",
+    commissionActual: "Actually credited",
+    detail: "Commission details",
+    detailTitle: "Order commission details",
+    loadingDetail: "Loading commission details…",
+    detailFailed: "Failed to load commission details",
+    payoutLog: "Actual payout records",
+    recipient: "Recipient user ID",
+    buyer: "Buyer user ID",
+    creditedAmount: "Credited amount",
+    level: "Level",
+    createdAtLog: "Credited at",
+    noPayouts: "No actual commission credits.",
+    setPending: "Mark pending",
+    confirmQueue: "Confirm and queue credit",
+    markInvalid: "Mark invalid",
+    stateSaved: "Commission state updated. Credit is still handled by the automatic settlement job.",
+    paidReadOnly: "This commission has been credited; its state cannot be changed.",
+    close: "Close",
     filter: "Status",
     all: "All statuses",
     loading: "Loading orders…",
@@ -78,8 +140,7 @@ const copy = {
     confirmCancelTitle: "Cancel order",
     confirmCancelBody:
       "A cancelled order cannot be reopened. Any balance and coupon it held are released.",
-    confirm: "Confirm",
-    close: "Close"
+    confirm: "Confirm"
   }
 };
 
@@ -97,21 +158,43 @@ function formatEpoch(value: number | null, language: "zh-CN" | "en-US") {
   }).format(new Date(value * 1000));
 }
 
+function commissionStatusLabel(status: number, text: (typeof copy)["zh-CN"]) {
+  switch (status) {
+    case 0: return text.commissionPending;
+    case 1: return text.commissionQueued;
+    case 2: return text.commissionCredited;
+    case 3: return text.commissionInvalid;
+    default: return "—";
+  }
+}
+
 export function AdminOrdersPage() {
   const language = useAdminPreferences((state) => state.language);
   const token = useAdminAuthStore((state) => state.accessToken)!;
   const text = copy[language];
   const client = useQueryClient();
   const [status, setStatus] = useState<OrderStatus | "ALL">("PENDING");
+  const [commissionOnly, setCommissionOnly] = useState(false);
+  const [commissionStatus, setCommissionStatus] = useState<number | "ALL">("ALL");
   const [error, setError] = useState("");
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [pendingAction, setPendingAction] = useState<{
     order: AdminOrder;
     kind: "open" | "cancel";
   } | null>(null);
 
   const ordersQuery = useQuery({
-    queryKey: ["admin", "orders", status],
-    queryFn: () => listOrders(token, status === "ALL" ? null : status)
+    queryKey: ["admin", "orders", status, commissionOnly, commissionStatus],
+    queryFn: () => listOrders(token, status === "ALL" ? null : status, 100, {
+      isCommission: commissionOnly,
+      commissionStatus: commissionStatus === "ALL" ? null : commissionStatus
+    })
+  });
+  const detailQuery = useQuery({
+    queryKey: ["admin", "order-detail", selectedOrder?.trade_no],
+    queryFn: () => getOrderDetail(token, selectedOrder!.trade_no),
+    enabled: Boolean(selectedOrder),
+    retry: false
   });
 
   const settleMutation = useMutation({
@@ -122,7 +205,19 @@ export function AdminOrdersPage() {
     mutationFn: (tradeNo: string) => cancelOrder(token, tradeNo),
     onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "orders"] })
   });
-  const busy = settleMutation.isPending || cancelMutation.isPending;
+  const commissionMutation = useMutation({
+    mutationFn: ({ tradeNo, commissionStatus: nextStatus }: { tradeNo: string; commissionStatus: 0 | 1 | 3 }) =>
+      updateCommissionStatus(token, tradeNo, nextStatus),
+    onSuccess: async () => {
+      setError(text.stateSaved);
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["admin", "orders"] }),
+        client.invalidateQueries({ queryKey: ["admin", "order-detail", selectedOrder?.trade_no] })
+      ]);
+    },
+    onError: (caught) => setError(errorMessage(caught, text.operationFailed))
+  });
+  const busy = settleMutation.isPending || cancelMutation.isPending || commissionMutation.isPending;
 
   async function run() {
     if (!pendingAction) {
@@ -145,6 +240,7 @@ export function AdminOrdersPage() {
     ? errorMessage(ordersQuery.error, text.operationFailed)
     : "";
   const orders = ordersQuery.data ?? [];
+  const detail: AdminOrderDetail | undefined = detailQuery.data;
 
   return (
     <AdminShell>
@@ -159,7 +255,7 @@ export function AdminOrdersPage() {
         <p className="admin-operation-error">{error || loadError}</p>
       ) : null}
       <section className="admin-card" style={{ paddingBottom: 4 }}>
-        <div style={{ display: "flex", gap: 12, padding: "18px 22px 0" }}>
+        <div style={{ display: "flex", gap: 12, padding: "18px 22px 0", flexWrap: "wrap", alignItems: "center" }}>
           <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <span style={{ color: "#707c93" }}>{text.filter}</span>
             <select
@@ -184,6 +280,28 @@ export function AdminOrdersPage() {
               ))}
             </select>
           </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              checked={commissionOnly}
+              onChange={(event) => setCommissionOnly(event.target.checked)}
+              type="checkbox"
+            />
+            <span style={{ color: "#707c93" }}>{text.commissionFilter}</span>
+          </label>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span style={{ color: "#707c93" }}>{text.commissionStatusFilter}</span>
+            <select
+              onChange={(event) => setCommissionStatus(event.target.value === "ALL" ? "ALL" : Number(event.target.value))}
+              style={{ padding: "10px 13px", border: "1px solid #dfe5ee", borderRadius: 9, font: "inherit" }}
+              value={commissionStatus}
+            >
+              <option value="ALL">{text.commissionAll}</option>
+              <option value={0}>{text.commissionPending}</option>
+              <option value={1}>{text.commissionQueued}</option>
+              <option value={2}>{text.commissionCredited}</option>
+              <option value={3}>{text.commissionInvalid}</option>
+            </select>
+          </label>
         </div>
         <div className="admin-table-wrap">
           {ordersQuery.isPending ? (
@@ -201,6 +319,7 @@ export function AdminOrdersPage() {
                   <th>{text.amount}</th>
                   <th>{text.status}</th>
                   <th>{text.createdAt}</th>
+                  <th>{text.commission}</th>
                   <th>{text.actions}</th>
                 </tr>
               </thead>
@@ -232,7 +351,30 @@ export function AdminOrdersPage() {
                     </td>
                     <td>{formatEpoch(order.created_at, language)}</td>
                     <td>
+                      {order.commission_status === null
+                        ? order.invite_user_id
+                          ? text.commissionLegacy
+                          : text.noInviter
+                        : <>
+                            <strong>{commissionStatusLabel(order.commission_status, text)}</strong>
+                            <small style={{ display: "block", color: "#707c93" }}>
+                              {text.commissionBase}: {formatMoney(String(order.commission_base), order.currency, language)}<br />
+                              {text.commissionExpected}: {formatMoney(String(order.commission_balance), order.currency, language)}<br />
+                              {text.commissionActual}: {formatMoney(String(order.actual_commission_balance), order.currency, language)}
+                            </small>
+                          </>}
+                    </td>
+                    <td>
                       <div className="machine-actions">
+                        <button
+                          onClick={() => {
+                            setError("");
+                            setSelectedOrder(order);
+                          }}
+                          type="button"
+                        >
+                          {text.detail}
+                        </button>
                         {order.status === "PENDING" ? (
                           <>
                             <button
@@ -269,6 +411,66 @@ export function AdminOrdersPage() {
           )}
         </div>
       </section>
+      {selectedOrder ? (
+        <div className="admin-modal-backdrop" role="presentation">
+          <section aria-label={text.detailTitle} className="admin-modal machine-modal">
+            <header>
+              <h2>{text.detailTitle}</h2>
+              <button aria-label={text.close} onClick={() => setSelectedOrder(null)} type="button">×</button>
+            </header>
+            <div className="machine-form">
+              <strong>{selectedOrder.trade_no}</strong>
+              {detailQuery.isPending ? <p>{text.loadingDetail}</p> : null}
+              {detailQuery.isError ? (
+                <p className="admin-operation-error">{errorMessage(detailQuery.error, text.detailFailed)}</p>
+              ) : null}
+              {detail ? (
+                <>
+                  <p>
+                    {detail.commission_status === null
+                      ? detail.invite_user_id ? text.commissionLegacy : text.noInviter
+                      : commissionStatusLabel(detail.commission_status, text)}
+                  </p>
+                  {detail.commission_status === null ? null : (
+                    <p>
+                      {text.commissionBase}: {formatMoney(String(detail.commission_base), detail.currency, language)} · {text.commissionExpected}: {formatMoney(String(detail.commission_balance), detail.currency, language)} · {text.commissionActual}: {formatMoney(String(detail.actual_commission_balance), detail.currency, language)}
+                    </p>
+                  )}
+                  <h3>{text.payoutLog}</h3>
+                  {detail.commission_log.length === 0 ? <p>{text.noPayouts}</p> : (
+                    <div className="admin-table-wrap">
+                      <table className="admin-table">
+                        <thead><tr><th>{text.recipient}</th><th>{text.buyer}</th><th>{text.creditedAmount}</th><th>{text.level}</th><th>{text.createdAtLog}</th></tr></thead>
+                        <tbody>
+                          {detail.commission_log.map((log) => (
+                            <tr key={log.id}>
+                              <td>{log.invite_user_id}</td>
+                              <td>{log.user_id}</td>
+                              <td>{formatMoney(String(log.get_amount), detail.currency, language)}</td>
+                              <td>{log.level}</td>
+                              <td>{formatEpoch(log.created_at, language)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {detail.commission_status === 2 ? <p>{text.paidReadOnly}</p> : null}
+                  {detail.commission_status !== null && detail.commission_status !== 2 && detail.invite_user_id !== null && detail.commission_balance > 0 ? (
+                    <div className="machine-actions">
+                      <button disabled={commissionMutation.isPending} onClick={() => commissionMutation.mutate({ tradeNo: detail.trade_no, commissionStatus: 0 })} type="button">{text.setPending}</button>
+                      <button disabled={commissionMutation.isPending} onClick={() => commissionMutation.mutate({ tradeNo: detail.trade_no, commissionStatus: 1 })} type="button">{text.confirmQueue}</button>
+                      <button className="danger" disabled={commissionMutation.isPending} onClick={() => commissionMutation.mutate({ tradeNo: detail.trade_no, commissionStatus: 3 })} type="button">{text.markInvalid}</button>
+                    </div>
+                  ) : null}
+                  {error ? <p className="admin-operation-error">{error}</p> : null}
+                </>
+              ) : null}
+            </div>
+            <footer><button onClick={() => setSelectedOrder(null)} type="button">{text.close}</button></footer>
+          </section>
+        </div>
+      ) : null}
       {pendingAction ? (
         <div className="admin-modal-backdrop" role="presentation">
           <section
