@@ -1,6 +1,6 @@
 # SinX Platform 开发计划
 
-> 分支 `dev` · 更新 2026-10-06
+> 分支 `dev` · 更新 2026-10-07
 
 ## 1. 目标
 
@@ -173,7 +173,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] User-owned visual acceptance of catalogue/settings pages; current batch code `f77cd7d` is deployed. Database backup completed, V34 succeeded, containers are healthy, and GitHub backend/frontend CI plus publish passed. Public catalogue returned effective policies; a QA subscription burst produced 429 with `Retry-After: 1`. Request-window timing/concurrency is proved by real Redis tests; main full backend gate: 644 passing tests.
 - [x] Account editing and balance-ledger backend: nickname/password retained and verified; new email change and real balance API are implemented, tested and independently reviewed.
 - [x] Dedicated frontend implementation: account profile includes verified email changes and complete Viewer updates; `/account/balance` shows live cash totals and paginated posting history; `/account/commissions` shows existing payout logs and live commission policy/totals. Invitation-page commission history remains. Transaction references link only to currently owned orders; commission-source references are read-only. Exact integer-cent formatting and viewer-scoped caches are used. Main frontend build/check/production audit and independent review passed.
-- [ ] User-owned acceptance of account editing and dedicated finance pages; deployment pending.
+- [ ] User-owned acceptance of account editing and dedicated finance pages; code `504638a` deployed on 2026-10-07 after database backup. V35 succeeded, all containers are healthy, and backend/frontend CI plus image publish passed. Opening records preserve existing cash (ten migrated accounts; zero balance/ledger mismatches). Public QA GraphQL balance/commission queries passed; wrong-password email-change request returned business 401 without a Bearer challenge. Main-agent full backend gate: 659 tests, frontend build/check/production audit and independent review passed.
 - [ ] Remaining admin field wiring: re-audit supported settings as needed; the old 74/33 count is obsolete after onboarding and commission work.
 
 ### P3
