@@ -241,6 +241,12 @@ public class SubscriptionEntitlement {
         nextResetAt = trial ? null : nextBoundary;
     }
 
+    /** Paid self-service reset clears usage without moving the scheduled cycle boundary. */
+    public void resetTrafficWithoutReanchoring(Instant now, Instant nextBoundary) {
+        clearCounters(now);
+        nextResetAt = nextBoundary;
+    }
+
     /** Changes the effective policy without erasing usage or catching up old cycles. */
     public boolean synchronizeResetPolicy(
         TrafficResetPolicy effectivePolicy,

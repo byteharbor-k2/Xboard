@@ -195,23 +195,43 @@ class CommissionCommercialLoopIntegrationTest {
         String p2 = place(periodBuyer, periodPlan, null);
         assertThat(number(order(p2), "commission_balance")).isEqualTo(249);
 
-        // A buyer with a trial entitlement but no purchase history remains a
-        // first eligible customer, including on a reset purchase period.
-        User trialBuyer = user("trial-without-order");
+        // A paid reset purchase is first-payment eligible, but only an active
+        // paid periodic entitlement may create one.
+        User resetBuyer = user("paid-reset-without-order");
         User oneTimeInviter = user("one-time-inviter");
-        setInviter(trialBuyer, oneTimeInviter, 2, null);
+        setInviter(resetBuyer, oneTimeInviter, 2, null);
         UUID resetPlan = plan("Reset plan", 700, true);
-        seedTrialEntitlement(trialBuyer, resetPlan);
-        String resetTrade = place(trialBuyer, resetPlan, null, "RESET_TRAFFIC");
+        seedPaidResetEntitlement(resetBuyer, resetPlan);
+        String resetTrade = place(resetBuyer, resetPlan, null, "RESET_TRAFFIC");
         assertThat(number(order(resetTrade), "commission_base")).isEqualTo(700);
         assertThat(number(order(resetTrade), "commission_balance")).isEqualTo(70);
+        Timestamp expiryBefore = jdbc.queryForObject(
+            "select expires_at from subscription_entitlements where user_id = ?::uuid",
+            Timestamp.class, resetBuyer.id().toString());
+        Timestamp boundaryBefore = jdbc.queryForObject(
+            "select next_reset_at from subscription_entitlements where user_id = ?::uuid",
+            Timestamp.class, resetBuyer.id().toString());
 
         configuration.saveSectionSettings("invite", Map.of("commission_first_time_enable", false));
         assertThat(firstPaymentOnly(oneTimeInviter)).isTrue();
         settle(resetTrade);
-        String repeatResetTrade = place(trialBuyer, resetPlan, null, "RESET_TRAFFIC");
-        assertThat(number(order(repeatResetTrade), "commission_balance")).isZero();
-        assertThat(number(order(repeatResetTrade), "commission_status")).isEqualTo(3);
+        assertThat(jdbc.queryForObject(
+            "select uploaded_bytes from subscription_entitlements where user_id = ?::uuid",
+            Long.class, resetBuyer.id().toString())).isZero();
+        assertThat(jdbc.queryForObject(
+            "select downloaded_bytes from subscription_entitlements where user_id = ?::uuid",
+            Long.class, resetBuyer.id().toString())).isZero();
+        assertThat(jdbc.queryForObject(
+            "select expires_at from subscription_entitlements where user_id = ?::uuid",
+            Timestamp.class, resetBuyer.id().toString())).isEqualTo(expiryBefore);
+        assertThat(jdbc.queryForObject(
+            "select next_reset_at from subscription_entitlements where user_id = ?::uuid",
+            Timestamp.class, resetBuyer.id().toString())).isEqualTo(boundaryBefore);
+        assertThat(jdbc.queryForObject(
+            "select count(*) from paid_traffic_reset_claims where user_id = ?::uuid",
+            Long.class, resetBuyer.id().toString())).isEqualTo(1L);
+        assertThatThrownBy(() -> place(resetBuyer, resetPlan, null, "RESET_TRAFFIC"))
+            .isInstanceOf(AssertionError.class);
 
         User systemPeriodInviter = user("system-period-inviter");
         User systemPeriodBuyer = user("system-period-buyer");
@@ -571,15 +591,19 @@ class CommissionCommercialLoopIntegrationTest {
             """, UUID.randomUUID().toString(), code, code, amount, now, now);
     }
 
-    private void seedTrialEntitlement(User buyer, UUID plan) {
+    private void seedPaidResetEntitlement(User buyer, UUID plan) {
         Timestamp now = Timestamp.from(Instant.now());
+        Timestamp expiry = Timestamp.from(Instant.now().plusSeconds(90L * 86_400));
+        Timestamp cycleEnd = Timestamp.from(Instant.now().plusSeconds(30L * 86_400));
         jdbc.update("""
             insert into subscription_entitlements (
                 id, user_id, plan_id, plan_name, transfer_limit_bytes,
-                reset_policy, starts_at, created_at, updated_at, is_trial
-            ) values (?::uuid, ?::uuid, ?::uuid, 'Trial reset plan', 1073741824,
-                      'MONTHLY_FROM_ACTIVATION', ?, ?, ?, true)
-            """, UUID.randomUUID().toString(), buyer.id().toString(), plan.toString(), now, now, now);
+                uploaded_bytes, downloaded_bytes, reset_policy, starts_at,
+                expires_at, next_reset_at, created_at, updated_at, is_trial
+            ) values (?::uuid, ?::uuid, ?::uuid, 'Paid reset plan', 1073741824,
+                      1000, 2000, 'MONTHLY_FROM_ACTIVATION', ?, ?, ?, ?, ?, false)
+            """, UUID.randomUUID().toString(), buyer.id().toString(), plan.toString(),
+            now, expiry, cycleEnd, now, now);
     }
 
     private void seedHistoryOrder(User buyer, UUID plan, String status, long total) {

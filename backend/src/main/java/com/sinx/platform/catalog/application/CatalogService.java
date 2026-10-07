@@ -86,11 +86,35 @@ public class CatalogService {
                 && (viewerId == null || hasCompletedPurchase(viewerId))) {
             return Optional.empty();
         }
-        return planRepository.findById(planId)
-            .filter(ServicePlan::isPublished)
-            .filter(ServicePlan::isSellable)
-            .filter(plan -> !isConfiguredOffer || isValidNewUserOffer(plan))
-            .map(plan -> toAvailableOffer(plan, now, isConfiguredOffer));
+        return planRepository.findById(planId).flatMap(plan -> {
+            boolean holder = viewerId != null
+                && entitlementRepository.findByUserId(viewerId)
+                    .filter(entitlement -> !entitlement.isTrial())
+                    .filter(entitlement -> entitlement.getCanceledAt() == null)
+                    .filter(entitlement -> entitlement.getPlanId().equals(planId))
+                    .isPresent();
+            if (isConfiguredOffer && (!isValidNewUserOffer(plan) || !eligibleOffer(viewerId))) {
+                return Optional.empty();
+            }
+            if (!holder && (!plan.isPublished() || !plan.isSellable())) {
+                return Optional.empty();
+            }
+            if (!holder) {
+                PlanOfferView publicOffer = toAvailableOffer(plan, now, isConfiguredOffer);
+                return Optional.ofNullable(publicOffer);
+            }
+            Integer remaining = null;
+            if (plan.getCapacityLimit() != null) {
+                long occupied = entitlementRepository.countActiveForPlan(planId, now);
+                remaining = Math.max(0, plan.getCapacityLimit()
+                    - Math.toIntExact(occupied));
+            }
+            return plan.getPrices().isEmpty()
+                ? Optional.empty()
+                : Optional.of(PlanOfferView.from(plan, remaining, false,
+                    TrafficResetPolicyResolver.effective(plan,
+                        configuration.globalTrafficResetPolicy())));
+        });
     }
 
     private PlanOfferView toAvailableOffer(
@@ -130,6 +154,10 @@ public class CatalogService {
             userId,
             COMPLETED_PURCHASES
         );
+    }
+
+    private boolean eligibleOffer(UUID userId) {
+        return userId != null && !hasCompletedPurchase(userId);
     }
 
     private boolean isValidNewUserOffer(ServicePlan plan) {

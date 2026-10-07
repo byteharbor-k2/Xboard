@@ -6,6 +6,8 @@ import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.domain.OrderType;
 import com.sinx.platform.order.domain.ServiceOrder;
+import com.sinx.platform.order.domain.OrderDeductionMode;
+import com.sinx.platform.order.domain.OrderSettlementOutcome;
 
 public record ServiceOrderPayload(
     UUID id,
@@ -26,7 +28,13 @@ public record ServiceOrderPayload(
     UUID paymentMethodId,
     String gateway,
     String createdAt,
-    String paidAt
+    String paidAt,
+    OrderDeductionMode deductionMode,
+    String deferredSurplusCreditMinor,
+    boolean minimumOnlinePaymentBlocked,
+    String minimumPaymentMessage,
+    OrderSettlementOutcome settlementOutcome,
+    String returnedBalanceMinor
 ) {
 
     public static ServiceOrderPayload from(ServiceOrder order) {
@@ -49,7 +57,15 @@ public record ServiceOrderPayload(
             order.getPaymentMethodId(),
             order.getGateway(),
             order.getCreatedAt().toString(),
-            order.getPaidAt() == null ? null : order.getPaidAt().toString()
+            order.getPaidAt() == null ? null : order.getPaidAt().toString(),
+            order.getDeductionMode(),
+            String.valueOf(order.getDeferredSurplusCreditMinor()),
+            order.getTotalAmount() > 0 && order.getTotalAmount() < 1000,
+            order.getTotalAmount() > 0 && order.getTotalAmount() < 1000
+                ? com.sinx.platform.order.application.OrderService.MINIMUM_PAYMENT_MESSAGE
+                : null,
+            order.getSettlementOutcome(),
+            String.valueOf(order.getReturnedBalanceMinor())
         );
     }
 }

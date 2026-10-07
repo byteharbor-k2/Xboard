@@ -16,6 +16,8 @@ type Query {
     offerCatalog: [PlanOffer!]!
     planOffer(id: ID!): PlanOffer
     viewerEntitlement: SubscriptionEntitlement
+    """Paid self-service traffic reset eligibility for this account's current cycle."""
+    viewerTrafficResetOffer: ViewerTrafficResetOffer!
     """
     The account's own daily traffic ledger, one row per node and day, starting
     31 days back. Recorded only where the billing actually charged the
@@ -38,6 +40,7 @@ type Query {
         planId: ID!
         period: BillingPeriod!
         couponCode: String
+        deductionMode: OrderDeductionMode = STANDARD
     ): OrderQuote!
     viewerOrders: [ServiceOrder!]!
     """The ways one pending order can be paid for, each priced for it."""
@@ -72,6 +75,7 @@ type Mutation {
         planId: ID!
         period: BillingPeriod!
         couponCode: String
+        deductionMode: OrderDeductionMode = STANDARD
     ): ServiceOrder!
     cancelOrder(tradeNo: String!): Boolean!
     """
@@ -327,6 +331,7 @@ type BalanceLog {
     createdAt: String!
     """True only while this account owns the referenced order."""
     canViewOrder: Boolean!
+    note: String
 }
 
 """
@@ -351,6 +356,10 @@ type OrderQuote {
     couponCode: String
     couponName: String
     accountBalanceMinor: String!
+    deductionMode: OrderDeductionMode!
+    deferredSurplusCreditMinor: String!
+    minimumOnlinePaymentBlocked: Boolean!
+    minimumPaymentMessage: String
 }
 
 type ServiceOrder {
@@ -375,6 +384,12 @@ type ServiceOrder {
     gateway: String
     createdAt: String!
     paidAt: String
+    deductionMode: OrderDeductionMode!
+    deferredSurplusCreditMinor: String!
+    minimumOnlinePaymentBlocked: Boolean!
+    minimumPaymentMessage: String
+    settlementOutcome: OrderSettlementOutcome!
+    returnedBalanceMinor: String!
 }
 
 enum OrderType {
@@ -382,6 +397,26 @@ enum OrderType {
     RENEWAL
     UPGRADE
     RESET_TRAFFIC
+}
+
+enum OrderDeductionMode {
+    STANDARD
+    FULL_PAYMENT
+}
+
+enum OrderSettlementOutcome {
+    PENDING
+    SERVICE_FULFILLED
+    BALANCE_RETURNED
+}
+
+type ViewerTrafficResetOffer {
+    canPurchase: Boolean!
+    alreadyReset: Boolean!
+    priceMinor: String
+    cycleEndsAt: String
+    pendingTradeNo: String
+    reason: String
 }
 
 enum OrderStatus {

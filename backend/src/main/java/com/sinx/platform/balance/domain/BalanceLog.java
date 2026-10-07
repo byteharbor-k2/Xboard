@@ -45,6 +45,10 @@ public class BalanceLog {
     @Column(name = "commission_level", updatable = false)
     private Integer commissionLevel;
 
+    /** Optional customer-visible explanation for an administrator adjustment. */
+    @Column(length = 500, updatable = false)
+    private String note;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -59,6 +63,7 @@ public class BalanceLog {
         String currency,
         String tradeNo,
         Integer commissionLevel,
+        String note,
         Instant createdAt
     ) {
         if (userId == null || type == null || amountMinor == 0
@@ -83,6 +88,7 @@ public class BalanceLog {
         log.currency = currency;
         log.tradeNo = tradeNo;
         log.commissionLevel = commissionLevel;
+        log.note = note;
         log.createdAt = createdAt;
         return log;
     }
@@ -96,5 +102,6 @@ public class BalanceLog {
     public String getCurrency() { return currency; }
     public String getTradeNo() { return tradeNo; }
     public Integer getCommissionLevel() { return commissionLevel; }
+    public String getNote() { return note; }
     public Instant getCreatedAt() { return createdAt; }
 }

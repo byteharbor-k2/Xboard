@@ -44,6 +44,8 @@ import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 import com.sinx.platform.subscription.repository.TrafficResetRecordRepository;
+import com.sinx.platform.subscription.repository.PaidTrafficResetClaimRepository;
+import com.sinx.platform.order.domain.OrderDeductionMode;
 
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
@@ -58,6 +60,7 @@ class OrderFulfilmentServiceTest {
     private SubscriptionEntitlementRepository entitlements;
     private UserAccountRepository users;
     private OrderFulfilmentService fulfilment;
+    private PaidTrafficResetClaimRepository paidResetClaims;
     private final ArgumentCaptor<SubscriptionEntitlement> saved =
         ArgumentCaptor.forClass(SubscriptionEntitlement.class);
 
@@ -90,6 +93,8 @@ class OrderFulfilmentServiceTest {
                 Clock.fixed(NOW, ZoneOffset.UTC)
             )
         );
+        paidResetClaims = mock(PaidTrafficResetClaimRepository.class);
+        fulfilment.setResetClaims(paidResetClaims);
         user = UserAccount.register(
             UUID.randomUUID(),
             "user@example.test",
@@ -203,12 +208,11 @@ class OrderFulfilmentServiceTest {
 
     @Test
     void aTrafficResetZeroesTheUsageAndLeavesTheSubscriptionAlone() {
-        ServiceOrder order = order(
-            BillingPeriod.RESET_TRAFFIC,
-            OrderType.RESET_TRAFFIC
-        );
-        SubscriptionEntitlement existing =
-            entitlement(NOW.plusSeconds(10 * 86_400L));
+        SubscriptionEntitlement existing = SubscriptionEntitlement.grant(
+            UUID.randomUUID(), user, plan, NOW,
+            NOW.plusSeconds(10 * 86_400L), null, NOW);
+        Instant boundary = existing.getNextResetAt();
+        ServiceOrder order = paidResetOrder(boundary, 1_000);
         existing.recordUsage(4_900, 100, NOW);
         givenSubscription(existing);
         givenOrder(order);
@@ -219,25 +223,23 @@ class OrderFulfilmentServiceTest {
         assertThat(provisioned.usedBytes()).isZero();
         assertThat(provisioned.getExpiresAt())
             .isEqualTo(NOW.plusSeconds(10 * 86_400L));
+        assertThat(provisioned.getNextResetAt()).isEqualTo(boundary);
     }
 
     @Test
-    void aTrafficResetWithNothingToResetFailsInsteadOfHalfApplying() {
-        ServiceOrder order = order(
-            BillingPeriod.RESET_TRAFFIC,
-            OrderType.RESET_TRAFFIC
-        );
+    void aPaidResetWithoutItsEntitlementReturnsCapturedCashWithoutAClaim() {
+        ServiceOrder order = paidResetOrder(NOW.plusSeconds(86_400), 1_000);
         whenNoSubscription();
         givenOrder(order);
 
-        assertThatThrownBy(() -> fulfilment.settle(TRADE_NO, "callback-1"))
-            .isInstanceOf(IllegalStateException.class);
+        fulfilment.settle(TRADE_NO, "callback-1");
 
-        // The order was marked paid before provisioning began; the transaction
-        // the exception rolls back is what returns it to pending, so nothing is
-        // left half-applied in the database.
-        assertThat(order.isProcessing()).isTrue();
-        assertThat(order.getStatus()).isNotEqualTo(OrderStatus.COMPLETED);
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(order.getSettlementOutcome())
+            .isEqualTo(com.sinx.platform.order.domain.OrderSettlementOutcome.BALANCE_RETURNED);
+        assertThat(order.getReturnedBalanceMinor()).isEqualTo(1_000);
+        assertThat(user.getBalanceMinor()).isEqualTo(1_000);
+        verify(paidResetClaims, never()).saveAndFlush(any());
     }
 
     @Test
@@ -387,6 +389,13 @@ class OrderFulfilmentServiceTest {
         );
     }
 
+    private ServiceOrder paidResetOrder(Instant cycleEnd, long amountMinor) {
+        return ServiceOrder.create(TRADE_NO, user, plan, BillingPeriod.RESET_TRAFFIC,
+            OrderType.RESET_TRAFFIC, "CNY",
+            new OrderPricing.Breakdown(amountMinor, 0, 0, 0, 0, amountMinor),
+            null, "[]", false, OrderDeductionMode.STANDARD, 0, cycleEnd, NOW);
+    }
+
     /** Surplus credit is what an upgrade hands back to the balance. */
     private OrderPricing.Breakdown breakdown(long total, long surplusCredit) {
         return new OrderPricing.Breakdown(
@@ -410,7 +419,7 @@ class OrderFulfilmentServiceTest {
             50,
             TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
             null,
-            false,
+            true,
             null,
             true,
             true,

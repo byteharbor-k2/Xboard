@@ -146,6 +146,10 @@ public class PlatformConfigurationService {
         "subscribe.surplus_enable";
     private static final String GLOBAL_RESET_METHOD_KEY =
         "subscribe.globalreset_traffic_method";
+    private static final String DEFAULT_REMIND_EXPIRE_KEY =
+        "subscribe.default_remind_expire";
+    private static final String DEFAULT_REMIND_TRAFFIC_KEY =
+        "subscribe.default_remind_traffic";
     private static final int DEFAULT_RESET_METHOD = 1;
     private static final String SERVER_TOKEN_KEY = "server.server_token";
     private static final String SERVER_PULL_INTERVAL_KEY =
@@ -216,7 +220,9 @@ public class PlatformConfigurationService {
             case "subscribe" -> Map.of(
                 "plan_change_enable", subscriptionPolicy().planChangeEnabled(),
                 "surplus_enable", subscriptionPolicy().surplusEnabled(),
-                "globalreset_traffic_method", subscriptionPolicy().globalResetMethod()
+                "globalreset_traffic_method", subscriptionPolicy().globalResetMethod(),
+                "default_remind_expire", defaultRemindExpire(),
+                "default_remind_traffic", defaultRemindTraffic()
             );
             case "safe" -> {
                 EmailDomainPolicy policy = emailDomainPolicy();
@@ -490,6 +496,10 @@ public class PlatformConfigurationService {
                 saveBoolean(SURPLUS_ENABLED_KEY, entry.getValue());
             case GLOBAL_RESET_METHOD_KEY ->
                 saveInteger(GLOBAL_RESET_METHOD_KEY, entry.getValue());
+            case DEFAULT_REMIND_EXPIRE_KEY ->
+                saveBoolean(DEFAULT_REMIND_EXPIRE_KEY, entry.getValue());
+            case DEFAULT_REMIND_TRAFFIC_KEY ->
+                saveBoolean(DEFAULT_REMIND_TRAFFIC_KEY, entry.getValue());
             case SERVER_TOKEN_KEY -> saveServerToken(entry.getValue());
             case SERVER_PULL_INTERVAL_KEY ->
                 saveInteger(SERVER_PULL_INTERVAL_KEY, entry.getValue());
@@ -529,6 +539,16 @@ public class PlatformConfigurationService {
             case 4 -> TrafficResetPolicy.YEARLY_FROM_ACTIVATION;
             default -> TrafficResetPolicy.MONTHLY_FROM_ACTIVATION;
         };
+    }
+
+    /** Reminder preference applied only to accounts registered from now on. */
+    public boolean defaultRemindExpire() {
+        return readBoolean(DEFAULT_REMIND_EXPIRE_KEY, true);
+    }
+
+    /** Reminder preference applied only to accounts registered from now on. */
+    public boolean defaultRemindTraffic() {
+        return readBoolean(DEFAULT_REMIND_TRAFFIC_KEY, true);
     }
 
     private int integerValue(Object value, int fallback) {

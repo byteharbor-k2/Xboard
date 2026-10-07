@@ -32,6 +32,7 @@ import com.sinx.platform.order.domain.CommissionEligibilityPolicy;
 import com.sinx.platform.order.domain.OrderPricing;
 import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.domain.OrderType;
+import com.sinx.platform.order.domain.OrderDeductionMode;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.CouponRedemptionRepository;
 import com.sinx.platform.order.repository.CouponRepository;
@@ -39,6 +40,7 @@ import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.subscription.repository.PaidTrafficResetClaimRepository;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -53,6 +55,10 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 @Transactional(readOnly = true)
 public class OrderService {
+
+    public static final String MINIMUM_PAYMENT_MESSAGE =
+        "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用";
+    public static final long MINIMUM_ONLINE_PAYMENT_MINOR = 1000;
 
     private static final Set<OrderStatus> OPEN_STATUSES = Set.of(
         OrderStatus.PENDING,
@@ -85,6 +91,12 @@ public class OrderService {
     private final Clock clock;
     private final BalanceLedgerService balanceLedger;
     private final SecureRandom random = new SecureRandom();
+    private PaidTrafficResetClaimRepository resetClaims;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setResetClaims(PaidTrafficResetClaimRepository resetClaims) {
+        this.resetClaims = resetClaims;
+    }
 
     public OrderService(
         ServicePlanRepository plans,
@@ -122,10 +134,20 @@ public class OrderService {
         BillingPeriod period,
         String couponCode
     ) {
+        return quote(userId, planId, period, couponCode, OrderDeductionMode.STANDARD);
+    }
+
+    public OrderQuoteView quote(UUID userId, UUID planId, BillingPeriod period,
+        String couponCode, OrderDeductionMode requestedMode) {
+        OrderDeductionMode mode = requestedMode == null
+            ? OrderDeductionMode.STANDARD : requestedMode;
         Instant now = Instant.now(clock);
         UserAccount user = requireUser(userId);
         ServicePlan plan = requirePlan(planId);
         ServicePlanPrice price = requirePrice(plan, period);
+        if (period == BillingPeriod.RESET_TRAFFIC && price.getAmountMinor() <= 0) {
+            throw rejected("A paid traffic reset requires a positive configured price");
+        }
         SubscriptionEntitlement entitlement =
             entitlements.findByUserId(userId).orElse(null);
 
@@ -142,18 +164,16 @@ public class OrderService {
             price.getAmountMinor(),
             now
         );
-        SurplusValuation.Surplus surplus = subscriptionPolicy().surplusEnabled()
-                && type == OrderType.UPGRADE
-                && (entitlement == null || !entitlement.isTrial())
+        SurplusValuation.Surplus surplus = canValueSurplus(entitlement, period, type)
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
-
+        boolean fullPayment = mode == OrderDeductionMode.FULL_PAYMENT;
         OrderPricing.Breakdown breakdown = OrderPricing.compute(
             new OrderPricing.Inputs(
                 price.getAmountMinor(),
                 coupon.map(CouponEvaluator.Applied::discountMinor).orElse(0L),
-                surplus.amountMinor(),
-                user.getBalanceMinor()
+                fullPayment ? 0 : surplus.amountMinor(),
+                fullPayment ? 0 : user.getBalanceMinor()
             )
         );
 
@@ -166,7 +186,12 @@ public class OrderService {
             breakdown,
             coupon.map(applied -> applied.coupon().getCode()).orElse(null),
             coupon.map(applied -> applied.coupon().getName()).orElse(null),
-            user.getBalanceMinor()
+            user.getBalanceMinor(),
+            mode,
+            fullPayment ? surplus.amountMinor() : 0,
+            blockedByMinimum(breakdown.totalAmount()),
+            blockedByMinimum(breakdown.totalAmount())
+                ? MINIMUM_PAYMENT_MESSAGE : null
         );
     }
 
@@ -177,6 +202,14 @@ public class OrderService {
         BillingPeriod period,
         String couponCode
     ) {
+        return place(userId, planId, period, couponCode, OrderDeductionMode.STANDARD);
+    }
+
+    @Transactional
+    public ServiceOrder place(UUID userId, UUID planId, BillingPeriod period,
+        String couponCode, OrderDeductionMode requestedMode) {
+        OrderDeductionMode mode = requestedMode == null
+            ? OrderDeductionMode.STANDARD : requestedMode;
         Instant now = Instant.now(clock);
         // The user row is the serialization point for new-user promotions. It
         // prevents two simultaneous placements from both observing an eligible
@@ -190,6 +223,9 @@ public class OrderService {
         );
         ServicePlan plan = requirePlan(planId);
         ServicePlanPrice price = requirePrice(plan, period);
+        if (period == BillingPeriod.RESET_TRAFFIC && price.getAmountMinor() <= 0) {
+            throw rejected("A paid traffic reset requires a positive configured price");
+        }
         SubscriptionEntitlement entitlement =
             entitlements.findByUserId(userId).orElse(null);
 
@@ -214,18 +250,21 @@ public class OrderService {
             now,
             true
         );
-        SurplusValuation.Surplus surplus = subscriptionPolicy().surplusEnabled()
-                && type == OrderType.UPGRADE
-                && (entitlement == null || !entitlement.isTrial())
+        if (period == BillingPeriod.RESET_TRAFFIC
+                && orders.existsByUserIdAndPeriodAndStatus(
+                    userId, BillingPeriod.RESET_TRAFFIC, OrderStatus.PENDING)) {
+            throw rejected("A traffic reset order is already pending");
+        }
+        SurplusValuation.Surplus surplus = canValueSurplus(entitlement, period, type)
             ? surplusValuation.valueOf(entitlement, now)
             : new SurplusValuation.Surplus(0, List.of());
-
+        boolean fullPayment = mode == OrderDeductionMode.FULL_PAYMENT;
         OrderPricing.Breakdown breakdown = OrderPricing.compute(
             new OrderPricing.Inputs(
                 price.getAmountMinor(),
                 coupon.map(CouponEvaluator.Applied::discountMinor).orElse(0L),
-                surplus.amountMinor(),
-                user.getBalanceMinor()
+                fullPayment ? 0 : surplus.amountMinor(),
+                fullPayment ? 0 : user.getBalanceMinor()
             )
         );
 
@@ -241,6 +280,10 @@ public class OrderService {
             coupon.map(applied -> applied.coupon().getId()).orElse(null),
             encode(surplus.consumedOrderIds()),
             newUserOffer,
+            mode,
+            fullPayment ? surplus.amountMinor() : 0,
+            period == BillingPeriod.RESET_TRAFFIC && entitlement != null
+                ? currentResetCycleEnd(entitlement, now) : null,
             now
         );
         CommissionSnapshot commission = commissionSnapshot(user, breakdown);
@@ -277,6 +320,114 @@ public class OrderService {
         }
 
         return placedOrder;
+    }
+
+    private boolean canValueSurplus(SubscriptionEntitlement entitlement,
+        BillingPeriod period, OrderType type) {
+        if (!subscriptionPolicy().surplusEnabled() || entitlement == null
+                || entitlement.isTrial() || period == BillingPeriod.RESET_TRAFFIC) {
+            return false;
+        }
+        return type == OrderType.UPGRADE
+            || entitlement.getPlanType() == PlanType.TRAFFIC_PACKAGE
+                && period == BillingPeriod.ONETIME;
+    }
+
+    public record ViewerTrafficResetOffer(boolean canPurchase,
+        boolean alreadyReset, String priceMinor, String cycleEndsAt,
+        String pendingTradeNo, String reason) { }
+
+    public ViewerTrafficResetOffer trafficResetOffer(UUID userId) {
+        Instant now = Instant.now(clock);
+        SubscriptionEntitlement entitlement = entitlements.findByUserId(userId).orElse(null);
+        String pending = orders.findTradeNoByUserIdAndPeriodAndStatus(userId,
+            BillingPeriod.RESET_TRAFFIC, OrderStatus.PENDING).orElse(null);
+        if (pending != null) {
+            Instant pendingCycleEnd = entitlement == null
+                ? null : currentResetCycleEnd(entitlement, now);
+            return new ViewerTrafficResetOffer(false, false, null,
+                pendingCycleEnd == null ? null : pendingCycleEnd.toString(), pending,
+                "A traffic reset order is already pending");
+        }
+        String reason = null;
+        boolean eligible = entitlement != null && !entitlement.isTrial()
+            && entitlement.getPlanType() == PlanType.SUBSCRIPTION
+            && entitlement.getCanceledAt() == null
+            && entitlement.getExpiresAt() != null
+            && entitlement.getExpiresAt().isAfter(now)
+            && entitlement.getNextResetAt() != null
+            && entitlement.getResetPolicy()
+                != com.sinx.platform.catalog.domain.TrafficResetPolicy.NEVER;
+        ServicePlan plan = eligible ? plans.findById(entitlement.getPlanId()).orElse(null) : null;
+        ServicePlanPrice price = plan == null ? null : plan.getPrices().stream()
+            .filter(item -> item.getBillingPeriod() == BillingPeriod.RESET_TRAFFIC)
+            .findFirst().orElse(null);
+        if (!eligible || plan == null || !plan.isResettable() || price == null
+                || price.getAmountMinor() <= 0) {
+            eligible = false;
+            reason = "An active periodic plan with a configured reset price is required";
+        }
+        boolean already = eligible && resetClaims != null
+            && resetClaims.existsByUserIdAndCycleEnd(userId,
+                currentResetCycleEnd(entitlement, now));
+        if (already) {
+            eligible = false;
+            reason = "Traffic has already been reset in this cycle";
+        }
+        Instant cycleEnd = entitlement == null
+            ? null : currentResetCycleEnd(entitlement, now);
+        return new ViewerTrafficResetOffer(eligible, already,
+            price == null ? null : Long.toString(price.getAmountMinor()),
+            cycleEnd == null ? null : cycleEnd.toString(), null, reason);
+    }
+
+    private Instant currentResetCycleEnd(SubscriptionEntitlement entitlement, Instant now) {
+        Instant boundary = entitlement.getNextResetAt();
+        if (boundary == null || boundary.isAfter(now)) return boundary;
+        return com.sinx.platform.subscription.domain.MonthlyResetSchedule.followingBoundary(
+            entitlement.getResetPolicy(), boundary, now);
+    }
+
+    /** Rejects a stale pending paid-reset order before a cashier URL is issued. */
+    @Transactional
+    public void validateTrafficResetBeforeGateway(ServiceOrder order) {
+        if (order.getPeriod() != BillingPeriod.RESET_TRAFFIC) {
+            return;
+        }
+        Instant now = Instant.now(clock);
+        SubscriptionEntitlement entitlement = entitlements
+            .findByUserIdForUpdate(order.getUser().getId()).orElse(null);
+        ServicePlan plan = entitlement == null
+            ? null : plans.findById(entitlement.getPlanId()).orElse(null);
+        ServicePlanPrice currentResetPrice = plan == null ? null
+            : plan.getPrices().stream()
+                .filter(price -> price.getBillingPeriod() == BillingPeriod.RESET_TRAFFIC)
+                .findFirst().orElse(null);
+        boolean eligible = order.getOriginalAmount() > 0
+            && order.getResetCycleEnd() != null
+            && entitlement != null
+            && !entitlement.isTrial()
+            && entitlement.getPlanType() == PlanType.SUBSCRIPTION
+            && entitlement.getPlanId().equals(order.getPlan().getId())
+            && entitlement.getCanceledAt() == null
+            && entitlement.getExpiresAt() != null
+            && entitlement.getExpiresAt().isAfter(now)
+            && currentResetCycleEnd(entitlement, now) != null
+            && order.getResetCycleEnd().equals(currentResetCycleEnd(entitlement, now))
+            && plan != null
+            && plan.isResettable()
+            && currentResetPrice != null
+            && currentResetPrice.getAmountMinor() > 0
+            && (resetClaims == null || !resetClaims.existsByUserIdAndCycleEnd(
+                order.getUser().getId(), order.getResetCycleEnd()));
+        if (!eligible) {
+            throw problem(HttpStatus.CONFLICT, "TRAFFIC_RESET_NOT_AVAILABLE",
+                "This paid traffic reset is no longer available in the current cycle. Cancel it and place a new order.");
+        }
+    }
+
+    private static boolean blockedByMinimum(long amount) {
+        return amount > 0 && amount < MINIMUM_ONLINE_PAYMENT_MINOR;
     }
 
     /**
@@ -463,12 +614,14 @@ public class OrderService {
         if (entitlement != null && entitlement.isTrial()) {
             return OrderType.NEW_PURCHASE;
         }
-        if (entitlement == null || !stillCovered(entitlement, now)) {
+        if (entitlement == null || entitlement.getCanceledAt() != null) {
             return OrderType.NEW_PURCHASE;
         }
-        return entitlement.getPlanId().equals(plan.getId())
-            ? OrderType.RENEWAL
-            : OrderType.UPGRADE;
+        if (entitlement.getPlanId().equals(plan.getId())) {
+            return OrderType.RENEWAL;
+        }
+        return stillCovered(entitlement, now)
+            ? OrderType.UPGRADE : OrderType.NEW_PURCHASE;
     }
 
     private boolean stillCovered(
@@ -476,7 +629,8 @@ public class OrderService {
         Instant now
     ) {
         Instant expiresAt = entitlement.getExpiresAt();
-        return expiresAt == null || expiresAt.isAfter(now);
+        return entitlement.getCanceledAt() == null
+            && (expiresAt == null || expiresAt.isAfter(now));
     }
 
     /** The legacy switch blocks only a live paid cross-plan change. */
@@ -503,22 +657,35 @@ public class OrderService {
         Instant now
     ) {
         if (period == BillingPeriod.RESET_TRAFFIC) {
-            if (!plan.isResettable()) {
+            if (!plan.isResettable()
+                    || plan.getPlanType() != PlanType.SUBSCRIPTION) {
                 throw rejected("This plan does not offer traffic resets");
             }
             if (entitlement == null
-                    || !entitlement.getPlanId().equals(plan.getId())) {
+                    || entitlement.isTrial()
+                    || entitlement.getPlanType() != PlanType.SUBSCRIPTION
+                    || !entitlement.getPlanId().equals(plan.getId())
+                    || entitlement.getCanceledAt() != null
+                    || entitlement.getExpiresAt() == null
+                    || !entitlement.getExpiresAt().isAfter(now)
+                    || entitlement.getNextResetAt() == null
+                    || entitlement.getResetPolicy()
+                        == com.sinx.platform.catalog.domain.TrafficResetPolicy.NEVER) {
                 throw rejected(
-                    "A traffic reset can only be bought for the active plan"
+                    "A paid traffic reset requires an active periodic subscription"
                 );
+            }
+            if (resetClaims != null && resetClaims.existsByUserIdAndCycleEnd(
+                    user.getId(), currentResetCycleEnd(entitlement, now))) {
+                throw rejected("Traffic has already been reset in this cycle");
             }
             return;
         }
 
         boolean holdsThisPlan = entitlement != null
             && !entitlement.isTrial()
-            && entitlement.getPlanId().equals(plan.getId())
-            && stillCovered(entitlement, now);
+            && entitlement.getCanceledAt() == null
+            && entitlement.getPlanId().equals(plan.getId());
 
         if (holdsThisPlan) {
             if (!plan.isRenewable()) {

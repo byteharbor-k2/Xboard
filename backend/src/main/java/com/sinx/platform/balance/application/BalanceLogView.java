@@ -10,6 +10,7 @@ public record BalanceLogView(
     String balanceAfterMinor,
     String currency,
     String tradeNo,
+    String note,
     String createdAt,
     boolean canViewOrder
 ) {
@@ -21,6 +22,7 @@ public record BalanceLogView(
             Long.toString(log.getBalanceAfterMinor()),
             log.getCurrency(),
             log.getTradeNo(),
+            log.getNote(),
             log.getCreatedAt().toString(),
             canViewOrder
         );

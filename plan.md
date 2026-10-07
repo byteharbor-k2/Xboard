@@ -62,7 +62,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - 套餐目录、价格周期、容量与可售状态；订阅权益、流量、有效期、重置策略
 - 下单：结算页、付款周期、优惠券校验、折抵（优惠券 → 升级折抵 → 余额）、创建与取消
 - 支付：EPay 全链路（后台配置、手续费、发起支付、回调自动开通对账）
-- **余额付清的订单下单即开通**（不走网关；优惠券打到 0 元的仍待管理员处理）
+- **零应付订单下单即开通**（优惠券、折抵或余额覆盖应付金额时不走网关）
 - 订阅凭据与输出：`/sub/{token}` 公开入口、七种格式、管理员可编辑模板（保存前校验）、
   自助轮换
 - 账户页客户端选择面板：11 种具名客户端，逐个深链导入 / 复制专属链接 / 二维码
@@ -176,6 +176,23 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [ ] User-owned acceptance of account editing and dedicated finance pages; code `504638a` deployed on 2026-10-07 after database backup. V35 succeeded, all containers are healthy, and backend/frontend CI plus image publish passed. Opening records preserve existing cash (ten migrated accounts; zero balance/ledger mismatches). Public QA GraphQL balance/commission queries passed; wrong-password email-change request returned business 401 without a Bearer challenge. Main-agent full backend gate: 659 tests, frontend build/check/production audit and independent review passed.
 - [ ] Remaining admin field wiring: re-audit supported settings as needed; the old 74/33 count is obsolete after onboarding and commission work.
 
+### Current custom-business batch (2026-10-07, verified implementation)
+
+Scope: one owner ADMIN; friends and ordinary customers remain USER accounts. Friends use
+offline transfers and manual order completion, not user-specific discounts or new RBAC tiers.
+Build the site's own experience rather than a general theme/plugin/customization platform.
+
+- [x] Priority 1: admin target-balance adjustment with signed real-ledger entry and optional user-visible note; do not create recharge/withdrawal flows.
+- [x] Holder-only renewal/reset entry for hidden, stopped-sale or full-capacity ordinary plans; preserve anonymous/unrelated-user filtering and one-time welcome-offer restrictions.
+- [x] Minimum nonzero online payment CNY 10 after deductions. Zero-pay orders still auto-fulfil; manual offline admin completion bypasses the gateway. Full-payment mode does not spend existing balance and credits displaced remaining value only after successful fulfilment.
+- [x] Traffic-package renewal: apply unused-traffic proportional remaining value, then replace/reset quota on fulfilment; exhausted packages receive the purchased quota without residual value. Plan changes apply remaining value and credit excess to balance.
+- [x] Periodic subscription renewal extends months without clearing current-cycle usage, including exhausted subscriptions. Dashboard reset creates a paid `RESET_TRAFFIC` order using the current plan's admin-configured reset price. Payment/settlement must succeed before clearing usage; expiry and normal automatic-reset boundary are preserved. Allow at most one successful reset per current monthly traffic cycle; pending, cancelled and failed orders do not consume it. Trial/package entitlements are not eligible. No free reset is implemented.
+- [x] Configurable default expiry/traffic reminder preferences for new accounts; existing user preferences stay unchanged.
+- [ ] Final step: remove unsupported Logo/Telegram/dedicated-client admin setting skeletons and user speed-override controls. Actual speed comes only from subscription-plan entitlement.
+- Not building, user decision 2026-10-07: per-user purchase discount, user speed overrides, extra admin plan-selection UI, bulk account creation/management, configurable purchase-event resets and knowledge-base personal/subscriber-only template features. Friends use offline transfers plus existing manual order completion; ordinary buyers use coupons.
+- Execution order: admin balance/default reminders → holder renewal and pricing/payment modes → package/periodic renewal and paid cycle reset → frontend integration → unsupported-setting cleanup → full tests/read-only review → dev delivery. Frontend acceptance remains user-owned.
+- Backend verification: main agent ran the full gate (678 tests, zero failures/errors), then independent review passed. V36 adds admin balance notes/adjustment records; V37 adds deduction mode, actual periodic coverage, paid reset-cycle claims and explicit settlement outcomes. Real PostgreSQL/signed-payment tests cover reset configuration changes, late callbacks and rollover, cash-return idempotence, delayed/gapped renewals, full-payment deferred credits and source consumption. A stale reset is rejected before gateway initiation; if an initiated payment can no longer reset its saved cycle, captured funds are credited once to site balance with `BALANCE_RETURNED`, never silently applied to the next cycle.
+
 ### P3
 
 - [ ] Telegram configuration/webhook remains unscheduled.
@@ -252,6 +269,7 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - **封号语义**：禁止登录 + 断开订阅。**断开 = 从所有节点用户表移除 + 踢掉已连接代理**，
   并撤销该账号全部设备会话与已签发 token（2026-09-19 定，原版行为）
 - **订阅限速**：每用户每秒最多 2 次请求
+- Custom payment message (2026-10-07): “受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用”. Apply to nonzero online payments below 1000 minor units; allow exactly CNY 10 and zero-pay automatic fulfilment. No monetary credits or source-order consumption occur merely from quoting, cancelling or failing payment.
 - **管理端**：仪表盘沿用现有布局接真实数据即可
 - **交付**：中英双语；邮件模板复刻原版
 
@@ -319,8 +337,10 @@ acceptance as pending user confirmation rather than claiming agent browser compl
   均为该节点；节点上报总量与各用户入账之和**精确相等**。
 - **独立订阅域名未做。** 当前 `SubscriptionLinkService` 只取配置列表的第一个域名。
   原版是每次随机挑一个，副作用是链接会漂移；要做多域名又不漂移，应按用户确定性取模。
-- **后台配置项大部分字段未接通。** 74 个可编辑字段里只有 33 个后端真正接受，其余
-  保存报 400 `SETTING_NOT_SUPPORTED`；`subscribe`、`telegram`、`app` 三个分区整区 404。
+- **Unused admin setting skeletons remain.** The old 74/33 count is obsolete; subscription,
+  onboarding and commission settings are now wired. Logo storage and Telegram/app sections
+  remain unsupported; remove or disable unused controls rather than treating them as a
+  requirement for a general-purpose customization platform.
 - **在线设备数据依赖节点上报。** 本项目只用 xboard-node，其链路与设备上限无关；
   若日后接入 V2bX / XrayR 需重新验证。
 - **新建节点后 xboard-node 不会自动启动内核，必须 `xbctl restart`。** 表现为日志里

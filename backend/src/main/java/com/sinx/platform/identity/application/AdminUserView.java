@@ -56,7 +56,7 @@ public record AdminUserView(
             account.getStatus() == UserStatus.SUSPENDED,
             account.isEmailVerified(),
             account.getRemarks(),
-            account.getSpeedLimitMbps(),
+            entitlement == null ? null : entitlement.getSpeedLimitMbps(),
             account.getBalanceMinor(),
             account.getCommissionType(),
             account.getCommissionRate(),

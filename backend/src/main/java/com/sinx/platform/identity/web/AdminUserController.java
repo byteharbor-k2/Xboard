@@ -82,6 +82,14 @@ public class AdminUserController {
         );
     }
 
+    /** Sets a user's ordinary balance to an absolute integer-cent target. */
+    @PostMapping("/balance")
+    XboardResponse<AdminUserView> adjustBalance(@RequestBody BalanceRequest request) {
+        return XboardResponse.of(adminUsers.adjustBalance(
+            request.id(), request.balanceMinor(), request.note()
+        ));
+    }
+
     /**
      * Answers with the replacement link rather than the raw token, because the
      * link is what the operator pastes back to the customer.
@@ -145,6 +153,9 @@ public class AdminUserController {
     }
 
     record BanRequest(UUID id, boolean banned) {
+    }
+
+    record BalanceRequest(UUID id, Object balanceMinor, Object note) {
     }
 
     record SendMailRequest(

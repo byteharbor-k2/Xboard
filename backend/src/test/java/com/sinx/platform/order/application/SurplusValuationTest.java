@@ -28,6 +28,8 @@ class SurplusValuationTest {
     private static final long GIB = 1_073_741_824L;
     private static final UUID USER_ID =
         UUID.fromString("00000000-0000-0000-0000-000000000001");
+    private static final UUID PLAN_ID =
+        UUID.fromString("00000000-0000-0000-0000-000000000002");
 
     private final ServiceOrderRepository orders =
         mock(ServiceOrderRepository.class);
@@ -50,16 +52,11 @@ class SurplusValuationTest {
             3500,
             500
         );
-        when(orders.findLatestSettledForPeriod(
-            USER_ID,
-            OrderStatus.COMPLETED,
-            BillingPeriod.ONETIME
+        when(orders.findLatestSettledForPeriodAndUser(
+            USER_ID, BillingPeriod.ONETIME, OrderStatus.COMPLETED
         )).thenReturn(Optional.of(purchase));
-        when(orders.findSettledOrderIdsExcludingPeriod(
-            any(),
-            any(),
-            any()
-        )).thenReturn(List.of());
+        when(orders.findSettledOrderIdsForPeriod(any(), any(), any()))
+            .thenReturn(List.of());
 
         assertThat(valuation.valueOf(entitlement, Instant.now()).amountMinor())
             .isEqualTo(3000);
@@ -75,7 +72,7 @@ class SurplusValuationTest {
             3500,
             0
         );
-        when(orders.findLatestSettledForPeriod(any(), any(), any()))
+        when(orders.findLatestSettledForPeriodAndUser(any(), any(), any()))
             .thenReturn(Optional.of(purchase));
 
         assertThat(valuation.valueOf(entitlement, Instant.now()).amountMinor())
@@ -147,6 +144,7 @@ class SurplusValuationTest {
         when(entitlement.getTransferLimitBytes()).thenReturn(quota);
         when(entitlement.getUploadedBytes()).thenReturn(uploaded);
         when(entitlement.getDownloadedBytes()).thenReturn(downloaded);
+        when(entitlement.usedBytes()).thenReturn(uploaded + downloaded);
         return entitlement;
     }
 
@@ -157,6 +155,8 @@ class SurplusValuationTest {
         when(user.getId()).thenReturn(USER_ID);
         when(entitlement.getUser()).thenReturn(user);
         when(entitlement.getExpiresAt()).thenReturn(expiresAt);
+        when(entitlement.getPlanId()).thenReturn(PLAN_ID);
+        when(entitlement.getStartsAt()).thenReturn(Instant.parse("2026-01-01T00:00:00Z"));
         return entitlement;
     }
 
@@ -168,6 +168,7 @@ class SurplusValuationTest {
     ) {
         ServicePlan plan = mock(ServicePlan.class);
         when(plan.getName()).thenReturn("Pro");
+        when(plan.getId()).thenReturn(PLAN_ID);
         UserAccount user = mock(UserAccount.class);
         return ServiceOrder.create(
             "SX0000",

@@ -7,6 +7,7 @@ import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.domain.OrderType;
 import com.sinx.platform.order.domain.ServiceOrder;
+import com.sinx.platform.order.domain.OrderSettlementOutcome;
 
 /**
  * One order as the admin API reports it.
@@ -38,8 +39,23 @@ public record OrderAdminView(
     @JsonProperty("commission_base") long commissionBase,
     @JsonProperty("commission_balance") long commissionBalance,
     @JsonProperty("commission_status") Integer commissionStatus,
-    @JsonProperty("actual_commission_balance") long actualCommissionBalance
+    @JsonProperty("actual_commission_balance") long actualCommissionBalance,
+    @JsonProperty("settlement_outcome") OrderSettlementOutcome settlementOutcome,
+    @JsonProperty("returned_balance_minor") long returnedBalanceMinor
 ) {
+    /** Keeps callers that build the pre-settlement-outcome representation compatible. */
+    public OrderAdminView(String tradeNo, UUID userId, String email, UUID planId,
+        String planName, BillingPeriod period, OrderType orderType, OrderStatus status,
+        String currency, long originalAmount, long discountAmount, long surplusAmount,
+        long surplusCredit, long balanceAmount, long totalAmount, String callbackNo,
+        long createdAt, Long paidAt, UUID inviteUserId, long commissionBase,
+        long commissionBalance, Integer commissionStatus, long actualCommissionBalance) {
+        this(tradeNo, userId, email, planId, planName, period, orderType, status,
+            currency, originalAmount, discountAmount, surplusAmount, surplusCredit,
+            balanceAmount, totalAmount, callbackNo, createdAt, paidAt, inviteUserId,
+            commissionBase, commissionBalance, commissionStatus, actualCommissionBalance,
+            OrderSettlementOutcome.PENDING, 0);
+    }
     /** Keeps existing callers that build pre-commission admin fixtures compatible. */
     public OrderAdminView(
         String tradeNo,
@@ -65,7 +81,7 @@ public record OrderAdminView(
             tradeNo, userId, email, planId, planName, period, orderType, status,
             currency, originalAmount, discountAmount, surplusAmount,
             surplusCredit, balanceAmount, totalAmount, callbackNo, createdAt,
-            paidAt, null, 0, 0, null, 0
+            paidAt, null, 0, 0, null, 0, OrderSettlementOutcome.PENDING, 0
         );
     }
 
@@ -93,7 +109,9 @@ public record OrderAdminView(
             order.getCommissionBase(),
             order.getCommissionBalance(),
             order.getCommissionStatus(),
-            order.getActualCommissionBalance()
+            order.getActualCommissionBalance(),
+            order.getSettlementOutcome(),
+            order.getReturnedBalanceMinor()
         );
     }
 }

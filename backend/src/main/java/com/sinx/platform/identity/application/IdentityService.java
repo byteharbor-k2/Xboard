@@ -137,6 +137,11 @@ public class IdentityService {
             tokenService.newOpaqueToken(),
             now
         );
+        user.updateReminders(
+            configuration.defaultRemindExpire(),
+            configuration.defaultRemindTraffic(),
+            now
+        );
         if (emailVerified) {
             user.markEmailVerified(now);
         }

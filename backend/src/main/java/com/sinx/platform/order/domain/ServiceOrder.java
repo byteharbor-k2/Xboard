@@ -1,6 +1,7 @@
 package com.sinx.platform.order.domain;
 
 import java.time.Instant;
+import java.math.BigInteger;
 import java.util.UUID;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
@@ -74,6 +75,29 @@ public class ServiceOrder {
 
     @Column(name = "surplus_credit", nullable = false)
     private long surplusCredit;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "deduction_mode", nullable = false, length = 24)
+    private OrderDeductionMode deductionMode = OrderDeductionMode.STANDARD;
+
+    @Column(name = "deferred_surplus_credit", nullable = false)
+    private long deferredSurplusCreditMinor;
+
+    @Column(name = "reset_cycle_end")
+    private Instant resetCycleEnd;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "settlement_outcome", nullable = false, length = 24)
+    private OrderSettlementOutcome settlementOutcome = OrderSettlementOutcome.PENDING;
+
+    @Column(name = "returned_balance_minor", nullable = false)
+    private long returnedBalanceMinor;
+
+    @Column(name = "coverage_start")
+    private Instant coverageStart;
+
+    @Column(name = "coverage_end")
+    private Instant coverageEnd;
 
     @Column(name = "balance_amount", nullable = false)
     private long balanceAmount;
@@ -163,6 +187,9 @@ public class ServiceOrder {
         UUID couponId,
         String surplusOrderIds,
         boolean newUserOffer,
+        OrderDeductionMode deductionMode,
+        long deferredSurplusCreditMinor,
+        Instant resetCycleEnd,
         Instant now
     ) {
         ServiceOrder order = new ServiceOrder();
@@ -184,6 +211,10 @@ public class ServiceOrder {
         order.couponId = couponId;
         order.surplusOrderIds = surplusOrderIds == null ? "[]" : surplusOrderIds;
         order.newUserOffer = newUserOffer;
+        order.deductionMode = deductionMode == null
+            ? OrderDeductionMode.STANDARD : deductionMode;
+        order.deferredSurplusCreditMinor = Math.max(deferredSurplusCreditMinor, 0);
+        order.resetCycleEnd = resetCycleEnd;
         // Every order starts unpaid, however much of it the discounts covered.
         // A total of zero is not a settled order: nothing is provisioned until
         // a payment - or an admin settling it by hand - moves it on.
@@ -191,6 +222,17 @@ public class ServiceOrder {
         order.createdAt = now;
         order.updatedAt = now;
         return order;
+    }
+
+    /** Source-compatible ordinary purchase factory. */
+    public static ServiceOrder create(
+        String tradeNo, UserAccount user, ServicePlan plan, BillingPeriod period,
+        OrderType orderType, String currency, OrderPricing.Breakdown breakdown,
+        UUID couponId, String surplusOrderIds, boolean newUserOffer, Instant now
+    ) {
+        return create(tradeNo, user, plan, period, orderType, currency, breakdown,
+            couponId, surplusOrderIds, newUserOffer, OrderDeductionMode.STANDARD,
+            0, null, now);
     }
 
     /** Keeps existing order fixtures source-compatible for ordinary purchases. */
@@ -291,7 +333,29 @@ public class ServiceOrder {
 
     public void complete(Instant now) {
         status = OrderStatus.COMPLETED;
+        settlementOutcome = OrderSettlementOutcome.SERVICE_FULFILLED;
         updatedAt = now;
+    }
+
+    /** Closes a paid order by returning the captured amount as spendable site balance. */
+    public void returnCapturedPaymentToBalance(long amountMinor, Instant now) {
+        if (status != OrderStatus.PROCESSING || amountMinor < 0) {
+            throw new IllegalStateException("Only a paid processing order can return captured payment");
+        }
+        status = OrderStatus.COMPLETED;
+        settlementOutcome = OrderSettlementOutcome.BALANCE_RETURNED;
+        returnedBalanceMinor = amountMinor;
+        commissionStatus = commissionStatus == null ? null : 3;
+        updatedAt = now;
+    }
+
+    /** The paid coverage represented by this order, anchored when fulfilment actually occurs. */
+    public void snapshotCoverage(Instant start, Instant end) {
+        if (start == null || end == null || !end.isAfter(start)) {
+            throw new IllegalArgumentException("A paid coverage segment needs an increasing interval");
+        }
+        coverageStart = start;
+        coverageEnd = end;
     }
 
     /** Captures the eligible referral pool before any zero-balance fulfilment. */
@@ -346,7 +410,15 @@ public class ServiceOrder {
 
     /** Value this order contributed, as the original panel's surplus sum does. */
     public long settledValue() {
-        return totalAmount + balanceAmount + surplusAmount - surplusCredit;
+        return settledValueBigInteger().longValueExact();
+    }
+
+    /** Exact funded value, suitable for prorating without overflowing minor-unit sums. */
+    public BigInteger settledValueBigInteger() {
+        return BigInteger.valueOf(totalAmount)
+            .add(BigInteger.valueOf(balanceAmount))
+            .add(BigInteger.valueOf(surplusAmount))
+            .subtract(BigInteger.valueOf(surplusCredit));
     }
 
     public UUID getId() {
@@ -399,6 +471,34 @@ public class ServiceOrder {
 
     public long getSurplusCredit() {
         return surplusCredit;
+    }
+
+    public OrderDeductionMode getDeductionMode() {
+        return deductionMode;
+    }
+
+    public long getDeferredSurplusCreditMinor() {
+        return deferredSurplusCreditMinor;
+    }
+
+    public Instant getResetCycleEnd() {
+        return resetCycleEnd;
+    }
+
+    public OrderSettlementOutcome getSettlementOutcome() {
+        return settlementOutcome;
+    }
+
+    public long getReturnedBalanceMinor() {
+        return returnedBalanceMinor;
+    }
+
+    public Instant getCoverageStart() {
+        return coverageStart;
+    }
+
+    public Instant getCoverageEnd() {
+        return coverageEnd;
     }
 
     public long getBalanceAmount() {

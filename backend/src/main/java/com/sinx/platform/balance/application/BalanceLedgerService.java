@@ -57,7 +57,7 @@ public class BalanceLedgerService {
                 "The account balance changed. Please review the order again."
             );
         }
-        save(user, BalanceLogType.ORDER_PAYMENT, -amountMinor, before, tradeNo, null, postedAt);
+        save(user, BalanceLogType.ORDER_PAYMENT, -amountMinor, before, tradeNo, null, null, postedAt);
     }
 
     /**
@@ -90,7 +90,24 @@ public class BalanceLedgerService {
         long before = user.getBalanceMinor();
         Math.addExact(before, amountMinor);
         user.creditBalance(amountMinor, postedAt);
-        save(user, type, amountMinor, before, tradeNo, commissionLevel, postedAt);
+        save(user, type, amountMinor, before, tradeNo, commissionLevel, null, postedAt);
+    }
+
+    /** Sets ordinary cash to an absolute target and records only a real movement. */
+    @Transactional
+    public void setBalanceTarget(UUID userId, long targetMinor, String note) {
+        if (targetMinor < 0) {
+            throw new IllegalArgumentException("A balance target cannot be negative");
+        }
+        UserAccount user = lockUser(userId);
+        long before = user.getBalanceMinor();
+        if (before == targetMinor) {
+            return;
+        }
+        Instant postedAt = Instant.now(clock);
+        long delta = targetMinor - before;
+        user.setBalanceTarget(targetMinor, postedAt);
+        save(user, BalanceLogType.ADMIN_ADJUSTMENT, delta, before, null, null, note, postedAt);
     }
 
     /** Deletes only the migration anchor while the same user's row is locked. */
@@ -117,6 +134,7 @@ public class BalanceLedgerService {
         long before,
         String tradeNo,
         Integer commissionLevel,
+        String note,
         Instant now
     ) {
         long after = user.getBalanceMinor();
@@ -124,7 +142,7 @@ public class BalanceLedgerService {
             throw new IllegalStateException("The account balance did not match its ledger mutation");
         }
         logs.save(BalanceLog.create(
-            user.getId(), type, amountMinor, after, "CNY", tradeNo, commissionLevel, now
+            user.getId(), type, amountMinor, after, "CNY", tradeNo, commissionLevel, note, now
         ));
     }
 }

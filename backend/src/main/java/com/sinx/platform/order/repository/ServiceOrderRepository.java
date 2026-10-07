@@ -78,6 +78,29 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
         Collection<OrderStatus> statuses
     );
 
+    boolean existsByUserIdAndPeriodAndStatus(UUID userId, BillingPeriod period,
+        OrderStatus status);
+
+    @Query("""
+        select o.tradeNo from ServiceOrder o where o.user.id = :userId
+          and o.period = :period and o.status = :status
+        order by o.createdAt desc limit 1
+        """)
+    Optional<String> findTradeNoByUserIdAndPeriodAndStatus(@Param("userId") UUID userId,
+        @Param("period") BillingPeriod period,
+        @Param("status") OrderStatus status);
+
+    @Query("""
+        select o from ServiceOrder o where o.user.id = :userId
+          and o.period = :period and o.status = :status
+        order by o.createdAt desc limit 1
+        """)
+    Optional<ServiceOrder> findLatestSettledForPeriodAndUser(
+        @Param("userId") UUID userId,
+        @Param("period") BillingPeriod period,
+        @Param("status") OrderStatus status
+    );
+
     /** Whether a payment method has been used, and so has a history to keep. */
     boolean existsByPaymentMethodId(UUID paymentMethodId);
 
@@ -128,6 +151,16 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
         @Param("userId") UUID userId,
         @Param("status") OrderStatus status,
         @Param("excludedPeriod") BillingPeriod excludedPeriod
+    );
+
+    @Query("""
+        select o.id from ServiceOrder o where o.user.id = :userId
+          and o.status = :status and o.period = :period
+        """)
+    List<UUID> findSettledOrderIdsForPeriod(
+        @Param("userId") UUID userId,
+        @Param("status") OrderStatus status,
+        @Param("period") BillingPeriod period
     );
 
     /**

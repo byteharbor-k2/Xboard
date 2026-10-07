@@ -1,10 +1,12 @@
 package com.sinx.platform.order.application;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.math.RoundingMode;
+import java.math.BigInteger;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -29,8 +31,9 @@ import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
  * from the settled order history rather than the current expiry, so a manually
  * adjusted expiry cannot inflate a refund.
  *
- * All arithmetic goes through BigInteger/BigDecimal: byte counts multiplied by
- * amounts overflow a long for large packages, and a double ratio would drift.
+ * All prorating uses integer nanosecond intervals and BigInteger minor-unit
+ * products: large byte counts or high-value segments cannot overflow a long,
+ * and a floating-point ratio would drift.
  */
 @Service
 @Transactional(readOnly = true)
@@ -63,53 +66,61 @@ public class SurplusValuation {
     }
 
     /**
-     * A package without an expiry is worth the traffic still in it, priced at
-     * what the customer actually paid per byte.
+     * A package without an expiry is worth the traffic still in it. The latest
+     * completed package's settled value is its coupon-adjusted funding plus
+     * previously carried surplus, minus surplus returned to the balance. The
+     * prior source package is marked DISCOUNTED when this package fulfils, so
+     * only the latest package is valued on the next change; the same carried
+     * amount is never counted both in the current package and its old source.
+     * Coupon-only funding has a zero settled value and therefore creates no
+     * refundable package value.
      */
     private Surplus valueTrafficPackage(
         SubscriptionEntitlement entitlement,
         UUID userId
     ) {
-        Optional<ServiceOrder> lastPackage = orders.findLatestSettledForPeriod(
-            userId,
-            OrderStatus.COMPLETED,
-            BillingPeriod.ONETIME
+        Optional<ServiceOrder> lastPackage = orders.findLatestSettledForPeriodAndUser(
+            userId, BillingPeriod.ONETIME, OrderStatus.COMPLETED
         );
         if (lastPackage.isEmpty()) {
             return Surplus.NONE;
         }
         long quota = entitlement.getTransferLimitBytes();
-        long paid = lastPackage.get().getTotalAmount()
-            + lastPackage.get().getBalanceAmount();
-        if (quota <= 0 || paid <= 0) {
+        // The latest package may itself have been funded partly by carried
+        // value. Its settled value includes that amount once, while its source
+        // order is written off atomically when this package is fulfilled.
+        BigInteger funded = lastPackage.get().settledValueBigInteger();
+        if (quota <= 0 || funded.signum() <= 0) {
             return Surplus.NONE;
         }
-        long used = entitlement.getUploadedBytes()
-            + entitlement.getDownloadedBytes();
+        long used = entitlement.usedBytes();
         long remaining = Math.max(0, quota - used);
         if (remaining == 0) {
             return Surplus.NONE;
         }
 
-        long amount = BigInteger.valueOf(paid)
+        long amount = funded
             .multiply(BigInteger.valueOf(remaining))
             .divide(BigInteger.valueOf(quota))
             .longValueExact();
 
         return new Surplus(
             amount,
-            orders.findSettledOrderIdsExcludingPeriod(
+            orders.findSettledOrderIdsForPeriod(
                 userId,
                 OrderStatus.COMPLETED,
-                BillingPeriod.RESET_TRAFFIC
+                BillingPeriod.ONETIME
             )
         );
     }
 
     /**
-     * A periodic subscription is worth the unelapsed share of everything paid
-     * into it. The window runs from the first settled order to that order plus
-     * the total months bought since.
+     * A periodic subscription is valued as the sum of the unconsumed shares of
+     * its currently funded coverage segments. Each renewal keeps its own funded
+     * amount and actual start/end, so a gap, delayed callback or different
+     * renewal price cannot be averaged into an imaginary continuous window.
+     * Legacy rows without those snapshots are rebuilt from paid_at and order
+     * type, constrained to the current plan and entitlement anchor/expiry.
      */
     private Surplus valuePeriodicSubscription(
         SubscriptionEntitlement entitlement,
@@ -124,38 +135,75 @@ public class SurplusValuation {
         if (history.isEmpty()) {
             return Surplus.NONE;
         }
-
-        long paidIn = history.stream()
-            .mapToLong(ServiceOrder::settledValue)
-            .sum();
-        int monthsBought = history.stream()
-            .mapToInt(order -> monthsOf(order.getPeriod()))
-            .sum();
-        if (paidIn <= 0 || monthsBought <= 0) {
+        List<ServiceOrder> currentPlanHistory = history.stream()
+            .filter(order -> order.getPlan().getId().equals(entitlement.getPlanId()))
+            .sorted(Comparator.comparing(this::paidAtOrCreatedAt))
+            .toList();
+        if (currentPlanHistory.isEmpty()) {
             return Surplus.NONE;
         }
 
-        Instant openedAt = history.get(0).getCreatedAt();
-        Instant paidThrough = openedAt.atZone(ZoneOffset.UTC)
-            .plusMonths(monthsBought)
-            .toInstant();
-
-        long windowSeconds = paidThrough.getEpochSecond()
-            - openedAt.getEpochSecond();
-        long remainingSeconds = Math.max(
-            0,
-            paidThrough.getEpochSecond() - now.getEpochSecond()
-        );
-        if (windowSeconds <= 0 || remainingSeconds == 0) {
-            return new Surplus(0, ids(history));
+        BigInteger totalValue = BigInteger.ZERO;
+        List<UUID> consumed = new ArrayList<>();
+        Instant previousEnd = null;
+        Instant entitlementStart = entitlement.getStartsAt();
+        Instant entitlementEnd = entitlement.getExpiresAt();
+        for (ServiceOrder order : currentPlanHistory) {
+            int months = monthsOf(order.getPeriod());
+            if (months <= 0) {
+                continue;
+            }
+            Instant start = order.getCoverageStart();
+            Instant end = order.getCoverageEnd();
+            if (start == null || end == null) {
+                Instant paidAt = paidAtOrCreatedAt(order);
+                start = order.getOrderType() == com.sinx.platform.order.domain.OrderType.RENEWAL
+                        && previousEnd != null && previousEnd.isAfter(paidAt)
+                    ? previousEnd : paidAt;
+                end = start.atZone(ZoneOffset.UTC).plusMonths(months).toInstant();
+                if (entitlementStart != null && start.isBefore(entitlementStart)) {
+                    previousEnd = end;
+                    continue;
+                }
+            }
+            previousEnd = end;
+            if (entitlementEnd != null && entitlementEnd.isBefore(end)) {
+                end = entitlementEnd;
+            }
+            if (!end.isAfter(now) || !end.isAfter(start)) {
+                continue;
+            }
+            BigInteger funded = order.settledValueBigInteger().max(BigInteger.ZERO);
+            if (funded.signum() == 0) {
+                continue;
+            }
+            Instant remainingStart = now.isAfter(start) ? now : start;
+            BigInteger segmentNanos = durationNanos(start, end);
+            BigInteger remainingNanos = durationNanos(remainingStart, end);
+            if (segmentNanos.signum() <= 0 || remainingNanos.signum() <= 0) {
+                continue;
+            }
+            BigInteger value = funded.multiply(remainingNanos).divide(segmentNanos);
+            if (value.signum() > 0) {
+                totalValue = totalValue.add(value);
+                consumed.add(order.getId());
+            }
         }
+        if (totalValue.signum() <= 0) {
+            return Surplus.NONE;
+        }
+        return new Surplus(totalValue.longValueExact(), List.copyOf(consumed));
+    }
 
-        long amount = BigDecimal.valueOf(paidIn)
-            .multiply(BigDecimal.valueOf(remainingSeconds))
-            .divide(BigDecimal.valueOf(windowSeconds), 0, RoundingMode.DOWN)
-            .longValueExact();
+    private Instant paidAtOrCreatedAt(ServiceOrder order) {
+        return order.getPaidAt() == null ? order.getCreatedAt() : order.getPaidAt();
+    }
 
-        return new Surplus(Math.max(0, amount), ids(history));
+    private static BigInteger durationNanos(Instant start, Instant end) {
+        Duration duration = Duration.between(start, end);
+        return BigInteger.valueOf(duration.getSeconds())
+            .multiply(BigInteger.valueOf(1_000_000_000L))
+            .add(BigInteger.valueOf(duration.getNano()));
     }
 
     private static int monthsOf(BillingPeriod period) {
@@ -163,7 +211,4 @@ public class SurplusValuation {
         return months == null ? 0 : months;
     }
 
-    private static List<UUID> ids(List<ServiceOrder> history) {
-        return history.stream().map(ServiceOrder::getId).toList();
-    }
 }

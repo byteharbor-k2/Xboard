@@ -26,6 +26,9 @@ import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.subscription.repository.PaidTrafficResetClaimRepository;
+import com.sinx.platform.subscription.domain.PaidTrafficResetClaim;
+import com.sinx.platform.subscription.domain.MonthlyResetSchedule;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -68,6 +71,12 @@ public class OrderFulfilmentService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final BalanceLedgerService balanceLedger;
+    private PaidTrafficResetClaimRepository resetClaims;
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setResetClaims(PaidTrafficResetClaimRepository resetClaims) {
+        this.resetClaims = resetClaims;
+    }
 
     public OrderFulfilmentService(
         ServiceOrderRepository orders,
@@ -168,6 +177,11 @@ public class OrderFulfilmentService {
                 "The account does not exist"
             ));
 
+        if (order.getPeriod() == BillingPeriod.RESET_TRAFFIC) {
+            openPaidTrafficReset(order, user, now);
+            return;
+        }
+
         // Value left over when the old plan was worth more than the new one.
         // It is credited here rather than at checkout, as the original does.
         if (order.getSurplusCredit() > 0) {
@@ -180,8 +194,17 @@ public class OrderFulfilmentService {
                 now
             );
         }
+        if (order.getDeferredSurplusCreditMinor() > 0) {
+            balanceLedger.credit(user.getId(), order.getDeferredSurplusCreditMinor(),
+                BalanceLogType.SURPLUS_CREDIT, order.getTradeNo(), null, now);
+        }
 
         writeOffConsumedOrders(order, now);
+        SubscriptionEntitlement prior = entitlements.findByUserId(user.getId()).orElse(null);
+        if (order.getPeriod().getMonthCount() != null) {
+            Instant start = coverageStart(order, prior, now);
+            order.snapshotCoverage(start, coverageUntil(order, prior, now));
+        }
         SubscriptionEntitlement entitlement = applyPlan(order, user, now);
         entitlements.save(entitlement);
         order.complete(now);
@@ -189,6 +212,60 @@ public class OrderFulfilmentService {
         if (order.getPeriod() != BillingPeriod.RESET_TRAFFIC) {
             announceFulfilment(order, user, entitlement, now);
         }
+    }
+
+    /** Claims a paid reset's snapshotted cycle or returns the captured payment to balance. */
+    private void openPaidTrafficReset(ServiceOrder order, UserAccount user, Instant now) {
+        SubscriptionEntitlement entitlement = entitlements
+            .findByUserIdForUpdate(user.getId()).orElse(null);
+        Instant snapshottedCycleEnd = order.getResetCycleEnd();
+        boolean current = entitlement != null
+            && order.getOriginalAmount() > 0
+            && snapshottedCycleEnd != null
+            && entitlement.getPlanId().equals(order.getPlan().getId())
+            && !entitlement.isTrial()
+            && entitlement.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.SUBSCRIPTION
+            && entitlement.getCanceledAt() == null
+            && entitlement.getExpiresAt() != null
+            && entitlement.getExpiresAt().isAfter(now)
+            && snapshottedCycleEnd.equals(currentResetCycleEnd(entitlement, now));
+        boolean alreadyClaimed = !current || resetClaims == null
+            || resetClaims.existsByUserIdAndCycleEnd(user.getId(), snapshottedCycleEnd);
+        if (!current || alreadyClaimed) {
+            long paidHandling = MANUAL_CALLBACK_NO.equals(order.getCallbackNo())
+                    || AUTO_SETTLED_CALLBACK_NO.equals(order.getCallbackNo())
+                ? 0 : order.getHandlingAmount();
+            long returnAmount = Math.addExact(
+                Math.addExact(order.getTotalAmount(), order.getBalanceAmount()),
+                paidHandling
+            );
+            balanceLedger.credit(user.getId(), returnAmount,
+                BalanceLogType.ORDER_REFUND, order.getTradeNo(), null, now);
+            order.returnCapturedPaymentToBalance(returnAmount, now);
+            return;
+        }
+
+        // The gateway-start snapshot remains authoritative if plan reset flags
+        // or prices were edited after the customer was sent to the cashier.
+        resetClaims.saveAndFlush(PaidTrafficResetClaim.create(
+            user.getId(), snapshottedCycleEnd, order.getTradeNo(), now));
+        trafficResets.recordPaidReset(entitlement, now, snapshottedCycleEnd);
+        entitlements.save(entitlement);
+        order.complete(now);
+        announceEntitlementChange(user.getId(), entitlement, now);
+    }
+
+    private Instant currentResetCycleEnd(
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        Instant boundary = entitlement.getNextResetAt();
+        if (boundary == null || boundary.isAfter(now)) {
+            return boundary;
+        }
+        return MonthlyResetSchedule.followingBoundary(
+            entitlement.getResetPolicy(), boundary, now);
     }
 
     /**
@@ -271,28 +348,8 @@ public class OrderFulfilmentService {
     ) {
         BillingPeriod period = order.getPeriod();
         ServicePlan plan = order.getPlan();
-        // A reset order is judged on the locked entitlement row, the way the
-        // operator's reset button and the monthly sweep already are: a reset
-        // racing anything else must see what the other side left standing.
-        SubscriptionEntitlement entitlement =
-            period == BillingPeriod.RESET_TRAFFIC
-                ? entitlements.findByUserIdForUpdate(user.getId()).orElse(null)
-                : entitlements.findByUserId(user.getId()).orElse(null);
-
-        if (period == BillingPeriod.RESET_TRAFFIC) {
-            if (entitlement == null) {
-                throw inconsistent(
-                    order,
-                    "a traffic reset needs a subscription to reset"
-                );
-            }
-            // A purchased reset takes the same path a manual one does: the
-            // counters drop with the same semantics, a record stays on the
-            // ledger with what was spent before, and a monthly cycle is
-            // re-anchored at this reset.
-            trafficResets.recordManualReset(entitlement, now);
-            return entitlement;
-        }
+        SubscriptionEntitlement entitlement = entitlements.findByUserId(user.getId())
+            .orElse(null);
 
         if (period == BillingPeriod.ONETIME) {
             if (entitlement == null) {
@@ -353,20 +410,30 @@ public class OrderFulfilmentService {
         if (months == null) {
             throw inconsistent(order, "the billing period has no length");
         }
-        Instant base = order.getOrderType() == OrderType.UPGRADE
-                || entitlement != null && entitlement.isTrial()
-            ? now
-            : latestOf(now, entitlement == null ? null : entitlement.getExpiresAt());
+        Instant base = coverageStart(order, entitlement, now);
         return ZonedDateTime.ofInstant(base, ZoneOffset.UTC)
             .plusMonths(months)
             .toInstant();
     }
 
+    /** The interval a successful order actually funds, not the time it was created. */
+    private Instant coverageStart(
+        ServiceOrder order,
+        SubscriptionEntitlement entitlement,
+        Instant now
+    ) {
+        return order.getOrderType() == OrderType.RENEWAL
+                && entitlement != null && !entitlement.isTrial()
+            ? latestOf(now, entitlement.getExpiresAt())
+            : now;
+    }
+
     /**
      * Whether the traffic counters start over when the plan goes on.
      *
-     * True for a first purchase and for a move off a non-expiring package, false
-     * for a renewal or an upgrade of a running subscription.
+     * True for a first purchase, a cross-plan change and a move off a
+     * non-expiring package; false for a same-plan periodic renewal. Cross-plan
+     * remaining value was already consumed by the new purchase.
      *
      * The original's comment states the same rule - "reset the traffic when
      * converting from one-time to periodic, or on a new purchase" - but its code
@@ -379,10 +446,8 @@ public class OrderFulfilmentService {
         ServiceOrder order,
         SubscriptionEntitlement entitlement
     ) {
-        if (entitlement.getExpiresAt() == null) {
-            return true;
-        }
-        return order.getOrderType() == OrderType.NEW_PURCHASE;
+        return entitlement.getExpiresAt() == null
+            || order.getOrderType() != OrderType.RENEWAL;
     }
 
     private Instant latestOf(Instant now, Instant candidate) {

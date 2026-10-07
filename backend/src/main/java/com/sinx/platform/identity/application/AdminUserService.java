@@ -204,12 +204,8 @@ public class AdminUserService {
         if (update.remarks() != null) {
             account.updateRemarks(update.remarks(), now);
         }
-        if (update.speedLimitMbps() != null) {
-            account.updateSpeedLimitMbps(
-                update.speedLimitMbps() <= 0 ? null : update.speedLimitMbps(),
-                now
-            );
-        }
+        // speed_limit_mbps remains accepted for older admin clients, but node
+        // speed is an entitlement from the selected plan, never a user override.
         if (update.commissionType() != null || update.commissionRate() != null
                 || Boolean.TRUE.equals(update.clearCommissionRate())) {
             if (update.commissionType() != null
@@ -244,6 +240,49 @@ public class AdminUserService {
             applySubscription(account, update, now);
         }
 
+        return detail(userId);
+    }
+
+    /** Sets account cash to the supplied target and records a signed ledger posting. */
+    @Transactional
+    public AdminUserView adjustBalance(UUID userId, Object rawTarget, Object rawNote) {
+        if (!(rawTarget instanceof String targetValue)
+                || !targetValue.matches("[0-9]+")) {
+            throw problem(
+                HttpStatus.BAD_REQUEST,
+                "BALANCE_TARGET_INVALID",
+                "The balance target must be a non-negative integer number of cents"
+            );
+        }
+        long target;
+        try {
+            target = Long.parseLong(targetValue);
+        } catch (NumberFormatException exception) {
+            throw problem(
+                HttpStatus.BAD_REQUEST,
+                "BALANCE_TARGET_INVALID",
+                "The balance target is outside the supported range"
+            );
+        }
+        if (rawNote != null && !(rawNote instanceof String)) {
+            throw problem(
+                HttpStatus.BAD_REQUEST,
+                "BALANCE_NOTE_INVALID",
+                "The customer-visible balance note must be text"
+            );
+        }
+        String visibleNote = rawNote == null ? null : ((String) rawNote).trim();
+        if (visibleNote != null && visibleNote.length() > 500) {
+            throw problem(
+                HttpStatus.BAD_REQUEST,
+                "BALANCE_NOTE_INVALID",
+                "The customer-visible balance note cannot exceed 500 characters"
+            );
+        }
+        if (visibleNote != null && visibleNote.isEmpty()) {
+            visibleNote = null;
+        }
+        balanceLedger.setBalanceTarget(userId, target, visibleNote);
         return detail(userId);
     }
 

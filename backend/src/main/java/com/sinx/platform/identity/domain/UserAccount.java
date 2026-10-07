@@ -399,6 +399,17 @@ public class UserAccount {
         return balanceMinor;
     }
 
+    /** Sets cash to a validated absolute target while its row is locked. */
+    public void setBalanceTarget(long targetMinor, Instant now) {
+        if (targetMinor < 0) {
+            throw new IllegalArgumentException("A balance target cannot be negative");
+        }
+        if (balanceMinor != targetMinor) {
+            balanceMinor = targetMinor;
+            updatedAt = now;
+        }
+    }
+
     /**
      * Spends up to {@code requestedMinor} of the balance and reports what was
      * actually taken, so a caller cannot overdraw by reading then writing.

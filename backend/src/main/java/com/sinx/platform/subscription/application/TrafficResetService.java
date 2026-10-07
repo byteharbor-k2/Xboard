@@ -265,6 +265,19 @@ public class TrafficResetService {
         entitlements.save(entitlement);
     }
 
+    /** Records a paid viewer reset without altering the scheduled cycle anchor. */
+    @Transactional
+    public void recordPaidReset(SubscriptionEntitlement entitlement, Instant now,
+        Instant nextBoundary) {
+        UUID userId = entitlement.getUser().getId();
+        long uploadedBytesBefore = entitlement.getUploadedBytes();
+        long downloadedBytesBefore = entitlement.getDownloadedBytes();
+        entitlement.resetTrafficWithoutReanchoring(now, nextBoundary);
+        records.save(TrafficResetRecord.create(userId, entitlement.getId(), now,
+            uploadedBytesBefore, downloadedBytesBefore, now));
+        entitlements.save(entitlement);
+    }
+
     private void resetAndRecord(SubscriptionEntitlement entitlement, Instant now) {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();

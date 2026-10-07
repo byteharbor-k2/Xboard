@@ -24,7 +24,10 @@ public class CatalogController {
     List<PlanOfferView> offerCatalog(
         @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt
     ) {
-        UUID viewerId = jwt == null ? null : UUID.fromString(jwt.getSubject());
+        UUID viewerId = jwt != null && jwt.getAudience().contains("sinx-web")
+                && jwt.getClaimAsStringList("roles") != null
+                && jwt.getClaimAsStringList("roles").contains("USER")
+            ? UUID.fromString(jwt.getSubject()) : null;
         return catalogService.availableOffers(viewerId);
     }
 }

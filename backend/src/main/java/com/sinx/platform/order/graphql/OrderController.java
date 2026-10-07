@@ -15,6 +15,7 @@ import com.sinx.platform.catalog.application.CatalogService;
 import com.sinx.platform.catalog.application.PlanOfferView;
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.order.application.OrderService;
+import com.sinx.platform.order.domain.OrderDeductionMode;
 
 @Controller
 public class OrderController {
@@ -35,8 +36,14 @@ public class OrderController {
         @AuthenticationPrincipal(errorOnInvalidType = false) Jwt jwt,
         @Argument UUID id
     ) {
-        UUID viewerId = jwt == null ? null : UUID.fromString(jwt.getSubject());
+        UUID viewerId = isUserSession(jwt) ? UUID.fromString(jwt.getSubject()) : null;
         return catalogService.availableOffer(id, viewerId).orElse(null);
+    }
+
+    private boolean isUserSession(Jwt jwt) {
+        return jwt != null && jwt.getAudience().contains("sinx-web")
+            && jwt.getClaimAsStringList("roles") != null
+            && jwt.getClaimAsStringList("roles").contains("USER");
     }
 
     @QueryMapping
@@ -45,13 +52,15 @@ public class OrderController {
         @AuthenticationPrincipal Jwt jwt,
         @Argument UUID planId,
         @Argument BillingPeriod period,
-        @Argument String couponCode
+        @Argument String couponCode,
+        @Argument OrderDeductionMode deductionMode
     ) {
         return OrderQuotePayload.from(orderService.quote(
             UUID.fromString(jwt.getSubject()),
             planId,
             period,
-            couponCode
+            couponCode,
+            deductionMode
         ));
     }
 
@@ -64,19 +73,29 @@ public class OrderController {
             .toList();
     }
 
+    @QueryMapping
+    @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
+    OrderService.ViewerTrafficResetOffer viewerTrafficResetOffer(
+        @AuthenticationPrincipal Jwt jwt
+    ) {
+        return orderService.trafficResetOffer(UUID.fromString(jwt.getSubject()));
+    }
+
     @MutationMapping
     @PreAuthorize("hasRole('USER') and hasAuthority('SCOPE_USER')")
     ServiceOrderPayload placeOrder(
         @AuthenticationPrincipal Jwt jwt,
         @Argument UUID planId,
         @Argument BillingPeriod period,
-        @Argument String couponCode
+        @Argument String couponCode,
+        @Argument OrderDeductionMode deductionMode
     ) {
         return ServiceOrderPayload.from(orderService.place(
             UUID.fromString(jwt.getSubject()),
             planId,
             period,
-            couponCode
+            couponCode,
+            deductionMode
         ));
     }
 

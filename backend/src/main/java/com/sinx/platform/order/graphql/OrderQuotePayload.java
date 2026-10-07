@@ -5,6 +5,7 @@ import java.util.UUID;
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.order.application.OrderQuoteView;
 import com.sinx.platform.order.domain.OrderType;
+import com.sinx.platform.order.domain.OrderDeductionMode;
 
 /**
  * Minor amounts leave as strings: they are 64-bit and JSON numbers are not.
@@ -23,7 +24,11 @@ public record OrderQuotePayload(
     String totalAmount,
     String couponCode,
     String couponName,
-    String accountBalanceMinor
+    String accountBalanceMinor,
+    OrderDeductionMode deductionMode,
+    String deferredSurplusCreditMinor,
+    boolean minimumOnlinePaymentBlocked,
+    String minimumPaymentMessage
 ) {
 
     public static OrderQuotePayload from(OrderQuoteView view) {
@@ -41,7 +46,11 @@ public record OrderQuotePayload(
             String.valueOf(view.breakdown().totalAmount()),
             view.couponCode(),
             view.couponName(),
-            String.valueOf(view.accountBalanceMinor())
+            String.valueOf(view.accountBalanceMinor()),
+            view.deductionMode(),
+            String.valueOf(view.deferredSurplusCreditMinor()),
+            view.minimumOnlinePaymentBlocked(),
+            view.minimumPaymentMessage()
         );
     }
 }
