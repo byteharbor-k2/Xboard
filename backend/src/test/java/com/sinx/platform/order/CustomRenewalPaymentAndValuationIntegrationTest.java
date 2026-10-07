@@ -2,13 +2,16 @@ package com.sinx.platform.order;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -20,6 +23,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.sinx.platform.balance.application.BalanceLedgerService;
 import com.sinx.platform.balance.domain.BalanceLogType;
@@ -36,11 +40,17 @@ import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.domain.MonthlyResetSchedule;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -53,11 +63,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-
 /** Real PostgreSQL checkout/callback regressions for reset snapshots and funded coverage. */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(CustomRenewalPaymentAndValuationIntegrationTest.TestClockConfiguration.class)
 @ActiveProfiles("test")
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 @Testcontainers
@@ -93,6 +102,12 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
     @Autowired private TrafficResetService trafficResets;
     @Autowired private BalanceLedgerService balanceLedger;
     @Autowired private MockMvc mvc;
+    @Autowired private MutableTestClock clock;
+
+    @BeforeEach
+    void setClockToPostgresPrecision() {
+        clock.set(Instant.now());
+    }
 
     @Test
     void staleResetIsRejectedBeforeCashierAndExpiredResetCannotStart() {
@@ -121,7 +136,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         ServiceOrder expired = orders.place(stalePlanOwner.id(), stalePlan,
             BillingPeriod.RESET_TRAFFIC, null);
         jdbc.update("update subscription_entitlements set expires_at = ? "
-            + "where user_id = ?::uuid", Timestamp.from(Instant.now().minusSeconds(1)),
+            + "where user_id = ?::uuid", Timestamp.from(clock.instant().minusSeconds(1)),
             stalePlanOwner.id().toString());
         assertThatThrownBy(() -> checkout.checkout(stalePlanOwner.id(),
                 expired.getTradeNo(), UUID.randomUUID()))
@@ -130,7 +145,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         assertThat(jdbc.queryForObject(
             "select count(*) from paid_traffic_reset_claims where user_id = ?::uuid",
             Long.class, stalePlanOwner.id().toString())).isZero();
-        assertThat(cycleEnd).isAfter(Instant.now());
+        assertThat(cycleEnd).isAfter(clock.instant());
     }
 
     @Test
@@ -140,7 +155,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         UUID plan = plan("Snapshot plan", 1_500, true);
         Instant cycleEnd = activeEntitlement(buyer, plan);
         balanceLedger.credit(buyer.id(), 500, BalanceLogType.ORDER_REFUND,
-            null, null, Instant.now());
+            null, null, clock.instant());
         ServiceOrder order = orders.place(buyer.id(), plan,
             BillingPeriod.RESET_TRAFFIC, null);
         assertThat(order.getTotalAmount()).isEqualTo(1_000);
@@ -189,7 +204,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         Epay epay = epay(100);
         checkout.checkout(buyer.id(), order.getTradeNo(), epay.id());
         jdbc.update("update subscription_entitlements set expires_at = ? "
-            + "where user_id = ?::uuid", Timestamp.from(Instant.now().minusSeconds(1)),
+            + "where user_id = ?::uuid", Timestamp.from(clock.instant().minusSeconds(1)),
             buyer.id().toString());
 
         assertThat(notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
@@ -224,19 +239,20 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         UUID plan = plan("Rollover plan", 1_500, true);
         Instant cycleEnd = activeEntitlement(buyer, plan);
         balanceLedger.credit(buyer.id(), 500, BalanceLogType.ORDER_REFUND,
-            null, null, Instant.now());
+            null, null, clock.instant());
         ServiceOrder order = orders.place(buyer.id(), plan,
             BillingPeriod.RESET_TRAFFIC, null);
         Epay epay = epay(100);
         checkout.checkout(buyer.id(), order.getTradeNo(), epay.id());
 
-        Instant overdue = Instant.now().minusSeconds(1);
+        Instant overdue = clock.instant().minusSeconds(1);
         jdbc.update("update subscription_entitlements set next_reset_at = ?, "
             + "uploaded_bytes = 444, downloaded_bytes = 555 where user_id = ?::uuid",
             Timestamp.from(overdue), buyer.id().toString());
         Instant nextCycle = MonthlyResetSchedule.followingBoundary(
             com.sinx.platform.catalog.domain.TrafficResetPolicy.MONTHLY_FROM_ACTIVATION,
-            overdue, Instant.now());
+            overdue, clock.instant());
+        nextCycle = postgresMicros(nextCycle);
         CountDownLatch start = new CountDownLatch(1);
         ExecutorService workers = Executors.newFixedThreadPool(2);
         try {
@@ -304,13 +320,15 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         Buyer buyer = buyer("periodic-segments");
         UUID currentPlan = plan("Current periodic", 20_000, false);
         UUID targetPlan = plan("Target periodic", 5_000, false);
-        Instant now = Instant.now();
-        Instant oldStart = now.minus(Duration.ofDays(100));
-        Instant currentStart = now.minus(Duration.ofDays(15));
-        Instant currentEnd = currentStart.atZone(ZoneOffset.UTC).plusMonths(1).toInstant();
-        Instant futureEnd = currentEnd.atZone(ZoneOffset.UTC).plusMonths(1).toInstant();
+        Instant now = clock.instant();
+        Instant oldStart = postgresMicros(now.minus(Duration.ofDays(100)));
+        Instant currentStart = postgresMicros(now.minus(Duration.ofDays(15)));
+        Instant currentEnd = postgresMicros(
+            currentStart.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
+        Instant futureEnd = postgresMicros(
+            currentEnd.atZone(ZoneOffset.UTC).plusMonths(1).toInstant());
         activeEntitlement(buyer, currentPlan, currentStart, futureEnd,
-            now.plus(Duration.ofDays(8)), 0, 0);
+            postgresMicros(now.plus(Duration.ofDays(8))), 0, 0);
 
         UUID expiredSource = seedPeriodicOrder(buyer.id(), currentPlan, 10_000,
             oldStart, null, null, "NEW_PURCHASE");
@@ -327,12 +345,12 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         OrderQuoteView standard = orders.quote(buyer.id(), targetPlan,
             BillingPeriod.MONTHLY, null, OrderDeductionMode.STANDARD);
         assertThat(standard.breakdown().surplusAmount())
-            .isBetween(expectedValue - 5, expectedValue);
+            .isEqualTo(expectedValue);
 
         OrderQuoteView full = orders.quote(buyer.id(), targetPlan,
             BillingPeriod.MONTHLY, null, OrderDeductionMode.FULL_PAYMENT);
         assertThat(full.deferredSurplusCreditMinor())
-            .isBetween(expectedValue - 5, expectedValue);
+            .isEqualTo(expectedValue);
         ServiceOrder cancelled = orders.place(buyer.id(), targetPlan,
             BillingPeriod.MONTHLY, null, OrderDeductionMode.FULL_PAYMENT);
         assertThat(cancelled.getSurplusOrderIds())
@@ -348,7 +366,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         ServiceOrder settled = orders.place(buyer.id(), targetPlan,
             BillingPeriod.MONTHLY, null, OrderDeductionMode.FULL_PAYMENT);
         long paidCoverageCredit = settled.getDeferredSurplusCreditMinor();
-        assertThat(paidCoverageCredit).isBetween(expectedValue - 5, expectedValue);
+        assertThat(paidCoverageCredit).isEqualTo(expectedValue);
         fulfilment.settleManually(settled.getTradeNo());
         assertThat(balance(buyer.id())).isEqualTo(paidCoverageCredit);
         assertThat(jdbc.queryForObject(
@@ -370,7 +388,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         Buyer buyer = buyer("delayed-monthly-payment");
         UUID plan = plan("Delayed first period", 10_000, false);
         ServiceOrder order = orders.place(buyer.id(), plan, BillingPeriod.MONTHLY, null);
-        Instant createdAt = Instant.now().minus(Duration.ofDays(45));
+        Instant createdAt = clock.instant().minus(Duration.ofDays(45));
         jdbc.update("update orders set created_at = ? where trade_no = ?",
             Timestamp.from(createdAt), order.getTradeNo());
 
@@ -394,7 +412,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
     private Buyer buyer(String name) {
         UUID id = UUID.randomUUID();
         String email = name + "-" + id.toString().substring(0, 8) + "@example.test";
-        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp now = Timestamp.from(clock.instant());
         jdbc.update("""
             insert into users (id, email, password_hash, display_name, status,
                 subscription_token, created_at, updated_at)
@@ -409,7 +427,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
 
     private UUID plan(String name, long amountMinor, boolean resettable) {
         UUID id = UUID.randomUUID();
-        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp now = Timestamp.from(clock.instant());
         jdbc.update("""
             insert into service_plans (id, name, description, plan_type,
                 transfer_limit_bytes, speed_limit_mbps, reset_policy, resettable,
@@ -431,7 +449,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
     }
 
     private Instant activeEntitlement(Buyer buyer, UUID planId) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant startsAt = now.minus(Duration.ofDays(15));
         return activeEntitlement(buyer, planId, startsAt,
             now.plus(Duration.ofDays(75)),
@@ -440,7 +458,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
 
     private Instant activeEntitlement(Buyer buyer, UUID planId, Instant startsAt,
         Instant expiresAt, Instant cycleEnd, long uploaded, long downloaded) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         jdbc.update("""
             insert into subscription_entitlements (id, user_id, plan_id, plan_name,
                 transfer_limit_bytes, uploaded_bytes, downloaded_bytes, reset_policy,
@@ -456,7 +474,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
     private Epay epay(long feeMinor) {
         UUID id = UUID.randomUUID();
         String uuid = UUID.randomUUID().toString().replace("-", "");
-        Timestamp now = Timestamp.from(Instant.now());
+        Timestamp now = Timestamp.from(clock.instant());
         String config = "{\"url\":\"https://pay.example.test\",\"pid\":\"1000\","
             + "\"key\":\"" + EPAY_KEY + "\",\"type\":\"alipay\"}";
         jdbc.update("""
@@ -575,6 +593,17 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
             .add(BigInteger.valueOf(duration.getNano()));
     }
 
+    /** PostgreSQL timestamptz is stored at microsecond precision. */
+    private static Instant postgresMicros(Instant instant) {
+        long seconds = instant.getEpochSecond();
+        int micros = (instant.getNano() + 500) / 1_000;
+        if (micros == 1_000_000) {
+            seconds++;
+            micros = 0;
+        }
+        return Instant.ofEpochSecond(seconds, micros * 1_000L);
+    }
+
     private static void await(CountDownLatch latch) {
         try {
             if (!latch.await(10, TimeUnit.SECONDS)) {
@@ -583,6 +612,48 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(exception);
+        }
+    }
+
+    @TestConfiguration
+    static class TestClockConfiguration {
+        @Bean
+        @Primary
+        MutableTestClock testClock() {
+            return new MutableTestClock(postgresMicros(Instant.now()), ZoneOffset.UTC);
+        }
+    }
+
+    private static final class MutableTestClock extends Clock {
+        private final AtomicReference<Instant> current;
+        private final ZoneId zone;
+
+        private MutableTestClock(Instant initial, ZoneId zone) {
+            this(new AtomicReference<>(postgresMicros(initial)), zone);
+        }
+
+        private MutableTestClock(AtomicReference<Instant> current, ZoneId zone) {
+            this.current = current;
+            this.zone = zone;
+        }
+
+        void set(Instant value) {
+            current.set(postgresMicros(value));
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return zone;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return new MutableTestClock(current, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return current.get();
         }
     }
 
