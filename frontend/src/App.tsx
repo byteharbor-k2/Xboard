@@ -36,6 +36,8 @@ import { InvitationsPage } from "./pages/InvitationsPage";
 import { KnowledgeBasePage } from "./pages/KnowledgeBasePage";
 import { OrderDetailPage } from "./pages/OrderDetailPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { AccountBalancePage } from "./pages/AccountBalancePage";
+import { AccountCommissionsPage } from "./pages/AccountCommissionsPage";
 import { PlansPage } from "./pages/PlansPage";
 import { PlanCheckoutPage } from "./pages/PlanCheckoutPage";
 import { useAuthStore } from "./store/auth";
@@ -172,6 +174,20 @@ export function App() {
     return (
       <ProtectedRoute>
         <InvitationsPage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/account/balance") {
+    return (
+      <ProtectedRoute>
+        <AccountBalancePage />
+      </ProtectedRoute>
+    );
+  }
+  if (path === "/account/commissions") {
+    return (
+      <ProtectedRoute>
+        <AccountCommissionsPage />
       </ProtectedRoute>
     );
   }

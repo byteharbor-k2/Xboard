@@ -1,4 +1,5 @@
 import { graphQl } from "./http";
+import type { ViewerBalanceSummary } from "./balance";
 
 export type ViewerCommissionSummary = {
   effectiveRatePercent: number;
@@ -34,6 +35,7 @@ export type ViewerCommissionLogPage = {
 
 export type ViewerCommissionData = {
   balanceMinor: string;
+  balanceSummary: ViewerBalanceSummary;
   summary: ViewerCommissionSummary;
   logs: ViewerCommissionLogPage;
 };
@@ -45,13 +47,15 @@ export async function fetchViewerCommissionData(
   limit = 20
 ): Promise<ViewerCommissionData> {
   const data = await graphQl<{
-    viewer: { balanceMinor: string };
+    viewerBalanceSummary: ViewerBalanceSummary;
     viewerCommissionSummary: ViewerCommissionSummary;
     viewerCommissionLogs: ViewerCommissionLogPage;
   }>(
     accessToken,
     `query ViewerCommission($page: Int!, $limit: Int!) {
-       viewer { balanceMinor }
+       viewerBalanceSummary {
+         balanceMinor openingBalanceMinor totalCreditsMinor totalDebitsMinor recordedSince
+       }
        viewerCommissionSummary {
          effectiveRatePercent commissionType firstPaymentOnly
          pendingMinor confirmedPendingMinor earnedMinor
@@ -66,7 +70,8 @@ export async function fetchViewerCommissionData(
     { page, limit }
   );
   return {
-    balanceMinor: data.viewer.balanceMinor,
+    balanceMinor: data.viewerBalanceSummary.balanceMinor,
+    balanceSummary: data.viewerBalanceSummary,
     summary: data.viewerCommissionSummary,
     logs: data.viewerCommissionLogs
   };

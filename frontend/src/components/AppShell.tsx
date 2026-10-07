@@ -18,6 +18,8 @@ const copy = {
     docs: "使用文档",
     orders: "我的订单",
     invitations: "我的邀请",
+    balance: "余额明细",
+    commissions: "佣金记录",
     traffic: "流量明细",
     devices: "安全设备",
     logout: "退出登录",
@@ -34,6 +36,8 @@ const copy = {
     docs: "Guides",
     orders: "My orders",
     invitations: "My invitations",
+    balance: "Balance history",
+    commissions: "Commission records",
     traffic: "Traffic details",
     devices: "Security devices",
     logout: "Sign out",
@@ -140,6 +144,10 @@ export function AppShell({ children }: PropsWithChildren) {
             ? labels.invitations
             : currentPath === "/account/traffic"
               ? labels.traffic
+              : currentPath === "/account/balance"
+                ? labels.balance
+                : currentPath === "/account/commissions"
+                  ? labels.commissions
         : currentPath === "/security/sessions"
           ? labels.devices
           : labels.dashboard;
@@ -253,6 +261,18 @@ export function AppShell({ children }: PropsWithChildren) {
                 href="/account/invitations"
               >
                 {labels.invitations}
+              </AppLink>
+              <AppLink
+                className={currentPath === "/account/balance" ? "active" : undefined}
+                href="/account/balance"
+              >
+                {labels.balance}
+              </AppLink>
+              <AppLink
+                className={currentPath === "/account/commissions" ? "active" : undefined}
+                href="/account/commissions"
+              >
+                {labels.commissions}
               </AppLink>
               <AppLink
                 className={

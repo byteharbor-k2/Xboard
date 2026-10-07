@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { AppLink } from "../components/AppLink";
 import { copyText } from "../lib/clipboard";
 import { fetchViewerCommissionData } from "../lib/commissions";
 import {
@@ -9,7 +10,7 @@ import {
   fetchViewerInvitations,
   type InvitationCode
 } from "../lib/invitations";
-import { formatMoney } from "../lib/subscription";
+import { formatMinorMoney } from "../lib/subscription";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 
@@ -25,6 +26,7 @@ const copy = {
     retry: "重试",
     loadCommissionFailed: "佣金数据加载失败，请稍后重试。",
     commissionTitle: "邀请佣金",
+    commissionDetails: "查看完整佣金记录",
     effectiveRate: "当前有效佣金比例",
     firstPaymentOnly: "仅被邀请用户首次支付产生佣金",
     everyPayment: "被邀请用户每次符合条件的支付均可产生佣金",
@@ -82,6 +84,7 @@ const copy = {
     retry: "Retry",
     loadCommissionFailed: "Could not load commission data. Try again later.",
     commissionTitle: "Referral commission",
+    commissionDetails: "View full commission records",
     effectiveRate: "Effective commission rate",
     firstPaymentOnly: "Commission applies only to the invitee's first payment",
     everyPayment: "Eligible payments by invitees may earn commission",
@@ -309,7 +312,10 @@ export function InvitationsPage() {
       </section>
 
       <section className="panel user-record-panel">
-        <h2>{labels.commissionTitle}</h2>
+        <div className="account-ledger-actions">
+          <h2>{labels.commissionTitle}</h2>
+          <AppLink className="order-number-link" href="/account/commissions">{labels.commissionDetails}</AppLink>
+        </div>
         {commissions.isPending || (commissions.isFetching && !commissionReady) ? (
           <div className="user-empty-state compact"><strong>{labels.loadingCommission}</strong></div>
         ) : null}
@@ -337,19 +343,19 @@ export function InvitationsPage() {
               </article>
               <article className="panel">
                 <span>{labels.pending}</span>
-                <strong>{formatMoney(commission.summary.pendingMinor, "CNY", language)}</strong>
+                 <strong>{formatMinorMoney(commission.summary.pendingMinor, "CNY", language)}</strong>
               </article>
               <article className="panel">
                 <span>{labels.queued}</span>
-                <strong>{formatMoney(commission.summary.confirmedPendingMinor, "CNY", language)}</strong>
+                 <strong>{formatMinorMoney(commission.summary.confirmedPendingMinor, "CNY", language)}</strong>
               </article>
               <article className="panel">
                 <span>{labels.earned}</span>
-                <strong>{formatMoney(commission.summary.earnedMinor, "CNY", language)}</strong>
+                 <strong>{formatMinorMoney(commission.summary.earnedMinor, "CNY", language)}</strong>
               </article>
               <article className="panel">
                 <span>{labels.balance}</span>
-                <strong>{formatMoney(commission.balanceMinor, "CNY", language)}</strong>
+                 <strong>{formatMinorMoney(commission.balanceMinor, "CNY", language)}</strong>
               </article>
             </div>
             <div className="traffic-retention-notice">
@@ -377,9 +383,9 @@ export function InvitationsPage() {
                 <tbody>
                   {commission.logs.items.map((log) => (
                     <tr key={log.id}>
-                      <td>{formatMoney(log.orderAmountMinor, "CNY", language)}</td>
-                      <td>{formatMoney(log.commissionBaseMinor, "CNY", language)}</td>
-                      <td>{formatMoney(log.amountMinor, "CNY", language)}</td>
+                      <td>{formatMinorMoney(log.orderAmountMinor, "CNY", language)}</td>
+                      <td>{formatMinorMoney(log.commissionBaseMinor, "CNY", language)}</td>
+                      <td>{formatMinorMoney(log.amountMinor, "CNY", language)}</td>
                       <td>{log.level}</td>
                       <td>{formatDate(log.createdAt, language)}</td>
                     </tr>

@@ -5897,6 +5897,101 @@ button:disabled {
 .markdown-content p, .markdown-content ul, .markdown-content ol, .markdown-content blockquote, .markdown-content pre, .markdown-content table { margin: .85em 0; }
 .markdown-content ul, .markdown-content ol { padding-left: 1.5em; }
 .markdown-content a { color: var(--accent, #3979d6); text-decoration: underline; }
+
+.balance-summary-grid {
+  max-width: 1480px;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  margin-bottom: 18px;
+}
+
+.balance-summary-grid .panel {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 20px;
+}
+
+.balance-summary-grid .panel span {
+  color: #78869a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.balance-summary-grid .panel strong {
+  overflow-wrap: anywhere;
+  color: #17354c;
+  font-size: clamp(19px, 2vw, 27px);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-ledger-panel {
+  max-width: 1480px;
+  margin-top: 20px;
+}
+
+.balance-ledger-panel > h2 {
+  margin: 0 0 14px;
+}
+
+.balance-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.balance-amount.credit {
+  color: #137156;
+}
+
+.balance-amount.debit {
+  color: #a3434a;
+}
+
+.account-ledger-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.account-ledger-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.account-ledger-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.account-ledger-pagination .muted {
+  margin-left: auto;
+}
+
+@media (max-width: 640px) {
+  .balance-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .balance-summary-grid .panel {
+    padding: 16px;
+  }
+
+  .account-ledger-pagination .muted {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .account-settings-grid .account-form-panel {
+    min-width: 0;
+    padding: 20px;
+  }
+}
 .markdown-content img { display: block; max-width: 100%; height: auto; border-radius: 10px; }
 .markdown-content blockquote { border-left: 3px solid #88a8d9; padding: .15em 1em; color: #64748b; }
 .markdown-content pre { max-width: 100%; overflow: auto; padding: 14px; border-radius: 10px; background: #101827; color: #e8eef8; }

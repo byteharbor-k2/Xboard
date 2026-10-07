@@ -6,7 +6,8 @@ import type {
   MfaStatus,
   ProblemDetails,
   RegistrationConfig,
-  SessionGrant
+  SessionGrant,
+  Viewer
 } from "../types";
 import {
   createSessionRefreshGate,
@@ -20,12 +21,14 @@ import { navigate } from "./navigation";
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly retryAfterSeconds?: number;
 
-  constructor(status: number, problem: ProblemDetails) {
+  constructor(status: number, problem: ProblemDetails, retryAfterSeconds?: number) {
     super(problem.detail ?? "请求未能完成");
     this.name = "ApiError";
     this.status = status;
     this.code = problem.code;
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 
@@ -37,12 +40,25 @@ async function parseResponse<T>(response: Response): Promise<T> {
     } catch {
       problem = { detail: "请求未能完成" };
     }
-    throw new ApiError(response.status, problem);
+    throw new ApiError(
+      response.status,
+      problem,
+      retryAfterSeconds(response.headers.get("Retry-After"))
+    );
   }
   if (response.status === 204) {
     return undefined as T;
   }
   return (await response.json()) as T;
+}
+
+function retryAfterSeconds(value: string | null): number | undefined {
+  if (!value) return undefined;
+  if (/^\d+$/.test(value)) return Number(value);
+  const retryAt = Date.parse(value);
+  return Number.isNaN(retryAt)
+    ? undefined
+    : Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
 }
 
 export async function login(
@@ -298,6 +314,43 @@ export async function changePassword(
     body: JSON.stringify({ currentPassword, newPassword })
   });
   return parseResponse<void>(response);
+}
+
+/** Requests an account-bound email verification code; this endpoint succeeds with an empty 202. */
+export async function requestEmailChangeCode(
+  accessToken: string,
+  email: string,
+  currentPassword: string
+): Promise<void> {
+  const response = await userSessionGuard.authorizedFetch(
+    "/session/email-change/code",
+    {
+      method: "POST",
+      credentials: "include",
+      headers: bearer(accessToken),
+      body: JSON.stringify({ email, currentPassword })
+    }
+  );
+  if (response.status === 202) {
+    return;
+  }
+  return parseResponse<void>(response);
+}
+
+/** Confirms the target-bound email code and returns the backend's complete canonical viewer. */
+export async function changeEmail(
+  accessToken: string,
+  email: string,
+  currentPassword: string,
+  code: string
+): Promise<Viewer> {
+  const response = await userSessionGuard.authorizedFetch("/session/email", {
+    method: "PUT",
+    credentials: "include",
+    headers: bearer(accessToken),
+    body: JSON.stringify({ email, currentPassword, code })
+  });
+  return parseResponse<Viewer>(response);
 }
 
 function bearer(accessToken: string) {

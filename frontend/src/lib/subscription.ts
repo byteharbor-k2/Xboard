@@ -120,6 +120,41 @@ export function formatMoney(
   }).format(Number(amountMinor) / 100);
 }
 
+/** Formats signed integer minor units without converting financial values to floating point. */
+export function formatMinorMoney(
+  amountMinor: string,
+  currency: string,
+  locale: Locale = "zh-CN"
+): string {
+  if (!/^-?\d+$/.test(amountMinor)) return "—";
+  const amount = BigInt(amountMinor);
+  const formatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency
+  });
+  const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+  const scale = 10n ** BigInt(digits);
+  const absolute = amount < 0n ? -amount : amount;
+  const whole = absolute / scale;
+  const fractional = digits === 0
+    ? ""
+    : (absolute % scale).toString().padStart(digits, "0");
+  const groupedWhole = new Intl.NumberFormat(locale, {
+    maximumFractionDigits: 0
+  }).format(whole);
+  const pattern = formatter.formatToParts(amount < 0n ? -1 : 1);
+  let integerWritten = false;
+  return pattern.map((part) => {
+    if (part.type === "integer") {
+      if (integerWritten) return "";
+      integerWritten = true;
+      return groupedWhole;
+    }
+    if (part.type === "fraction") return fractional;
+    return part.value;
+  }).join("");
+}
+
 export function formatDateTime(
   value: string | null,
   locale: Locale = "zh-CN"
