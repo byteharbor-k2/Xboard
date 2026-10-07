@@ -1,11 +1,13 @@
 import { graphQl, publicGraphQl } from "./http";
 import type {
   BillingPeriod,
+  OrderDeductionMode,
   OrderQuote,
   PaymentOption,
   PaymentRedirect,
   PlanOffer,
-  ServiceOrder
+  ServiceOrder,
+  ViewerTrafficResetOffer
 } from "../types";
 
 const PLAN_OFFER_FIELDS = `
@@ -46,6 +48,10 @@ const QUOTE_FIELDS = `
   couponCode
   couponName
   accountBalanceMinor
+  deductionMode
+  deferredSurplusCreditMinor
+  minimumOnlinePaymentBlocked
+  minimumPaymentMessage
 `;
 
 const ORDER_FIELDS = `
@@ -68,6 +74,12 @@ const ORDER_FIELDS = `
   gateway
   createdAt
   paidAt
+  deductionMode
+  deferredSurplusCreditMinor
+  minimumOnlinePaymentBlocked
+  minimumPaymentMessage
+  settlementOutcome
+  returnedBalanceMinor
 `;
 
 export async function fetchPlanOffer(
@@ -96,16 +108,17 @@ export async function fetchOrderQuote(
   accessToken: string,
   planId: string,
   period: BillingPeriod,
-  couponCode?: string
+  couponCode?: string,
+  deductionMode: OrderDeductionMode = "STANDARD"
 ): Promise<OrderQuote> {
   const data = await graphQl<{ orderQuote: OrderQuote }>(
     accessToken,
-    `query OrderQuote($planId: ID!, $period: BillingPeriod!, $couponCode: String) {
-       orderQuote(planId: $planId, period: $period, couponCode: $couponCode) {
+    `query OrderQuote($planId: ID!, $period: BillingPeriod!, $couponCode: String, $deductionMode: OrderDeductionMode = STANDARD) {
+       orderQuote(planId: $planId, period: $period, couponCode: $couponCode, deductionMode: $deductionMode) {
          ${QUOTE_FIELDS}
        }
      }`,
-    { planId, period, couponCode: couponCode || null }
+    { planId, period, couponCode: couponCode || null, deductionMode }
   );
   return data.orderQuote;
 }
@@ -114,18 +127,33 @@ export async function placeOrder(
   accessToken: string,
   planId: string,
   period: BillingPeriod,
-  couponCode?: string
+  couponCode?: string,
+  deductionMode: OrderDeductionMode = "STANDARD"
 ): Promise<ServiceOrder> {
   const data = await graphQl<{ placeOrder: ServiceOrder }>(
     accessToken,
-    `mutation PlaceOrder($planId: ID!, $period: BillingPeriod!, $couponCode: String) {
-       placeOrder(planId: $planId, period: $period, couponCode: $couponCode) {
+    `mutation PlaceOrder($planId: ID!, $period: BillingPeriod!, $couponCode: String, $deductionMode: OrderDeductionMode = STANDARD) {
+       placeOrder(planId: $planId, period: $period, couponCode: $couponCode, deductionMode: $deductionMode) {
          ${ORDER_FIELDS}
        }
      }`,
-    { planId, period, couponCode: couponCode || null }
+    { planId, period, couponCode: couponCode || null, deductionMode }
   );
   return data.placeOrder;
+}
+
+export async function fetchViewerTrafficResetOffer(
+  accessToken: string
+): Promise<ViewerTrafficResetOffer> {
+  const data = await graphQl<{ viewerTrafficResetOffer: ViewerTrafficResetOffer }>(
+    accessToken,
+    `query ViewerTrafficResetOffer {
+       viewerTrafficResetOffer {
+         canPurchase alreadyReset priceMinor cycleEndsAt pendingTradeNo reason
+       }
+     }`
+  );
+  return data.viewerTrafficResetOffer;
 }
 
 export async function fetchViewerOrders(

@@ -1,8 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore
+} from "react";
 
 import { AppShell } from "../components/AppShell";
 import { ApiError } from "../lib/http";
 import { navigate } from "../lib/navigation";
+import {
+  canonicalCoupon,
+  CheckoutQuoteState,
+  checkoutQuoteInputKey,
+  orderInputForQuote,
+  type CheckoutQuoteInput
+} from "../lib/checkoutQuoteState";
 import {
   cancelOrder,
   fetchOrderQuote,
@@ -12,12 +26,12 @@ import {
 import {
   billingPeriodLabel,
   formatBytes,
-  formatMoney,
+  formatMinorMoney,
   trafficResetLabel
 } from "../lib/subscription";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
-import type { BillingPeriod, OrderQuote, PlanOffer } from "../types";
+import type { BillingPeriod, OrderDeductionMode, OrderQuote, PlanOffer, ServiceOrder } from "../types";
 
 import "./PlanCheckoutPage.css";
 
@@ -41,7 +55,6 @@ const copy = {
     subtotal: "小计",
     discount: "优惠券折抵",
     surplus: "套餐升级折抵",
-    surplusCredit: "折抵剩余（退回余额）",
     balance: "余额折抵",
     total: "总计",
     submit: "下单",
@@ -52,10 +65,20 @@ const copy = {
     orderTypeReset: "流量重置",
     placed: "下单成功",
     placedHint: "订单号 %s，请前往订单详情完成支付。",
-    viewOrders: "去支付",
+    placedBlockedHint: "订单号 %s；此订单不能线上支付，请联系管理员线下人工结算。",
+    viewOrders: "查看订单",
     cancelPlaced: "取消该订单",
     quoteFailed: "价格计算失败",
-    accountBalance: "账户余额"
+    retryQuote: "重试报价",
+    accountBalance: "账户余额",
+    deductionStandard: "使用余额及套餐剩余价值折抵",
+    deductionFull: "不使用折抵，全额支付",
+    deferredCredit: "若开通成功，剩余价值将退回余额",
+    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
+    blockedOffline: "此订单仍可创建，但线上支付不可用；如需继续，请联系管理员进行线下人工结算。",
+    zeroAuto: "应付为 ¥0 的订单将自动开通，不需要支付方式。",
+    autoSettled: "该订单已自动开通，无需支付。",
+    balanceReturned: "该订单未重置流量，已返还站内余额%s（可用于后续订单，非银行退款）"
   },
   "en-US": {
     back: "← Back to plans",
@@ -76,7 +99,6 @@ const copy = {
     subtotal: "Subtotal",
     discount: "Coupon",
     surplus: "Unused plan value",
-    surplusCredit: "Credited back to balance",
     balance: "Account balance",
     total: "Total",
     submit: "Place order",
@@ -87,10 +109,20 @@ const copy = {
     orderTypeReset: "Traffic reset",
     placed: "Order placed",
     placedHint: "Order %s. Open it to pay.",
-    viewOrders: "Pay now",
+    placedBlockedHint: "Order %s cannot be paid online; contact an administrator for manual offline settlement.",
+    viewOrders: "View order",
     cancelPlaced: "Cancel this order",
     quoteFailed: "Could not price this order",
-    accountBalance: "Account balance"
+    retryQuote: "Retry quote",
+    accountBalance: "Account balance",
+    deductionStandard: "Use balance and unused plan value",
+    deductionFull: "Do not use credits; pay the full amount",
+    deferredCredit: "If activation succeeds, unused value will be credited to your balance",
+    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
+    blockedOffline: "This order may still be created, but online payment is unavailable. Contact an administrator for manual offline settlement.",
+    zeroAuto: "Orders with ¥0 due are fulfilled automatically without a payment method.",
+    autoSettled: "This order was fulfilled automatically; no payment is due.",
+    balanceReturned: "Traffic was not reset; %s was returned to your site balance for future orders (not a bank refund)."
   }
 } as const;
 
@@ -102,17 +134,114 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
   const language = useUserPreferences((state) => state.language);
   const text = copy[language];
   const accessToken = useAuthStore((state) => state.accessToken);
+  const viewerId = useAuthStore((state) => state.viewer?.id ?? "");
 
   const [offer, setOffer] = useState<PlanOffer | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [period, setPeriod] = useState<BillingPeriod | null>(null);
-  const [couponDraft, setCouponDraft] = useState("");
-  const [appliedCoupon, setAppliedCoupon] = useState("");
-  const [quote, setQuote] = useState<OrderQuote | null>(null);
-  const [quoteError, setQuoteError] = useState("");
+  const [deductionMode, setDeductionMode] = useState<OrderDeductionMode>(
+    new URLSearchParams(window.location.search).get("deductionMode") === "FULL_PAYMENT"
+      ? "FULL_PAYMENT"
+      : "STANDARD"
+  );
+  const initialCoupon = canonicalCoupon(new URLSearchParams(window.location.search).get("couponCode") ?? "") ?? "";
+  const [couponDraft, setCouponDraft] = useState(initialCoupon);
+  const [appliedCoupon, setAppliedCoupon] = useState(initialCoupon);
+  const [quoteState] = useState(() => new CheckoutQuoteState<OrderQuote>());
+  const quoteSnapshot = useSyncExternalStore(
+    quoteState.subscribe,
+    quoteState.getSnapshot,
+    quoteState.getSnapshot
+  );
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const [actionError, setActionError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [placedTradeNo, setPlacedTradeNo] = useState("");
+  const [placedStatus, setPlacedStatus] = useState<string | null>(null);
+  const [placedSettlement, setPlacedSettlement] = useState<{
+    outcome: ServiceOrder["settlementOutcome"];
+    returnedBalanceMinor: string | null;
+  } | null>(null);
+  const [placedInput, setPlacedInput] = useState<CheckoutQuoteInput | null>(null);
+
+  const normalizedCoupon = canonicalCoupon(appliedCoupon);
+  const quoteInput = useMemo<CheckoutQuoteInput | null>(
+    () => period === null
+      ? null
+      : {
+          ownerId: viewerId,
+          planId,
+          period,
+          couponCode: normalizedCoupon,
+          deductionMode
+        },
+    [deductionMode, normalizedCoupon, period, planId, viewerId]
+  );
+  const quoteInputKey = quoteInput ? checkoutQuoteInputKey(quoteInput) : "<no-selection>";
+  const snapshotMatchesInputs = Boolean(
+    quoteInput && quoteSnapshot.input &&
+      checkoutQuoteInputKey(quoteSnapshot.input) === quoteInputKey
+  );
+  const quote = snapshotMatchesInputs ? quoteSnapshot.quote : null;
+  const quoteError = snapshotMatchesInputs ? quoteSnapshot.error ?? "" : "";
+  const confirmedQuote = quoteInput ? quoteState.confirmed(quoteInput) : null;
+  const quotePending = Boolean(
+    quoteInput && viewerId && accessToken &&
+      (!snapshotMatchesInputs || quoteSnapshot.pending)
+  );
+
+  function selectPeriod(nextPeriod: BillingPeriod) {
+    if (viewerId) {
+      quoteState.select({
+        ownerId: viewerId,
+        planId,
+        period: nextPeriod,
+        couponCode: normalizedCoupon,
+        deductionMode
+      });
+    }
+    setActionError("");
+    setPeriod(nextPeriod);
+  }
+
+  function applyCoupon(value: string) {
+    const nextCoupon = canonicalCoupon(value);
+    if (viewerId && period) {
+      quoteState.select({
+        ownerId: viewerId,
+        planId,
+        period,
+        couponCode: nextCoupon,
+        deductionMode
+      });
+    }
+    setActionError("");
+    setAppliedCoupon(nextCoupon ?? "");
+    setCouponDraft(nextCoupon ?? "");
+  }
+
+  function selectDeductionMode(nextMode: OrderDeductionMode) {
+    if (viewerId && period) {
+      quoteState.select({
+        ownerId: viewerId,
+        planId,
+        period,
+        couponCode: normalizedCoupon,
+        deductionMode: nextMode
+      });
+    }
+    setActionError("");
+    setDeductionMode(nextMode);
+  }
+
+  function retryQuote() {
+    if (!quoteInput || !accessToken || !viewerId) return;
+    quoteState.invalidate(quoteInput);
+    setActionError("");
+    setRefreshNonce((nonce) => nonce + 1);
+  }
 
   useEffect(() => {
     let active = true;
@@ -122,10 +251,12 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
         if (!active) return;
         setOffer(result);
         // Default to the cheapest period so the total is never blank.
+        const requestedPeriod = new URLSearchParams(window.location.search).get("period") as BillingPeriod | null;
+        const requestedPrice = result?.prices.find((price) => price.period === requestedPeriod);
         const cheapest = [...(result?.prices ?? [])].sort(
-          (left, right) => Number(left.amountMinor) - Number(right.amountMinor)
+          (left, right) => BigInt(left.amountMinor) < BigInt(right.amountMinor) ? -1 : BigInt(left.amountMinor) > BigInt(right.amountMinor) ? 1 : 0
         )[0];
-        setPeriod(cheapest ? cheapest.period : null);
+        setPeriod(requestedPrice?.period ?? (cheapest ? cheapest.period : null));
       })
       .catch((error) =>
         active && setLoadError(errorMessage(error, text.notFound))
@@ -136,25 +267,26 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
     };
   }, [accessToken, planId, text.notFound]);
 
-  const refreshQuote = useCallback(
-    async (chosen: BillingPeriod, coupon: string) => {
-      if (!accessToken) return;
-      setQuoteError("");
-      try {
-        setQuote(
-          await fetchOrderQuote(accessToken, planId, chosen, coupon || undefined)
-        );
-      } catch (error) {
-        // Keep the previous total on screen rather than flashing an empty panel.
-        setQuoteError(errorMessage(error, text.quoteFailed));
-      }
-    },
-    [accessToken, planId, text.quoteFailed]
-  );
+  useLayoutEffect(() => {
+    if (quoteInput) quoteState.select(quoteInput);
+    else quoteState.clear();
+    setActionError("");
+  }, [quoteInputKey, quoteState]);
 
   useEffect(() => {
-    if (period) void refreshQuote(period, appliedCoupon);
-  }, [period, appliedCoupon, refreshQuote]);
+    if (!quoteInput || !quoteInput.ownerId || !accessToken) return;
+    void quoteState.request(
+      quoteInput,
+      (input) => fetchOrderQuote(
+        accessToken,
+        input.planId,
+        input.period,
+        input.couponCode ?? undefined,
+        input.deductionMode
+      ),
+      (error) => errorMessage(error, text.quoteFailed)
+    );
+  }, [accessToken, quoteInput, quoteInputKey, quoteState, refreshNonce, text.quoteFailed]);
 
   const orderTypeLabel = useMemo(() => {
     switch (quote?.orderType) {
@@ -172,20 +304,38 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
   }, [quote?.orderType, text]);
 
   async function submit() {
-    if (!accessToken || !period || submitting) return;
+    if (
+      !accessToken || !viewerId || !confirmedQuote || submittingRef.current ||
+      placedTradeNo
+    ) return;
+    const quoteInputSnapshot = { ...confirmedQuote.input };
+    const orderInput = orderInputForQuote(quoteInputSnapshot);
+    const requestAccessToken = accessToken;
+    submittingRef.current = true;
     setSubmitting(true);
-    setQuoteError("");
+    setActionError("");
     try {
       const order = await placeOrder(
-        accessToken,
-        planId,
-        period,
-        appliedCoupon || undefined
+        requestAccessToken,
+        orderInput.planId,
+        orderInput.period,
+        orderInput.couponCode ?? undefined,
+        orderInput.deductionMode
       );
+      if (useAuthStore.getState().viewer?.id !== quoteInputSnapshot.ownerId) return;
       setPlacedTradeNo(order.tradeNo);
+      setPlacedStatus(order.status);
+      setPlacedSettlement({
+        outcome: order.settlementOutcome,
+        returnedBalanceMinor: order.returnedBalanceMinor ?? null
+      });
+      setPlacedInput(quoteInputSnapshot);
     } catch (error) {
-      setQuoteError(errorMessage(error, text.quoteFailed));
+      if (useAuthStore.getState().viewer?.id === quoteInputSnapshot.ownerId) {
+        setActionError(errorMessage(error, text.quoteFailed));
+      }
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   }
@@ -195,9 +345,16 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
     try {
       await cancelOrder(accessToken, placedTradeNo);
       setPlacedTradeNo("");
-      if (period) void refreshQuote(period, appliedCoupon);
+      setPlacedStatus(null);
+      setPlacedSettlement(null);
+      setPlacedInput(null);
+      setActionError("");
+      if (placedInput) {
+        quoteState.invalidate(placedInput);
+        setRefreshNonce((nonce) => nonce + 1);
+      }
     } catch (error) {
-      setQuoteError(errorMessage(error, text.quoteFailed));
+      setActionError(errorMessage(error, text.quoteFailed));
     }
   }
 
@@ -228,11 +385,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
 
   return (
     <AppShell>
-      <button
-        className="checkout-back"
-        onClick={() => navigate("/plans")}
-        type="button"
-      >
+      <button className="checkout-back" onClick={() => navigate("/plans")} type="button">
         {text.back}
       </button>
 
@@ -293,12 +446,13 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                         ? "checkout-period is-selected"
                         : "checkout-period"
                     }
-                    onClick={() => setPeriod(price.period)}
+                    disabled={Boolean(placedTradeNo) || submitting}
+                    onClick={() => selectPeriod(price.period)}
                     type="button"
                   >
                     <span>{billingPeriodLabel(price.period, language)}</span>
                     <strong>
-                      {formatMoney(price.amountMinor, price.currency, language)}
+                      {formatMinorMoney(price.amountMinor, price.currency, language)}
                     </strong>
                   </button>
                 </li>
@@ -309,30 +463,39 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
           <section className="checkout-card checkout-coupon">
             <input
               aria-label={text.couponPlaceholder}
-              disabled={Boolean(placedTradeNo)}
+              disabled={Boolean(placedTradeNo) || submitting}
               onChange={(event) => setCouponDraft(event.target.value)}
               placeholder={text.couponPlaceholder}
               value={couponDraft}
             />
             {appliedCoupon ? (
               <button
-                onClick={() => {
-                  setAppliedCoupon("");
-                  setCouponDraft("");
-                }}
+                disabled={Boolean(placedTradeNo) || submitting}
+                onClick={() => applyCoupon("")}
                 type="button"
               >
                 {text.couponClear}
               </button>
             ) : (
               <button
-                disabled={!couponDraft.trim() || Boolean(placedTradeNo)}
-                onClick={() => setAppliedCoupon(couponDraft.trim())}
+                disabled={!couponDraft.trim() || Boolean(placedTradeNo) || submitting}
+                onClick={() => applyCoupon(couponDraft)}
                 type="button"
               >
                 {text.couponVerify}
               </button>
             )}
+          </section>
+
+          <section className="checkout-card" aria-label={text.periodTitle}>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
+              <input checked={deductionMode === "STANDARD"} disabled={Boolean(placedTradeNo) || submitting} onChange={() => selectDeductionMode("STANDARD")} type="radio" />
+              <span>{text.deductionStandard}</span>
+            </label>
+            <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <input checked={deductionMode === "FULL_PAYMENT"} disabled={Boolean(placedTradeNo) || submitting} onChange={() => selectDeductionMode("FULL_PAYMENT")} type="radio" />
+              <span>{text.deductionFull}</span>
+            </label>
           </section>
 
           <section className="checkout-card checkout-summary">
@@ -348,86 +511,105 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                       )}
                     </dt>
                     <dd>
-                      {formatMoney(quote.originalAmount, currency, language)}
+                      {formatMinorMoney(quote.originalAmount, currency, language)}
                     </dd>
                   </div>
-                  {Number(quote.discountAmount) > 0 && (
+                  {BigInt(quote.discountAmount) > 0n && (
                     <div className="is-deduction">
                       <dt>
                         {text.discount}
                         {quote.couponName && ` · ${quote.couponName}`}
                       </dt>
                       <dd>
-                        −{formatMoney(quote.discountAmount, currency, language)}
+                        −{formatMinorMoney(quote.discountAmount, currency, language)}
                       </dd>
                     </div>
                   )}
-                  {Number(quote.surplusAmount) > 0 && (
+                  {BigInt(quote.surplusAmount) > 0n && (
                     <div className="is-deduction">
                       <dt>{text.surplus}</dt>
                       <dd>
-                        −{formatMoney(quote.surplusAmount, currency, language)}
+                        −{formatMinorMoney(quote.surplusAmount, currency, language)}
                       </dd>
                     </div>
                   )}
-                  {Number(quote.balanceAmount) > 0 && (
+                  {BigInt(quote.balanceAmount) > 0n && (
                     <div className="is-deduction">
                       <dt>{text.balance}</dt>
                       <dd>
-                        −{formatMoney(quote.balanceAmount, currency, language)}
+                        −{formatMinorMoney(quote.balanceAmount, currency, language)}
                       </dd>
                     </div>
                   )}
-                  {Number(quote.surplusCredit) > 0 && (
+                  {BigInt(quote.deferredSurplusCreditMinor) > 0n && (
                     <div className="is-note">
-                      <dt>{text.surplusCredit}</dt>
+                      <dt>{text.deferredCredit}</dt>
                       <dd>
-                        {formatMoney(quote.surplusCredit, currency, language)}
+                        {formatMinorMoney(quote.deferredSurplusCreditMinor, currency, language)}
                       </dd>
                     </div>
                   )}
                 </dl>
                 <p className="checkout-total-label">{text.total}</p>
                 <p className="checkout-total">
-                  {formatMoney(quote.totalAmount, currency, language)}{" "}
+                  {formatMinorMoney(quote.totalAmount, currency, language)}{" "}
                   <span>{currency}</span>
                 </p>
                 <p className="checkout-balance-note">
                   {text.accountBalance}:{" "}
-                  {formatMoney(quote.accountBalanceMinor, currency, language)}
+                  {formatMinorMoney(quote.accountBalanceMinor, currency, language)}
                 </p>
+                {quote.minimumOnlinePaymentBlocked && (
+                  <div className="checkout-error" role="alert">
+                    <p>{quote.minimumPaymentMessage ?? text.minimumPayment}</p>
+                    <p>{text.blockedOffline}</p>
+                  </div>
+                )}
+                {BigInt(quote.totalAmount) === 0n && <p className="checkout-status">{text.zeroAuto}</p>}
               </>
             ) : (
               <p className="checkout-status">{text.loading}</p>
             )}
 
             {quoteError && <p className="checkout-error">{quoteError}</p>}
+            {quoteError && <button className="text-button" disabled={quotePending} onClick={retryQuote} type="button">{text.retryQuote}</button>}
+            {actionError && <p className="checkout-error">{actionError}</p>}
 
             {placedTradeNo ? (
               <div className="checkout-placed">
                 <strong>{text.placed}</strong>
-                <p>{text.placedHint.replace("%s", placedTradeNo)}</p>
+                <p>{placedSettlement?.outcome === "BALANCE_RETURNED"
+                  ? text.balanceReturned.replace(
+                    "%s",
+                    formatMinorMoney(placedSettlement.returnedBalanceMinor ?? "0", currency, language)
+                  )
+                  : placedStatus === "COMPLETED"
+                    ? text.autoSettled
+                    : quote?.minimumOnlinePaymentBlocked
+                      ? text.placedBlockedHint.replace("%s", placedTradeNo)
+                      : text.placedHint.replace("%s", placedTradeNo)}</p>
                 <button
                   className="checkout-submit"
                   onClick={() =>
-                    navigate(`/account/orders/${placedTradeNo}`)
+                    navigate(`/account/orders/${encodeURIComponent(placedTradeNo)}?planId=${encodeURIComponent(placedInput?.planId ?? planId)}&period=${placedInput?.period ?? period}&deductionMode=${placedInput?.deductionMode ?? deductionMode}${placedInput?.couponCode ? `&couponCode=${encodeURIComponent(placedInput.couponCode)}` : ""}`)
                   }
                   type="button"
                 >
                   {text.viewOrders}
                 </button>
-                <button
+                {placedStatus === "PENDING" && <button
+                  disabled={submitting}
                   className="text-button"
                   onClick={() => void undoPlacedOrder()}
                   type="button"
                 >
                   {text.cancelPlaced}
-                </button>
+                </button>}
               </div>
             ) : (
               <button
                 className="checkout-submit"
-                disabled={!quote || submitting}
+                disabled={!confirmedQuote || quotePending || submitting}
                 onClick={() => void submit()}
                 type="button"
               >

@@ -12,7 +12,7 @@ import {
 } from "../admin/orderManagementApi";
 import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
-import { formatMoney, orderStatusLabel, orderTypeLabel } from "../lib/subscription";
+import { formatMinorMoney, formatMoney, orderStatusLabel, orderTypeLabel } from "../lib/subscription";
 import { useAdminAuthStore } from "../store/adminAuth";
 import { useAdminPreferences } from "../store/adminPreferences";
 import type { OrderStatus } from "../types";
@@ -82,6 +82,7 @@ const copy = {
       "这会给用户发放套餐权益，且不经过任何支付。仅用于线下转账或人工补单。",
     confirmCancelTitle: "取消订单",
     confirmCancelBody: "取消后订单不可恢复，已占用的余额和优惠券会退回。",
+    balanceReturned: "订单未重置流量；已返还站内余额",
     confirm: "确认"
   },
   "en-US": {
@@ -140,6 +141,7 @@ const copy = {
     confirmCancelTitle: "Cancel order",
     confirmCancelBody:
       "A cancelled order cannot be reopened. Any balance and coupon it held are released.",
+    balanceReturned: "Traffic was not reset; returned to site balance",
     confirm: "Confirm"
   }
 };
@@ -348,6 +350,11 @@ export function AdminOrdersPage() {
                       >
                         {orderStatusLabel(order.status, language)}
                       </span>
+                      {order.settlement_outcome === "BALANCE_RETURNED" && (
+                        <small style={{ display: "block", marginTop: 4, color: "#707c93" }}>
+                          {text.balanceReturned}: {formatMinorMoney(String(order.returned_balance_minor), order.currency, language)}
+                        </small>
+                      )}
                     </td>
                     <td>{formatEpoch(order.created_at, language)}</td>
                     <td>
@@ -426,6 +433,11 @@ export function AdminOrdersPage() {
               ) : null}
               {detail ? (
                 <>
+                  {detail.settlement_outcome === "BALANCE_RETURNED" && (
+                    <p role="status">
+                      {text.balanceReturned}: {formatMinorMoney(String(detail.returned_balance_minor), detail.currency, language)}
+                    </p>
+                  )}
                   <p>
                     {detail.commission_status === null
                       ? detail.invite_user_id ? text.commissionLegacy : text.noInviter

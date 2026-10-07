@@ -7,7 +7,7 @@ import { navigate } from "../lib/navigation";
 import {
   billingPeriodLabel,
   formatDateTime,
-  formatMoney,
+  formatMinorMoney,
   orderStatusLabel,
   orderTypeLabel
 } from "../lib/subscription";
@@ -33,7 +33,8 @@ const copy = {
     view: "查看详情",
     viewAll: "订单详情",
     notPending: "—",
-    pendingHint: "订单已创建，等待支付。"
+    pendingHint: "订单已创建，等待支付。",
+    balanceReturned: "未重置流量，已返还站内余额%s"
   },
   "en-US": {
     eyebrow: "BILLING",
@@ -53,7 +54,8 @@ const copy = {
     view: "View",
     viewAll: "Order details",
     notPending: "—",
-    pendingHint: "Placed, waiting for payment."
+    pendingHint: "Placed, waiting for payment.",
+    balanceReturned: "Traffic not reset; %s returned to site balance"
   }
 };
 
@@ -128,10 +130,10 @@ export function OrdersPage() {
                   </td>
                   <td>{billingPeriodLabel(order.period, language)}</td>
                   <td>
-                    {formatMoney(order.totalAmount, order.currency, language)}
+                    {formatMinorMoney(order.totalAmount, order.currency, language)}
                   </td>
-                  <td>
-                    <span
+                    <td>
+                      <span
                       className={`status-pill order-status-${order.status.toLowerCase()}`}
                       title={
                         order.status === "PENDING"
@@ -139,9 +141,17 @@ export function OrdersPage() {
                           : undefined
                       }
                     >
-                      {orderStatusLabel(order.status, language)}
-                    </span>
-                  </td>
+                        {orderStatusLabel(order.status, language)}
+                      </span>
+                      {order.settlementOutcome === "BALANCE_RETURNED" && (
+                        <small style={{ display: "block", marginTop: 4, color: "#707c93" }}>
+                          {labels.balanceReturned.replace(
+                            "%s",
+                            formatMinorMoney(order.returnedBalanceMinor ?? "0", order.currency, language)
+                          )}
+                        </small>
+                      )}
+                    </td>
                   <td>
                     {formatDateTime(order.createdAt, language)}
                   </td>

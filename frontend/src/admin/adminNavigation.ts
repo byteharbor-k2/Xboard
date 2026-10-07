@@ -41,8 +41,8 @@ export const adminNavigation: AdminNavGroup[] = [
         glyph: "⚙",
         label: { "zh-CN": "系统配置", "en-US": "System settings" },
         description: {
-          "zh-CN": "管理站点、安全、订阅、邀请、邮件和通知设置。",
-          "en-US": "Manage site, security, subscription, email, and notification settings."
+          "zh-CN": "管理站点、安全、订阅、邀请、邮件和节点设置。",
+          "en-US": "Manage site, security, subscription, invitations, email, and nodes."
         }
       },
       {

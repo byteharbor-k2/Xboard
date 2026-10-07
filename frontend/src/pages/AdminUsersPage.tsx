@@ -10,6 +10,7 @@ import {
   resetUserSecret,
   resetUserTraffic,
   sendUserMail,
+  setUserBalance,
   setUserBanned,
   updateUser,
   type AdminUser,
@@ -17,7 +18,7 @@ import {
 } from "../admin/adminUsersApi";
 import { AdminShell } from "../components/AdminShell";
 import { ApiError } from "../lib/http";
-import { formatBytes } from "../lib/subscription";
+import { formatBytes, formatMinorMoney } from "../lib/subscription";
 import { useAdminAuthStore } from "../store/adminAuth";
 import { useAdminPreferences } from "../store/adminPreferences";
 
@@ -65,8 +66,6 @@ const copy = {
     passwordHint: "留空则不修改",
     remarks: "备注",
     remarksHint: "仅管理员可见",
-    speedLimit: "限速（Mbps）",
-    speedLimitHint: "留空表示跟随套餐",
     commissionType: "佣金类型",
     commissionSystem: "系统类型",
     commissionPeriodic: "周期类型",
@@ -112,7 +111,21 @@ const copy = {
     tradeNoLabel: "订单号",
     tradeNoHint: "将被转移订单的编号",
     assign: "确认分配",
-    assigned: "订单已分配"
+    assigned: "订单已分配",
+    balance: "调整余额",
+    balanceTitle: "设置用户余额",
+    balanceCurrent: "当前余额",
+    balanceTarget: "目标余额（CNY）",
+    balanceNote: "用户可见说明（选填，最多 500 字）",
+    balanceDifference: "本次变化",
+    balanceValidation: "请输入非负金额，最多两位小数，且不超过余额上限。",
+    balanceUnsafe: "当前余额超过浏览器可精确表示的范围；请先由后端提供字符串分格式后再调整。",
+    balanceNoteTooLong: "说明不能超过 500 个字符。",
+    balanceSuccess: "余额已更新",
+    balanceSave: "确认调整",
+    balanceCentsHint: "将余额设置为目标金额，不是充值或提现。",
+    speedEntitlement: "套餐限速",
+    speedUnlimited: "不限速"
   },
   "en-US": {
     eyebrow: "Users & support",
@@ -155,8 +168,6 @@ const copy = {
     passwordHint: "Leave blank to keep the current one",
     remarks: "Notes",
     remarksHint: "Visible to administrators only",
-    speedLimit: "Speed limit (Mbps)",
-    speedLimitHint: "Leave blank to follow the plan",
     commissionType: "Commission type",
     commissionSystem: "System type",
     commissionPeriodic: "Periodic",
@@ -205,7 +216,21 @@ const copy = {
     tradeNoLabel: "Trade number",
     tradeNoHint: "The order to hand over",
     assign: "Assign",
-    assigned: "Order assigned"
+    assigned: "Order assigned",
+    balance: "Adjust balance",
+    balanceTitle: "Set user balance",
+    balanceCurrent: "Current balance",
+    balanceTarget: "Target balance (CNY)",
+    balanceNote: "User-visible note (optional, up to 500 characters)",
+    balanceDifference: "Change",
+    balanceValidation: "Enter a non-negative amount with at most two decimals, within the balance limit.",
+    balanceUnsafe: "The current balance exceeds the browser's exact integer range. A string-valued minor-unit API field is needed before it can be safely adjusted.",
+    balanceNoteTooLong: "The note cannot exceed 500 characters.",
+    balanceSuccess: "Balance updated",
+    balanceSave: "Confirm adjustment",
+    balanceCentsHint: "Sets the balance to this target; it is not a top-up or withdrawal.",
+    speedEntitlement: "Plan speed limit",
+    speedUnlimited: "Unlimited"
   }
 };
 
@@ -233,6 +258,7 @@ export function AdminUsersPage() {
   const [status, setStatus] = useState<StatusFilter>("ALL");
   const [page, setPage] = useState(0);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [editing, setEditing] = useState<AdminUser | null>(null);
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [mailing, setMailing] = useState<AdminUser | null>(null);
@@ -240,6 +266,7 @@ export function AdminUsersPage() {
     null
   );
   const [assigningOrder, setAssigningOrder] = useState<AdminUser | null>(null);
+  const [balancing, setBalancing] = useState<AdminUser | null>(null);
   const [csvBusy, setCsvBusy] = useState(false);
 
   const usersQuery = useQuery({
@@ -320,6 +347,7 @@ export function AdminUsersPage() {
       </header>
 
       {error ? <p className="admin-operation-error">{error}</p> : null}
+      {success ? <p role="status">{success}</p> : null}
       {usersQuery.isError ? (
         <p className="admin-operation-error">{text.loadFailed}</p>
       ) : null}
@@ -427,6 +455,9 @@ export function AdminUsersPage() {
                           type="button"
                         >
                           {text.edit}
+                        </button>
+                        <button onClick={() => setBalancing(user)} type="button">
+                          {text.balance}
                         </button>
                         <button
                           onClick={() => {
@@ -539,6 +570,19 @@ export function AdminUsersPage() {
         />
       ) : null}
 
+      {balancing ? (
+        <BalanceDialog
+          onClose={() => setBalancing(null)}
+          onSaved={() => {
+            setBalancing(null);
+            setSuccess(text.balanceSuccess);
+            refresh();
+          }}
+          text={text}
+          user={balancing}
+        />
+      ) : null}
+
       {newSecret ? (
         <SecretDialog
           link={newSecret}
@@ -579,6 +623,113 @@ export function AdminUsersPage() {
 
 type Copy = (typeof copy)["zh-CN"];
 
+const MAX_BALANCE_MINOR = 9_223_372_036_854_775_807n;
+
+function cnyInputFromMinor(minorValue: number): string {
+  const minor = BigInt(Math.trunc(minorValue));
+  return `${minor / 100n}.${(minor % 100n).toString().padStart(2, "0")}`;
+}
+
+function parseCnyInput(value: string): bigint | null {
+  const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(value.trim());
+  if (!match) return null;
+  const fractional = (match[2] ?? "").padEnd(2, "0");
+  const minor = BigInt(match[1]) * 100n + BigInt(fractional || "0");
+  return minor <= MAX_BALANCE_MINOR ? minor : null;
+}
+
+function BalanceDialog({
+  user,
+  text,
+  onClose,
+  onSaved
+}: {
+  user: AdminUser;
+  text: Copy;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const accessToken = useAdminAuthStore((state) => state.accessToken)!;
+  const currentBalanceIsSafe = Number.isSafeInteger(user.balance);
+  const [target, setTarget] = useState(
+    currentBalanceIsSafe ? cnyInputFromMinor(user.balance) : ""
+  );
+  const [note, setNote] = useState("");
+  const [error, setError] = useState("");
+  const targetMinor = parseCnyInput(target);
+  const currentMinor = currentBalanceIsSafe ? BigInt(user.balance) : null;
+  const difference = targetMinor === null || currentMinor === null
+    ? null
+    : targetMinor - currentMinor;
+  const save = useMutation({
+    mutationFn: () => {
+      if (targetMinor === null) throw new Error(text.balanceValidation);
+      if (note.length > 500) throw new Error(text.balanceNoteTooLong);
+      return setUserBalance(accessToken, user.id, targetMinor.toString(), note.trim() || undefined);
+    },
+    onSuccess: onSaved,
+    onError: (cause) => setError(cause instanceof ApiError ? cause.message : cause instanceof Error ? cause.message : text.operationFailed)
+  });
+
+  const field = { display: "block", marginBottom: 14 } as const;
+  const input = {
+    width: "100%",
+    padding: "10px 13px",
+    border: "1px solid #dfe5ee",
+    borderRadius: 9,
+    font: "inherit",
+    marginTop: 6
+  } as const;
+
+  return (
+    <div className="settings-dialog-backdrop">
+      <div aria-modal="true" className="settings-dialog" role="dialog" style={{ maxWidth: 520 }}>
+        <h3>{text.balanceTitle}</h3>
+        <p style={{ color: "#707c93" }}>{user.email}</p>
+        <p>{text.balanceCurrent}: {currentBalanceIsSafe ? formatMinorMoney(String(user.balance), "CNY") : "—"}</p>
+        {!currentBalanceIsSafe && <p className="admin-operation-error" role="alert">{text.balanceUnsafe}</p>}
+        <label style={field}>
+          <span>{text.balanceTarget}</span>
+          <input
+            autoFocus
+            disabled={!currentBalanceIsSafe}
+            inputMode="decimal"
+            onChange={(event) => setTarget(event.target.value)}
+            style={input}
+            value={target}
+          />
+        </label>
+        <p style={{ color: difference === null ? "#b42318" : "#707c93" }}>
+          {text.balanceDifference}: {difference === null ? currentMinor === null ? text.balanceUnsafe : text.balanceValidation : formatMinorMoney(difference.toString(), "CNY")}
+        </p>
+        <label style={field}>
+          <span>{text.balanceNote}</span>
+          <textarea
+            maxLength={500}
+            onChange={(event) => setNote(event.target.value)}
+            rows={3}
+            style={input}
+            value={note}
+          />
+        </label>
+        <small style={{ display: "block", marginBottom: 12, color: "#707c93" }}>{text.balanceCentsHint}</small>
+        {note.length > 500 && <p className="admin-operation-error">{text.balanceNoteTooLong}</p>}
+        {error && <p className="admin-operation-error" role="alert">{error}</p>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button disabled={save.isPending} onClick={onClose} type="button">{text.cancel}</button>
+          <button
+            disabled={save.isPending || targetMinor === null || !currentBalanceIsSafe || note.length > 500}
+            onClick={() => { setError(""); save.mutate(); }}
+            type="button"
+          >
+            {save.isPending ? text.loading : text.balanceSave}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditUserDialog({
   user,
   text,
@@ -596,9 +747,6 @@ function EditUserDialog({
   const [email, setEmail] = useState(user.email);
   const [password, setPassword] = useState("");
   const [remarks, setRemarks] = useState(user.remarks ?? "");
-  const [speedLimit, setSpeedLimit] = useState(
-    user.speed_limit_mbps?.toString() ?? ""
-  );
   const [transferGib, setTransferGib] = useState(toGib(user.transfer_limit_bytes));
   const [commissionType, setCommissionType] = useState(user.commission_type);
   const [commissionRate, setCommissionRate] = useState(
@@ -622,10 +770,6 @@ function EditUserDialog({
       }
       if (remarks !== (user.remarks ?? "")) {
         update.remarks = remarks;
-      }
-      const speed = speedLimit.trim() ? Number(speedLimit) : null;
-      if (speed !== user.speed_limit_mbps) {
-        update.speed_limit_mbps = speed;
       }
       if (transferGib.trim()) {
         const gib = Number(transferGib);
@@ -717,15 +861,10 @@ function EditUserDialog({
             value={expiresAt}
           />
         </label>
-        <label style={field}>
-          <span>{text.speedLimit}</span>
-          <input
-            onChange={(event) => setSpeedLimit(event.target.value)}
-            placeholder={text.speedLimitHint}
-            style={input}
-            value={speedLimit}
-          />
-        </label>
+        <div style={field}>
+          <strong>{text.speedEntitlement}: </strong>
+          {user.speed_limit_mbps ? `${user.speed_limit_mbps} Mbps` : text.speedUnlimited}
+        </div>
         <label style={field}>
           <span>{text.commissionType}</span>
           <select

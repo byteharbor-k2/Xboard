@@ -8,7 +8,6 @@ import {
 } from "react";
 
 import {
-  configureTelegramWebhook,
   getMailTemplate,
   getPlanOptions,
   getSystemSettings,
@@ -43,8 +42,6 @@ const sectionPaths: Record<SystemSettingsSection, string> = {
   invite: "/admin/system/settings/invite",
   server: "/admin/nodes/settings",
   email: "/admin/system/settings/email",
-  telegram: "/admin/system/settings/telegram",
-  app: "/admin/system/settings/app",
   subscribe_template: "/admin/nodes/subscription-templates"
 };
 
@@ -68,9 +65,6 @@ const copy = {
     testEmail: "发送测试邮件",
     sending: "发送中...",
     testEmailSuccess: "测试邮件发送成功",
-    setWebhook: "一键设置",
-    settingWebhook: "设置中...",
-    webhookSuccess: "Webhook 设置成功",
     wsSupport: "目前支持 WebSocket 通信的节点端：Xboard Node",
     subscriptionFormat: "订阅入口固定为 {path}/xxxxxxxxxx，不可自定义。",
     generateToken: "生成随机通信密钥",
@@ -107,9 +101,6 @@ const copy = {
     testEmail: "Send test email",
     sending: "Sending...",
     testEmailSuccess: "Test email sent",
-    setWebhook: "Set webhook",
-    settingWebhook: "Setting...",
-    webhookSuccess: "Webhook configured",
     wsSupport: "WebSocket communication is currently supported by Xboard Node.",
     subscriptionFormat:
       "The subscription endpoint is fixed at {path}/xxxxxxxxxx and is not configurable.",
@@ -576,12 +567,6 @@ export function SystemSettingsPage() {
       )
   });
 
-  const webhook = useMutation({
-    mutationFn: () => configureTelegramWebhook(accessToken),
-    onSuccess: () => setStatus(labels.webhookSuccess),
-    onError: () => setStatus(labels.actionFailed)
-  });
-
   function scheduleSave(
     field: SettingsField,
     value: SettingValue,
@@ -936,27 +921,6 @@ export function SystemSettingsPage() {
                 </button>
               )}
 
-              {selectedSection === "telegram" && (
-                <div className="settings-webhook-action">
-                  <div>
-                    <strong>{language === "zh-CN" ? "设置Webhook" : "Set webhook"}</strong>
-                    <small>
-                      {language === "zh-CN"
-                        ? "设置机器人的webhook，不设置将无法收到Telegram通知。"
-                        : "Configure the bot webhook to receive Telegram notifications."}
-                    </small>
-                  </div>
-                  <button
-                    disabled={webhook.isPending}
-                    onClick={() => webhook.mutate()}
-                    type="button"
-                  >
-                    {webhook.isPending
-                      ? labels.settingWebhook
-                      : labels.setWebhook}
-                  </button>
-                </div>
-              )}
               </div>
             ))}
 

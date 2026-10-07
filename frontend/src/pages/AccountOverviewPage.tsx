@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { MarkdownContent } from "../components/MarkdownContent";
 
 import { AppLink } from "../components/AppLink";
@@ -17,10 +18,12 @@ import {
   entitlementStateLabel,
   formatBytes,
   formatDateTime,
-  formatMoney,
+  formatMinorMoney,
   trafficResetLabel
 } from "../lib/subscription";
 import { fetchViewerNotices, fetchViewerNoticeImages } from "../lib/content";
+import { fetchPlanOffer, fetchViewerTrafficResetOffer } from "../lib/orders";
+import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
 import { useUserPreferences } from "../store/userPreferences";
 import type { SubscriptionEntitlement } from "../types";
@@ -55,7 +58,17 @@ const copy = {
     quickStart: "快速开始使用",
     quickStartHint:
       "订阅地址不再直接显示。选择客户端后复制链接或扫码导入；链接本身就是凭据，请勿分享。",
-    chooseClient: "订阅导入"
+    chooseClient: "订阅导入",
+    renewSubscription: "续费当前套餐",
+    renewPackage: "续购流量包",
+    resetPurchase: "购买流量重置",
+    resetPriceContext: "本周期付费重置价格",
+    resetAlready: "本周期已重置",
+    resetPending: "已有流量重置订单待支付，继续支付",
+    resetUnavailable: "当前订阅暂不可购买流量重置",
+    resetCycleEnds: "当前流量周期至",
+    resetPendingPrice: "待支付订单的固定金额请在订单详情中查看。",
+    resetPurchaseInfo: "流量仅会在订单支付并成功开通后重置。"
   },
   "en-US": {
     kicker: "PRIVATE NETWORK",
@@ -86,7 +99,17 @@ const copy = {
     quickStart: "Quick start",
     quickStartHint:
       "The address is no longer shown here. Choose your client, then copy the link or scan its QR code. The link is the credential itself — do not share it.",
-    chooseClient: "Import subscription"
+    chooseClient: "Import subscription",
+    renewSubscription: "Renew current plan",
+    renewPackage: "Renew traffic package",
+    resetPurchase: "Buy traffic reset",
+    resetPriceContext: "Paid reset price for this cycle",
+    resetAlready: "Already reset this cycle",
+    resetPending: "A traffic-reset order is pending; continue payment",
+    resetUnavailable: "Traffic reset is not available for this subscription",
+    resetCycleEnds: "Current traffic cycle ends",
+    resetPendingPrice: "The pending order's fixed amount is shown in its order details.",
+    resetPurchaseInfo: "Traffic is reset only after the order is paid and successfully fulfilled."
   }
 };
 
@@ -108,6 +131,18 @@ export function AccountOverviewPage() {
   const [noticeDetails, setNoticeDetails] = useState<Record<string, { id: string; title: string; content: string; imgUrl?: string | null }>>({});
   const noticeOpener = useRef<HTMLElement | null>(null);
   const noticeDialog = useRef<HTMLElement | null>(null);
+  const currentPlan = useQuery({
+    queryKey: ["plan-offer", viewer.id, entitlement?.planId],
+    queryFn: () => fetchPlanOffer(entitlement!.planId, accessToken),
+    enabled: Boolean(entitlement && !entitlement.isTrial),
+    retry: false
+  });
+  const trafficReset = useQuery({
+    queryKey: ["viewer-traffic-reset-offer", viewer.id],
+    queryFn: () => fetchViewerTrafficResetOffer(accessToken),
+    enabled: Boolean(entitlement && !entitlement.isTrial),
+    retry: false
+  });
 
   function closeNotice() {
     setSelectedNotice(null);
@@ -216,6 +251,18 @@ export function AccountOverviewPage() {
     };
   }, [accessToken]);
 
+  const offer = currentPlan.data;
+  const renewalPrice = offer?.prices.find((price) =>
+    offer.planType === "TRAFFIC_PACKAGE"
+      ? price.period === "ONETIME"
+      : price.period === "MONTHLY"
+  ) ?? offer?.prices.find((price) =>
+    offer.planType === "SUBSCRIPTION" && price.period !== "ONETIME" && price.period !== "RESET_TRAFFIC"
+  );
+  const canRenewCurrentPlan = Boolean(
+    offer && offer.renewable && !offer.newUserOffer && renewalPrice
+  );
+
   return (
     <AppShell>
       <header className="page-header">
@@ -265,7 +312,7 @@ export function AccountOverviewPage() {
             {labels.balance}:{" "}
             {balanceMinor === undefined
               ? labels.loading
-              : formatMoney(balanceMinor, "CNY", language)}
+              : formatMinorMoney(balanceMinor, "CNY", language)}
           </p>
           {entitlement && (
             <>
@@ -324,6 +371,39 @@ export function AccountOverviewPage() {
                   </dd>
                 </div>
               </dl>
+              {canRenewCurrentPlan && offer && renewalPrice && (
+                <div className="subscription-link">
+                  <button
+                    className="primary-button"
+                    onClick={() => navigate(`/plans/${encodeURIComponent(offer.id)}?period=${renewalPrice.period}`)}
+                    type="button"
+                  >
+                    {offer.planType === "TRAFFIC_PACKAGE" ? labels.renewPackage : labels.renewSubscription}
+                  </button>
+                </div>
+              )}
+              {offer?.planType === "SUBSCRIPTION" && !entitlement.isTrial && trafficReset.isSuccess && (
+                <div className="subscription-link">
+                  <p className="muted">
+                    {labels.resetPriceContext}: {trafficReset.data?.priceMinor
+                      ? formatMinorMoney(trafficReset.data.priceMinor, "CNY", language)
+                      : trafficReset.data?.pendingTradeNo ? labels.resetPendingPrice : "—"}
+                  </p>
+                  {trafficReset.data?.cycleEndsAt && <p className="muted">{labels.resetCycleEnds}: {formatDateTime(trafficReset.data.cycleEndsAt, language)}</p>}
+                  <small className="muted">{labels.resetPurchaseInfo}</small>
+                  {trafficReset.data?.pendingTradeNo ? (
+                    <button className="primary-button" onClick={() => navigate(`/account/orders/${encodeURIComponent(trafficReset.data!.pendingTradeNo!)}`)} type="button">
+                      {labels.resetPending}
+                    </button>
+                  ) : trafficReset.data?.alreadyReset ? (
+                    <button className="primary-button" disabled type="button">{labels.resetAlready}</button>
+                  ) : trafficReset.data?.canPurchase ? (
+                    <button className="primary-button" onClick={() => navigate(`/plans/${encodeURIComponent(entitlement.planId)}?period=RESET_TRAFFIC`)} type="button">
+                      {labels.resetPurchase}
+                    </button>
+                  ) : <p className="muted">{labels.resetUnavailable}</p>}
+                </div>
+              )}
             </>
           )}
           {!entitlementLoading && !entitlement && (

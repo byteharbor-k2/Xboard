@@ -45,7 +45,6 @@ export type AdminUserUpdate = {
   email?: string;
   password?: string;
   remarks?: string;
-  speed_limit_mbps?: number | null;
   banned?: boolean;
   plan_id?: string | null;
   transfer_limit_bytes?: string | null;
@@ -61,6 +60,19 @@ export type AdminUserUpdate = {
   /** Explicitly removes an existing override and restores the global rate. */
   clear_commission_rate?: boolean;
 };
+
+/** Sets an account's ordinary balance to an absolute integer-cent target. */
+export function setUserBalance(
+  accessToken: string,
+  id: string,
+  balanceMinor: string,
+  note?: string
+) {
+  return dataRequest<AdminUser>(`${adminApiPrefix}/user/balance`, accessToken, {
+    method: "POST",
+    body: JSON.stringify({ id, balanceMinor, ...(note ? { note } : {}) })
+  });
+}
 
 async function request<T>(
   path: string,

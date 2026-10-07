@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "../components/AppShell";
+import { AppLink } from "../components/AppLink";
 import { ApiError } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import {
@@ -13,7 +14,7 @@ import {
 import {
   billingPeriodLabel,
   formatDateTime,
-  formatMoney,
+  formatMinorMoney,
   orderStatusLabel,
   orderTypeLabel
 } from "../lib/subscription";
@@ -42,13 +43,15 @@ const copy = {
     orderNumber: "订单号",
     plan: "套餐",
     period: "周期",
+    deductionMode: "折抵方式",
+    fullPaymentMode: "不使用余额或套餐剩余价值折抵",
+    standardPaymentMode: "使用可用余额及套餐剩余价值折抵",
     createdAt: "创建时间",
     paidAt: "支付时间",
     original: "套餐原价",
     discount: "优惠",
     surplus: "折抵",
     balance: "余额抵扣",
-    surplusCredit: "返还余额",
     total: "订单金额",
     handling: "支付手续费",
     feePartsPrefix: "手续费：",
@@ -56,6 +59,13 @@ const copy = {
     payable: "应付总额",
     method: "支付方式",
     methodEmpty: "暂无可用支付方式，请联系管理员。",
+    minimumBlockedOffline: "此订单可等待管理员线下人工结算；线上支付不可用。若要使用全额支付方式，必须先取消此订单，再重新下单，系统不会在当前订单上静默改价。",
+    fullPaymentRetry: "取消订单并重新选择全额支付",
+    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
+    deferredCredit: "开通成功后才会退回的剩余价值",
+    completedCredit: "已开通，剩余价值已退回余额",
+    balanceReturned: "该订单未重置流量，已返还站内余额%s（可用于后续订单，非银行退款）",
+    viewBalance: "查看余额明细",
     methodCoveredByBalance: "该订单已由账户余额全额抵扣，无需再支付，正在为你开通。",
     methodCoveredBySurplus: "该订单已由套餐升级折抵全额覆盖，无需再支付，正在为你开通。",
     methodCoveredByCoupon: "该订单已由优惠券全额抵扣，无需再支付，正在为你开通。",
@@ -89,13 +99,15 @@ const copy = {
     orderNumber: "Order",
     plan: "Plan",
     period: "Period",
+    deductionMode: "Deduction mode",
+    fullPaymentMode: "No balance or unused-plan-value deductions",
+    standardPaymentMode: "Use available balance and unused plan value",
     createdAt: "Created",
     paidAt: "Paid",
     original: "Plan price",
     discount: "Discount",
     surplus: "Trade-in",
     balance: "Balance used",
-    surplusCredit: "Balance returned",
     total: "Order total",
     handling: "Payment fee",
     feePartsPrefix: "Fee: ",
@@ -103,6 +115,13 @@ const copy = {
     payable: "Total to pay",
     method: "Payment method",
     methodEmpty: "No payment method is available; please contact an administrator.",
+    minimumBlockedOffline: "This order may be settled manually by an administrator; online payment is unavailable. To choose full payment, cancel this order and place a new one. The current order will not be silently repriced.",
+    fullPaymentRetry: "Cancel and choose full payment in a new order",
+    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
+    deferredCredit: "Unused value credited only after successful activation",
+    completedCredit: "Activated; the unused value was credited to the balance",
+    balanceReturned: "Traffic was not reset; %s was returned to your site balance for future orders (not a bank refund).",
+    viewBalance: "View balance history",
     methodCoveredByBalance:
       "This order was covered in full by your account balance, so there is nothing left to pay. It is being opened for you.",
     methodCoveredBySurplus:
@@ -145,13 +164,13 @@ type Labels = (typeof copy)["zh-CN"];
  * claiming the balance.
  */
 function coveredByLabel(order: ServiceOrder, labels: Labels) {
-  if (Number(order.balanceAmount) > 0) {
+  if (BigInt(order.balanceAmount) > 0n) {
     return labels.methodCoveredByBalance;
   }
-  if (Number(order.surplusAmount) > 0) {
+  if (BigInt(order.surplusAmount) > 0n) {
     return labels.methodCoveredBySurplus;
   }
-  if (Number(order.discountAmount) > 0) {
+  if (BigInt(order.discountAmount) > 0n) {
     return labels.methodCoveredByCoupon;
   }
   return labels.methodCoveredByBalance;
@@ -171,7 +190,7 @@ function feeParts(method: PaymentOption, language: UserLanguage): string | undef
     parts.push(`${stripTrailingZeros(Number(method.handlingFeePercent).toFixed(2))}%`);
   }
   if (method.handlingFeeFixed != null) {
-    parts.push(formatMoney(method.handlingFeeFixed, method.currency, language));
+    parts.push(formatMinorMoney(method.handlingFeeFixed, method.currency, language));
   }
   return parts.length > 0 ? parts.join(" + ") : undefined;
 }
@@ -228,10 +247,9 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
   const selectedOption = methods.data?.find(
     (method) => method.id === selectedMethod
   );
-  const handling =
-    order !== undefined && Number(order.handlingAmount) > 0
-      ? Number(order.handlingAmount)
-      : Number(selectedOption?.handlingFee ?? 0);
+  const handling = BigInt(order?.handlingAmount ?? "0") > 0n
+    ? BigInt(order!.handlingAmount)
+    : BigInt(selectedOption?.handlingFee ?? "0");
 
   // How the fee the summary line is quoting is made up, when the method the
   // customer picked charges one. After checkout the order only carries the
@@ -264,6 +282,12 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
     onSuccess: () => {
       setClosing(null);
       void queryClient.invalidateQueries({ queryKey: ["viewer-orders"] });
+      if (order?.minimumOnlinePaymentBlocked) {
+        const params = new URLSearchParams({ period: order.period, deductionMode: "FULL_PAYMENT" });
+        const coupon = new URLSearchParams(window.location.search).get("couponCode");
+        if (coupon) params.set("couponCode", coupon);
+        navigate(`/plans/${encodeURIComponent(order.planId)}?${params.toString()}`);
+      }
     }
   });
 
@@ -309,6 +333,10 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 <strong>{billingPeriodLabel(order.period, language)}</strong>
               </li>
               <li>
+                <span>{labels.deductionMode}</span>
+                <strong>{order.deductionMode === "FULL_PAYMENT" ? labels.fullPaymentMode : labels.standardPaymentMode}</strong>
+              </li>
+              <li>
                 <span>{labels.createdAt}</span>
                 <strong>{formatDateTime(order.createdAt, language)}</strong>
               </li>
@@ -325,7 +353,15 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
               >
                 {orderStatusLabel(order.status, language)}
               </span>{" "}
-              {labels.statusHint[order.status]}
+              {order.settlementOutcome === "BALANCE_RETURNED" ? (
+                <>
+                  {labels.balanceReturned.replace(
+                    "%s",
+                    formatMinorMoney(order.returnedBalanceMinor ?? "0", order.currency, language)
+                  )}{" "}
+                  <AppLink href="/account/balance">{labels.viewBalance}</AppLink>
+                </>
+              ) : labels.statusHint[order.status]}
             </p>
           </section>
 
@@ -341,15 +377,15 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 <div>
                   <dt>{order.planName}</dt>
                   <dd>
-                    {formatMoney(order.originalAmount, order.currency, language)}
+                    {formatMinorMoney(order.originalAmount, order.currency, language)}
                   </dd>
                 </div>
-                {Number(order.discountAmount) > 0 && (
+                {BigInt(order.discountAmount) > 0n && (
                   <div className="is-deduction">
                     <dt>{labels.discount}</dt>
                     <dd>
                       −
-                      {formatMoney(
+                      {formatMinorMoney(
                         order.discountAmount,
                         order.currency,
                         language
@@ -357,12 +393,12 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                     </dd>
                   </div>
                 )}
-                {Number(order.surplusAmount) > 0 && (
+                {BigInt(order.surplusAmount) > 0n && (
                   <div className="is-deduction">
                     <dt>{labels.surplus}</dt>
                     <dd>
                       −
-                      {formatMoney(
+                      {formatMinorMoney(
                         order.surplusAmount,
                         order.currency,
                         language
@@ -370,12 +406,12 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                     </dd>
                   </div>
                 )}
-                {Number(order.balanceAmount) > 0 && (
+                {BigInt(order.balanceAmount) > 0n && (
                   <div className="is-deduction">
                     <dt>{labels.balance}</dt>
                     <dd>
                       −
-                      {formatMoney(
+                      {formatMinorMoney(
                         order.balanceAmount,
                         order.currency,
                         language
@@ -383,25 +419,25 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                     </dd>
                   </div>
                 )}
-                {Number(order.surplusCredit) > 0 && (
+                {order.status !== "CANCELLED" && order.settlementOutcome !== "BALANCE_RETURNED" && BigInt(order.deferredSurplusCreditMinor) > 0n && (
                   <div className="is-note">
-                    <dt>{labels.surplusCredit}</dt>
+                    <dt>{order.status === "COMPLETED" ? labels.completedCredit : labels.deferredCredit}</dt>
                     <dd>
-                      {formatMoney(
-                        order.surplusCredit,
+                      {formatMinorMoney(
+                        order.deferredSurplusCreditMinor,
                         order.currency,
                         language
                       )}
                     </dd>
                   </div>
                 )}
-                {handling > 0 && (
+                {handling > 0n && (
                   <div>
                     <dt>{handlingLabel}</dt>
                     <dd>
                       +
-                      {formatMoney(
-                        String(handling),
+                      {formatMinorMoney(
+                        handling.toString(),
                         order.currency,
                         language
                       )}
@@ -411,13 +447,19 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
               </dl>
               <p className="checkout-total-label">{labels.payable}</p>
               <p className="checkout-total">
-                {formatMoney(
-                  String(Number(order.totalAmount) + handling),
+                {formatMinorMoney(
+                  (BigInt(order.totalAmount) + handling).toString(),
                   order.currency,
                   language
                 )}{" "}
                 <span>{order.currency}</span>
               </p>
+              {order.status === "PENDING" && order.minimumOnlinePaymentBlocked && (
+                <div className="checkout-error" role="alert">
+                  <p>{order.minimumPaymentMessage ?? labels.minimumPayment}</p>
+                  <p>{labels.minimumBlockedOffline}</p>
+                </div>
+              )}
             </section>
 
             {order.status === "PENDING" && (
@@ -435,9 +477,11 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 )}
                 {methods.data?.length === 0 && (
                   <p className="muted">
-                    {Number(order.totalAmount) <= 0
+                    {BigInt(order.totalAmount) <= 0n
                       ? coveredByLabel(order, labels)
-                      : labels.methodEmpty}
+                      : order.minimumOnlinePaymentBlocked
+                        ? labels.minimumBlockedOffline
+                        : labels.methodEmpty}
                   </p>
                 )}
                 <ul className="checkout-periods">
@@ -452,7 +496,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                               ? "checkout-period is-selected"
                               : "checkout-period"
                           }
-                          disabled={checkout.isPending}
+                          disabled={checkout.isPending || order.minimumOnlinePaymentBlocked}
                           onClick={() => setSelectedMethod(method.id)}
                           type="button"
                         >
@@ -473,8 +517,8 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                             )}
                           </span>
                           <strong>
-                            {Number(method.handlingFee) > 0 ? (
-                              `+${formatMoney(
+                            {BigInt(method.handlingFee) > 0n ? (
+                               `+${formatMinorMoney(
                                 method.handlingFee,
                                 method.currency,
                                 language
@@ -499,7 +543,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
 
                 <button
                   className="checkout-submit"
-                  disabled={!chosen || checkout.isPending}
+                  disabled={!chosen || checkout.isPending || order.minimumOnlinePaymentBlocked}
                   onClick={() => void checkout.mutate(selectedMethod)}
                   type="button"
                 >
@@ -530,7 +574,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
             role="dialog"
           >
             <h2>{labels.closeConfirmTitle}</h2>
-            <p>{labels.closeConfirm}</p>
+            <p>{order?.minimumOnlinePaymentBlocked ? labels.minimumBlockedOffline : labels.closeConfirm}</p>
             {cancel.isError && (
               <p className="admin-operation-error">
                 {cancel.error instanceof ApiError
@@ -545,7 +589,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 onClick={() => void cancel.mutate(closing.tradeNo)}
                 type="button"
               >
-                {cancel.isPending ? labels.closing : labels.confirm}
+                {cancel.isPending ? labels.closing : order?.minimumOnlinePaymentBlocked ? labels.fullPaymentRetry : labels.confirm}
               </button>
               <button
                 className="text-button"

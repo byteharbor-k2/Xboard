@@ -15,12 +15,14 @@ export type ViewerBalanceLog = {
     | "ORDER_PAYMENT"
     | "ORDER_REFUND"
     | "SURPLUS_CREDIT"
-    | "COMMISSION_CREDIT";
+    | "COMMISSION_CREDIT"
+    | "ADMIN_ADJUSTMENT";
   amountMinor: string;
   balanceAfterMinor: string;
   currency: string;
   tradeNo: string | null;
   canViewOrder: boolean;
+  note: string | null;
   createdAt: string;
 };
 
@@ -52,7 +54,7 @@ export async function fetchViewerBalanceData(
          balanceMinor openingBalanceMinor totalCreditsMinor totalDebitsMinor recordedSince
        }
        viewerBalanceLogs(page: $page, limit: $limit) {
-          items { id type amountMinor balanceAfterMinor currency tradeNo canViewOrder createdAt }
+           items { id type amountMinor balanceAfterMinor currency tradeNo canViewOrder note createdAt }
          totalCount page limit
        }
      }`,

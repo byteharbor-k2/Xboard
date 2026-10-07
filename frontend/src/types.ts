@@ -129,6 +129,13 @@ export type OrderType =
   | "UPGRADE"
   | "RESET_TRAFFIC";
 
+export type OrderDeductionMode = "STANDARD" | "FULL_PAYMENT";
+
+export type OrderSettlementOutcome =
+  | "PENDING"
+  | "SERVICE_FULFILLED"
+  | "BALANCE_RETURNED";
+
 export type OrderStatus =
   | "PENDING"
   | "PROCESSING"
@@ -152,6 +159,10 @@ export type OrderQuote = {
   couponCode: string | null;
   couponName: string | null;
   accountBalanceMinor: string;
+  deductionMode: OrderDeductionMode;
+  deferredSurplusCreditMinor: string;
+  minimumOnlinePaymentBlocked: boolean;
+  minimumPaymentMessage: string | null;
 };
 
 export type ServiceOrder = {
@@ -176,6 +187,22 @@ export type ServiceOrder = {
   gateway: string | null;
   createdAt: string;
   paidAt: string | null;
+  deductionMode: OrderDeductionMode;
+  deferredSurplusCreditMinor: string;
+  minimumOnlinePaymentBlocked: boolean;
+  minimumPaymentMessage: string | null;
+  /** Optional for cached responses created before settlement outcomes were exposed. */
+  settlementOutcome?: OrderSettlementOutcome | null;
+  returnedBalanceMinor?: string | null;
+};
+
+export type ViewerTrafficResetOffer = {
+  canPurchase: boolean;
+  alreadyReset: boolean;
+  priceMinor: string | null;
+  cycleEndsAt: string | null;
+  pendingTradeNo: string | null;
+  reason: string | null;
 };
 
 /** One way a pending order can be paid for, priced for that order. */

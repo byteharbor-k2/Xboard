@@ -188,14 +188,16 @@ Build the site's own experience rather than a general theme/plugin/customization
 - [x] Traffic-package renewal: apply unused-traffic proportional remaining value, then replace/reset quota on fulfilment; exhausted packages receive the purchased quota without residual value. Plan changes apply remaining value and credit excess to balance.
 - [x] Periodic subscription renewal extends months without clearing current-cycle usage, including exhausted subscriptions. Dashboard reset creates a paid `RESET_TRAFFIC` order using the current plan's admin-configured reset price. Payment/settlement must succeed before clearing usage; expiry and normal automatic-reset boundary are preserved. Allow at most one successful reset per current monthly traffic cycle; pending, cancelled and failed orders do not consume it. Trial/package entitlements are not eligible. No free reset is implemented.
 - [x] Configurable default expiry/traffic reminder preferences for new accounts; existing user preferences stay unchanged.
-- [ ] Final step: remove unsupported Logo/Telegram/dedicated-client admin setting skeletons and user speed-override controls. Actual speed comes only from subscription-plan entitlement.
+- [x] Final cleanup implemented: unsupported Logo/Telegram/dedicated-client settings, navigation and webhook handler controls removed; unknown old setting paths fall back to supported sections. User speed editing is removed and the displayed speed is the actual plan entitlement limit.
 - Not building, user decision 2026-10-07: per-user purchase discount, user speed overrides, extra admin plan-selection UI, bulk account creation/management, configurable purchase-event resets and knowledge-base personal/subscriber-only template features. Friends use offline transfers plus existing manual order completion; ordinary buyers use coupons.
 - Execution order: admin balance/default reminders → holder renewal and pricing/payment modes → package/periodic renewal and paid cycle reset → frontend integration → unsupported-setting cleanup → full tests/read-only review → dev delivery. Frontend acceptance remains user-owned.
 - Backend verification: main agent ran the full gate (678 tests, zero failures/errors), then independent review passed. V36 adds admin balance notes/adjustment records; V37 adds deduction mode, actual periodic coverage, paid reset-cycle claims and explicit settlement outcomes. Real PostgreSQL/signed-payment tests cover reset configuration changes, late callbacks and rollover, cash-return idempotence, delayed/gapped renewals, full-payment deferred credits and source consumption. A stale reset is rejected before gateway initiation; if an initiated payment can no longer reset its saved cycle, captured funds are credited once to site balance with `BALANCE_RETURNED`, never silently applied to the next cycle.
+- Frontend implementation verified: admin balance target/note forms, new reminder defaults, holder-only renewal and paid-reset checkout links, minimum-payment warning, STANDARD/FULL_PAYMENT selection and explicit balance-return outcomes. Controlled-response checks prove old quote success/failure cannot overwrite current inputs or enable a mismatched order submission. Main frontend build/check/production audit and independent review passed.
+- [ ] Current custom-business batch dev deployment and user-owned visual acceptance.
 
 ### P3
 
-- [ ] Telegram configuration/webhook remains unscheduled.
+- Telegram configuration/webhook is not being built; unsupported UI removed in the custom-business batch.
 - Deferred by user (2026-10-06): client-version compatibility filtering; most users use current Clash Verge kernels.
 - Deferred by user (2026-10-06): multi-domain subscription allocation, reserved for future domain-blocking mitigation; currently one domain.
 - Deferred by user (2026-10-06): dedicated client/download configuration; distribute open-source proxy-client links through the knowledge base instead. Logo branding remains unscheduled.
@@ -337,10 +339,9 @@ acceptance as pending user confirmation rather than claiming agent browser compl
   均为该节点；节点上报总量与各用户入账之和**精确相等**。
 - **独立订阅域名未做。** 当前 `SubscriptionLinkService` 只取配置列表的第一个域名。
   原版是每次随机挑一个，副作用是链接会漂移；要做多域名又不漂移，应按用户确定性取模。
-- **Unused admin setting skeletons remain.** The old 74/33 count is obsolete; subscription,
-  onboarding and commission settings are now wired. Logo storage and Telegram/app sections
-  remain unsupported; remove or disable unused controls rather than treating them as a
-  requirement for a general-purpose customization platform.
+- **Unsupported admin setting skeletons were removed.** The old 74/33 count is obsolete;
+  subscription, onboarding, commission and new-account reminder settings are wired. Logo,
+  Telegram and dedicated-client/app controls are not presented as editable features.
 - **在线设备数据依赖节点上报。** 本项目只用 xboard-node，其链路与设备上限无关；
   若日后接入 V2bX / XrayR 需重新验证。
 - **新建节点后 xboard-node 不会自动启动内核，必须 `xbctl restart`。** 表现为日志里

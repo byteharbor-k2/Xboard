@@ -2,6 +2,7 @@ import { ApiError, adminSessionGuard } from "../lib/http";
 import type {
   BillingPeriod,
   OrderStatus,
+  OrderSettlementOutcome,
   OrderType,
   ProblemDetails
 } from "../types";
@@ -34,6 +35,8 @@ export type AdminOrder = {
   commission_balance: number;
   commission_status: number | null;
   actual_commission_balance: number;
+  settlement_outcome: OrderSettlementOutcome;
+  returned_balance_minor: number;
 };
 
 export type CommissionAdminLog = {

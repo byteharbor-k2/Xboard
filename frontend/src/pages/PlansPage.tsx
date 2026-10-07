@@ -8,7 +8,7 @@ import { useAuthStore } from "../store/auth";
 import {
   billingPeriodLabel,
   formatBytes,
-  formatMoney,
+  formatMinorMoney,
   trafficResetLabel
 } from "../lib/subscription";
 import { useUserPreferences } from "../store/userPreferences";
@@ -271,7 +271,7 @@ export function PlansPage() {
                     <div key={price.period}>
                       <span>{billingPeriodLabel(price.period, language)}</span>
                       <strong>
-                        {formatMoney(price.amountMinor, price.currency, language)}
+                        {formatMinorMoney(price.amountMinor, price.currency, language)}
                       </strong>
                     </div>
                   ))}

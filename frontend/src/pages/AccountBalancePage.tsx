@@ -22,7 +22,7 @@ const copy = {
     debits: "记录的余额支出",
     since: "账本记录起始时间",
     notRecorded: "未提供",
-    openingNote: "期初余额是账本启用时的对账锚点，不是历史交易重建。入账合计包含退款、折余转入和佣金入账；当前余额是实时账户余额，不是本页记录的金额合计。",
+    openingNote: "期初余额是账本启用时的对账锚点，不是历史交易重建。入账合计包含退款、折余转入、佣金入账和管理员余额调整；当前余额是实时账户余额，不是本页记录的金额合计。",
     logTitle: "余额变动记录",
     loading: "正在加载余额记录…",
     failed: "余额记录加载失败。",
@@ -41,8 +41,11 @@ const copy = {
       ORDER_PAYMENT: "订单余额支付",
       ORDER_REFUND: "订单退款入账",
       SURPLUS_CREDIT: "套餐折余转入",
-      COMMISSION_CREDIT: "佣金入账"
+      COMMISSION_CREDIT: "佣金入账",
+      ADMIN_ADJUSTMENT: "管理员余额调整"
     },
+    adjustmentCredit: "管理员余额增加",
+    adjustmentDebit: "管理员余额扣减",
     noReference: "—",
   },
   "en-US": {
@@ -56,7 +59,7 @@ const copy = {
     debits: "Recorded debits",
     since: "Ledger recorded since",
     notRecorded: "Not provided",
-    openingNote: "The opening balance is a ledger-cutover reconciliation anchor, not a reconstruction of historical transactions. Credits include refunds, surplus credits, and commission credits. The current balance is live account state, not a sum of this page.",
+    openingNote: "The opening balance is a ledger-cutover reconciliation anchor, not a reconstruction of historical transactions. Credits include refunds, surplus credits, commission credits, and administrator balance adjustments. The current balance is live account state, not a sum of this page.",
     logTitle: "Balance movements",
     loading: "Loading balance records…",
     failed: "Could not load balance records.",
@@ -75,8 +78,11 @@ const copy = {
       ORDER_PAYMENT: "Order balance payment",
       ORDER_REFUND: "Order refund credit",
       SURPLUS_CREDIT: "Plan surplus credit",
-      COMMISSION_CREDIT: "Commission credit"
+      COMMISSION_CREDIT: "Commission credit",
+      ADMIN_ADJUSTMENT: "Administrator balance adjustment"
     },
+    adjustmentCredit: "Administrator balance increase",
+    adjustmentDebit: "Administrator balance decrease",
     noReference: "—",
   }
 };
@@ -106,6 +112,11 @@ export function AccountBalancePage() {
   const pages = pageData ? Math.max(Math.ceil(pageData.totalCount / pageData.limit), 1) : 1;
 
   function typeLabel(log: ViewerBalanceLog) {
+    if (log.type === "ADMIN_ADJUSTMENT") {
+      return log.amountMinor.startsWith("-")
+        ? labels.adjustmentDebit
+        : labels.adjustmentCredit;
+    }
     return labels.types[log.type] ?? log.type;
   }
 
@@ -152,7 +163,10 @@ export function AccountBalancePage() {
                 <tbody>
                   {pageData.items.map((log) => (
                     <tr key={log.id}>
-                      <td>{typeLabel(log)}</td>
+                      <td>
+                        {typeLabel(log)}
+                        {log.note ? <small style={{ display: "block", color: "#707c93" }}>{log.note}</small> : null}
+                      </td>
                       <td className={log.amountMinor.startsWith("-") ? "balance-amount debit" : "balance-amount credit"}>
                         {formatMinorMoney(log.amountMinor, log.currency, language)}
                       </td>

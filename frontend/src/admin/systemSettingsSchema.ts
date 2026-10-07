@@ -74,9 +74,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       field("app_url", "站点网址", "Site URL", "当前网站最新网址，将会在邮件等需要用于网址处体现。", "The current public URL used in emails and other links.", "url", "", {
         placeholder: text("请输入站点URL，末尾不要/", "Enter site URL without a trailing slash")
       }),
-      field("logo", "LOGO", "Logo", "用于显示需要LOGO的地方。", "Shown wherever the site logo is required.", "url", "", {
-        placeholder: text("请输入LOGO URL，末尾不要/", "Enter logo URL without a trailing slash")
-      }),
       field("subscribe_url", "订阅URL", "Subscription URL", "用于订阅所使用，留空则为站点URL。", "Used for subscriptions; leave blank to use the site URL.", "textarea", "", {
         placeholder: text("多个订阅地址用','隔开，留空则为站点URL", "Separate multiple URLs with commas; blank uses the site URL"),
         rows: 3
@@ -175,7 +172,9 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
           option(4, "按开通日每年", "Yearly from activation")
         ]
       }),
-      field("surplus_enable", "开启折抵方案", "Enable proration", "开启后用户更换订阅将会由系统对原有订阅进行折抵，方案参考文档。", "Prorate the existing plan when users change subscriptions.", "toggle", true)
+      field("surplus_enable", "开启折抵方案", "Enable proration", "开启后用户更换订阅将会由系统对原有订阅进行折抵，方案参考文档。", "Prorate the existing plan when users change subscriptions.", "toggle", true),
+      field("default_remind_expire", "新用户默认到期提醒", "Default expiry reminder for new users", "仅设置新注册账号的初始偏好；已注册用户的个人设置不会改变。默认开启。", "Sets the initial preference for newly registered accounts only; existing users' preferences are unchanged. Enabled by default.", "toggle", true),
+      field("default_remind_traffic", "新用户默认流量提醒", "Default traffic reminder for new users", "仅设置新注册账号的初始偏好；已注册用户的个人设置不会改变。默认开启。", "Sets the initial preference for newly registered accounts only; existing users' preferences are unchanged. Enabled by default.", "toggle", true)
     ]
   },
   {
@@ -261,38 +260,6 @@ export const systemSettingsSections: SettingsSectionDefinition[] = [
       field("email_password", "SMTP密码", "SMTP password", "SMTP认证密码或应用专用密码。", "SMTP password or application-specific password.", "password", ""),
       field("email_from_address", "发件人地址", "From address", "发件人邮箱地址。", "Sender email address.", "text", ""),
       field("remind_mail_enable", "邮件提醒", "Email reminders", "开启后用户订阅即将到期或流量不足时会收到邮件通知。", "Notify users when subscriptions are expiring or traffic is low.", "toggle", false)
-    ]
-  },
-  {
-    id: "telegram",
-    glyph: "➤",
-    title: text("Telegram设置", "Telegram settings"),
-    description: text(
-      "配置Telegram机器人功能，实现用户通知、账户绑定、指令交互等自动化服务。",
-      "Configure Telegram notifications, account binding, and bot commands."
-    ),
-    fields: [
-      field("telegram_bot_token", "机器人令牌", "Bot token", "请输入从Botfather获取的令牌。", "Enter the token issued by BotFather.", "password", ""),
-      field("telegram_webhook_url", "Webhook Base URL", "Webhook Base URL", "这里只填写基础地址，系统会自动拼接 Telegram 的完整 Webhook 回调路径。留空时默认使用站点网址。", "Enter only the base URL. The callback path is added automatically.", "url", ""),
-      field("telegram_bot_enable", "启用Telegram绑定引导", "Enable Telegram binding guide", "开启后将在用户端显示Telegram绑定引导，帮助用户绑定Telegram账户以接收通知。", "Show the Telegram binding guide in the user portal.", "toggle", false),
-      field("telegram_discuss_link", "群组链接", "Group link", "填写后将在用户端显示或在需要的地方使用。", "Displayed in the user portal and other applicable locations.", "url", "")
-    ]
-  },
-  {
-    id: "app",
-    glyph: "▣",
-    title: text("APP设置", "App settings"),
-    description: text(
-      "管理移动应用程序相关配置，包括API接口、版本控制、推送通知等功能设置。",
-      "Manage application versions and download links."
-    ),
-    fields: [
-      field("windows_version", "Windows版本", "Windows version", "Windows客户端当前版本号。", "Current Windows client version.", "text", ""),
-      field("windows_download_url", "Windows下载地址", "Windows download URL", "Windows客户端下载链接。", "Windows client download link.", "text", ""),
-      field("macos_version", "macOS版本", "macOS version", "macOS客户端当前版本号。", "Current macOS client version.", "text", ""),
-      field("macos_download_url", "macOS下载地址", "macOS download URL", "macOS客户端下载链接。", "macOS client download link.", "text", ""),
-      field("android_version", "Android版本", "Android version", "Android客户端当前版本号。", "Current Android client version.", "text", ""),
-      field("android_download_url", "Android下载地址", "Android download URL", "Android客户端下载链接。", "Android client download link.", "text", "")
     ]
   },
   {

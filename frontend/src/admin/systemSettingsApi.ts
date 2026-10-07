@@ -7,7 +7,6 @@ export const systemSettingsEndpoints = {
   fetch: `${adminApiPrefix}/config/fetch`,
   save: `${adminApiPrefix}/config/save`,
   testEmail: `${adminApiPrefix}/config/testSendMail`,
-  telegramWebhook: `${adminApiPrefix}/config/setTelegramWebhook`,
   emailTemplateList: `${adminApiPrefix}/mail/template/list`,
   emailTemplateGet: `${adminApiPrefix}/mail/template/get`,
   emailTemplateSave: `${adminApiPrefix}/mail/template/save`,
@@ -24,8 +23,6 @@ export type SystemSettingsSection =
   | "invite"
   | "server"
   | "email"
-  | "telegram"
-  | "app"
   | "subscribe_template";
 
 export type SettingValue = string | number | boolean | string[] | null;
@@ -133,24 +130,6 @@ export function sendTestEmail(accessToken: string) {
     accessToken,
     systemSettingsEndpoints.testEmail,
     { method: "POST" }
-  );
-}
-
-export function configureTelegramWebhook(
-  accessToken: string
-) {
-  return settingsRequest<
-    XboardResponse<{
-      success: boolean;
-      webhook_url: string;
-      webhook_base_url: string;
-    }>
-  >(
-    accessToken,
-    systemSettingsEndpoints.telegramWebhook,
-    {
-      method: "POST"
-    }
   );
 }
 
