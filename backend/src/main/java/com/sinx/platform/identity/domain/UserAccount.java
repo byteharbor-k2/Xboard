@@ -317,6 +317,16 @@ public class UserAccount {
         this.updatedAt = now;
     }
 
+    /** Records an address the customer has proved with the account-bound code. */
+    public void changeEmailAndVerify(String email, Instant now) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("An email address cannot be blank");
+        }
+        this.email = email;
+        this.emailVerifiedAt = now;
+        this.updatedAt = now;
+    }
+
     public void updateRemarks(String remarks, Instant now) {
         this.remarks = remarks == null || remarks.isBlank() ? null : remarks;
         this.updatedAt = now;

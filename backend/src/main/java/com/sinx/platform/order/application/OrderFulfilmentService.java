@@ -14,6 +14,8 @@ import org.springframework.context.ApplicationEventPublisher;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.ServicePlan;
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.domain.BalanceLogType;
 import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
@@ -65,6 +67,7 @@ public class OrderFulfilmentService {
     private final ApplicationEventPublisher events;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final BalanceLedgerService balanceLedger;
 
     public OrderFulfilmentService(
         ServiceOrderRepository orders,
@@ -73,7 +76,8 @@ public class OrderFulfilmentService {
         UserAccountRepository users,
         ApplicationEventPublisher events,
         ObjectMapper objectMapper,
-        Clock clock
+        Clock clock,
+        BalanceLedgerService balanceLedger
     ) {
         this.orders = orders;
         this.entitlements = entitlements;
@@ -82,6 +86,7 @@ public class OrderFulfilmentService {
         this.events = events;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.balanceLedger = balanceLedger;
     }
 
     /**
@@ -166,7 +171,14 @@ public class OrderFulfilmentService {
         // Value left over when the old plan was worth more than the new one.
         // It is credited here rather than at checkout, as the original does.
         if (order.getSurplusCredit() > 0) {
-            user.creditBalance(order.getSurplusCredit(), now);
+            balanceLedger.credit(
+                user.getId(),
+                order.getSurplusCredit(),
+                BalanceLogType.SURPLUS_CREDIT,
+                order.getTradeNo(),
+                null,
+                now
+            );
         }
 
         writeOffConsumedOrders(order, now);

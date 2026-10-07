@@ -20,6 +20,8 @@ import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.ServicePlanPrice;
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.domain.BalanceLogType;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
@@ -81,6 +83,7 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final PlatformConfigurationService configuration;
     private final Clock clock;
+    private final BalanceLedgerService balanceLedger;
     private final SecureRandom random = new SecureRandom();
 
     public OrderService(
@@ -95,7 +98,8 @@ public class OrderService {
         OrderFulfilmentService fulfilment,
         ObjectMapper objectMapper,
         PlatformConfigurationService configuration,
-        Clock clock
+        Clock clock,
+        BalanceLedgerService balanceLedger
     ) {
         this.plans = plans;
         this.orders = orders;
@@ -109,6 +113,7 @@ public class OrderService {
         this.objectMapper = objectMapper;
         this.configuration = configuration;
         this.clock = clock;
+        this.balanceLedger = balanceLedger;
     }
 
     public OrderQuoteView quote(
@@ -224,19 +229,9 @@ public class OrderService {
             )
         );
 
-        // Take the balance through the entity so a concurrent order cannot
-        // spend the same cents twice; the row is version-checked on commit.
-        long spent = user.spendBalance(breakdown.balanceAmount(), now);
-        if (spent != breakdown.balanceAmount()) {
-            throw problem(
-                HttpStatus.CONFLICT,
-                "BALANCE_CHANGED",
-                "The account balance changed. Please review the order again."
-            );
-        }
-
+        String tradeNo = nextTradeNo(now);
         ServiceOrder order = ServiceOrder.create(
-            nextTradeNo(now),
+            tradeNo,
             user,
             plan,
             period,
@@ -256,6 +251,11 @@ public class OrderService {
             commission.eligible()
         );
         ServiceOrder placedOrder = orders.save(order);
+        // The ledger references the persisted order trade number. Both writes
+        // remain in this transaction, so a failed debit record rolls the order
+        // and every accompanying checkout write back together.
+        orders.flush();
+        balanceLedger.debit(userId, breakdown.balanceAmount(), tradeNo, now);
 
         coupon.ifPresent(applied -> {
             Coupon redeemed = applied.coupon();
@@ -339,7 +339,7 @@ public class OrderService {
 
     @Transactional
     public ServiceOrder cancel(UUID userId, String tradeNo) {
-        ServiceOrder order = orders.findByTradeNo(tradeNo)
+        ServiceOrder order = orders.findByTradeNoForUpdate(tradeNo)
             .filter(candidate -> candidate.getUser().getId().equals(userId))
             .orElseThrow(() -> problem(
                 HttpStatus.NOT_FOUND,
@@ -352,7 +352,7 @@ public class OrderService {
     /** Calls off an order on an administrator's authority. */
     @Transactional
     public ServiceOrder cancelManually(String tradeNo) {
-        ServiceOrder order = orders.findByTradeNo(tradeNo).orElseThrow(() ->
+        ServiceOrder order = orders.findByTradeNoForUpdate(tradeNo).orElseThrow(() ->
             problem(
                 HttpStatus.NOT_FOUND,
                 "ORDER_NOT_FOUND",
@@ -371,7 +371,7 @@ public class OrderService {
      */
     @Transactional
     public void cancelExpired(String tradeNo) {
-        ServiceOrder order = orders.findByTradeNo(tradeNo).orElse(null);
+        ServiceOrder order = orders.findByTradeNoForUpdate(tradeNo).orElse(null);
         if (order == null || !order.isPending()) {
             return;
         }
@@ -392,7 +392,14 @@ public class OrderService {
         Instant now = Instant.now(clock);
         // Give back whatever the order had taken from the balance, and release
         // the coupon use so a cancelled order does not consume an allowance.
-        order.getUser().creditBalance(order.getBalanceAmount(), now);
+        balanceLedger.credit(
+            order.getUser().getId(),
+            order.getBalanceAmount(),
+            BalanceLogType.ORDER_REFUND,
+            order.getTradeNo(),
+            null,
+            now
+        );
         releaseCoupon(order, now);
         order.cancel(now);
         return order;

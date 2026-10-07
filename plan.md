@@ -44,6 +44,19 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 - 注册（邮箱验证码 + Turnstile + 单 IP 限流，写库前完成验证）、登录、刷新、退出
 - 密码找回与重置、资料修改、密码修改、设备会话
+- Account-setting backend completion (2026-10-06): trimmed nonblank nicknames; authenticated
+  email change with current-password verification and an account/target-bound email code.
+  The email-change proof is independent of registration; rollback releases its claim.
+  Success verifies the new address, invalidates old password-reset links and revokes other
+  USER refresh sessions while retaining the current device and ADMIN sessions. Full Viewer
+  responses preserve reminder and balance fields. Existing password-change semantics remain.
+- Balance ledger backend: all order debits, cancellation refunds, surplus credits and
+  commission payouts record atomic cash movements. V35 initializes cutover opening balances
+  without changing cash or fabricating prior transactions. Per-account lock ordering and
+  database ledger sequence preserve actual posting order; empty accounts with only opening
+  anchors remain deletable. Owner-only GraphQL summaries/pages expose current-order access
+  separately from source transaction references. Main-agent full backend gate: 659 tests;
+  independent adversarial review passed.
 - USER / ADMIN 独立会话：Token audience、Refresh Cookie、有效期、轮换与重放检测
 - 邀请码生成 / 查询 / 注册填写 / 邀请人关系（策略由管理员配置）
 - 套餐目录、价格周期、容量与可售状态；订阅权益、流量、有效期、重置策略
@@ -158,8 +171,8 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 - [x] Subscription commercial/reset settings: quote and order placement honor `plan_change_enable` and `surplus_enable`; defaults remain enabled. Global reset setting uses original admin key `globalreset_traffic_method` (the requested reset_traffic_method), default 1. Nullable plan policy follows global; explicit overrides take precedence. V34 migrates existing default monthly subscription plans to inheritance. All five modes, setting changes, new-grant races, trial/package exclusions and manual resets are tested; 644-test full backend gate and independent review passed.
 - [x] Catalogue category tabs implementation: All / Subscriptions / Traffic packages filter by actual planType, with API-derived counts, empty states and accessible keyboard navigation. Anonymous/user catalogue caches are separately scoped; new-user exclusive eligibility is unchanged. Main-agent frontend build/check/production audit passed, independent read-only review passed.
 - [ ] User-owned visual acceptance of catalogue/settings pages; current batch code `f77cd7d` is deployed. Database backup completed, V34 succeeded, containers are healthy, and GitHub backend/frontend CI plus publish passed. Public catalogue returned effective policies; a QA subscription burst produced 429 with `Retry-After: 1`. Request-window timing/concurrency is proved by real Redis tests; main full backend gate: 644 passing tests.
-- [ ] Next batch after the current delivery: complete user account editing for nickname, email and login password. Nickname/password have existing implementations to retain and verify; email change is newly authorized and supersedes the previous exclusion.
-- [ ] Following account editing: dedicated user balance page and commission payout-record page. Existing invitation-page commission ledger remains implemented; the dedicated finance pages are additional presentation work.
+- [x] Account editing and balance-ledger backend: nickname/password retained and verified; new email change and real balance API are implemented, tested and independently reviewed.
+- [ ] Dedicated account/balance/commission frontend delivery and user-owned acceptance (implemented and verified; pending deployment).
 - [ ] Remaining admin field wiring: re-audit supported settings as needed; the old 74/33 count is obsolete after onboarding and commission work.
 
 ### P3

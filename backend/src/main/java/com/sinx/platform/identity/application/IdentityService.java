@@ -228,7 +228,15 @@ public class IdentityService {
     public ViewerView updateProfile(UUID userId, String displayName) {
         UserAccount user = userRepository.findWithRolesById(userId)
             .orElseThrow(this::sessionUserNotFound);
-        user.updateDisplayName(displayName.trim(), Instant.now(clock));
+        String normalizedName = displayName == null ? "" : displayName.trim();
+        if (normalizedName.isEmpty() || normalizedName.length() > 80) {
+            throw new ApiProblemException(
+                HttpStatus.BAD_REQUEST,
+                "PROFILE_DISPLAY_NAME_INVALID",
+                "The nickname must contain between 1 and 80 characters"
+            );
+        }
+        user.updateDisplayName(normalizedName, Instant.now(clock));
         return ViewerView.forScope(user, SessionScope.USER);
     }
 

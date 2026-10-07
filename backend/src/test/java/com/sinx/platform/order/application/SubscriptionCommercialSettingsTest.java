@@ -26,6 +26,8 @@ import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.repository.BalanceLogRepository;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.UserAccount;
@@ -84,7 +86,12 @@ class SubscriptionCommercialSettingsTest {
             fulfilment,
             new ObjectMapper(),
             configuration,
-            CLOCK
+            CLOCK,
+            new BalanceLedgerService(
+                users,
+                mock(BalanceLogRepository.class),
+                CLOCK
+            )
         );
         user = UserAccount.register(
             UUID.randomUUID(), "buyer@example.test", "hash", "Buyer",

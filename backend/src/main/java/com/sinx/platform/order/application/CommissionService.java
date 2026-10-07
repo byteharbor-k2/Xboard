@@ -21,6 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.configuration.application.PlatformConfigurationService.CommissionPolicy;
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.domain.BalanceLogType;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.CommissionLog;
@@ -46,19 +48,22 @@ public class CommissionService {
     private final CommissionLogRepository logs;
     private final PlatformConfigurationService configuration;
     private final Clock clock;
+    private final BalanceLedgerService balanceLedger;
 
     public CommissionService(
         ServiceOrderRepository orders,
         UserAccountRepository users,
         CommissionLogRepository logs,
         PlatformConfigurationService configuration,
-        Clock clock
+        Clock clock,
+        BalanceLedgerService balanceLedger
     ) {
         this.orders = orders;
         this.users = users;
         this.logs = logs;
         this.configuration = configuration;
         this.clock = clock;
+        this.balanceLedger = balanceLedger;
     }
 
     public CommissionSummaryView summary(UUID viewerId) {
@@ -207,7 +212,14 @@ public class CommissionService {
                 continue;
             }
             UserAccount recipient = chain.get(index);
-            recipient.creditBalance(amount, now);
+            balanceLedger.credit(
+                recipient.getId(),
+                amount,
+                BalanceLogType.COMMISSION_CREDIT,
+                order.getTradeNo(),
+                index + 1,
+                now
+            );
             logs.save(CommissionLog.create(
                 recipient.getId(),
                 order.getCommissionBuyerUserId(),

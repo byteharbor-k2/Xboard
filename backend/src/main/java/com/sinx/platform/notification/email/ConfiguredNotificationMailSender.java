@@ -17,7 +17,8 @@ import jakarta.mail.internet.MimeMessage;
 @Component
 public class ConfiguredNotificationMailSender
     implements RegistrationCodeMailSender,
-        PasswordResetMailSender {
+        PasswordResetMailSender,
+        EmailChangeCodeMailSender {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(
         ConfiguredNotificationMailSender.class
@@ -42,6 +43,20 @@ public class ConfiguredNotificationMailSender
             <p>This code expires in 5 minutes. If you did not request it, ignore this email.</p>
             """.formatted(escapeHtml(code)),
             "registration code " + code
+        );
+    }
+
+    @Override
+    public void sendEmailChangeCode(String recipient, String code) {
+        deliver(
+            recipient,
+            "Your SinX Cloud email change code",
+            """
+            <p>Use the following code to confirm your new email address:</p>
+            <p style="font-size:24px;font-weight:700;letter-spacing:4px">%s</p>
+            <p>This code expires in 5 minutes. If you did not request this change, ignore this email.</p>
+            """.formatted(escapeHtml(code)),
+            "email change verification code " + code
         );
     }
 

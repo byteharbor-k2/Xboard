@@ -27,9 +27,12 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
     /**
      * Reads an order for settlement under a row lock, so two payment callbacks
      * arriving together cannot both provision it.
+     * The user stays lazy: cash-changing callers lock and load that account
+     * separately before touching its balance, rather than carrying a snapshot
+     * that may have been read before waiting on the order lock.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"user", "plan"})
+    @EntityGraph(attributePaths = "plan")
     @Query("select o from ServiceOrder o where o.tradeNo = :tradeNo")
     Optional<ServiceOrder> findByTradeNoForUpdate(
         @Param("tradeNo") String tradeNo

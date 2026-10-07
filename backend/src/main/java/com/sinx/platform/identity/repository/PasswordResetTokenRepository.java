@@ -41,4 +41,17 @@ public interface PasswordResetTokenRepository
         @Param("userId") UUID userId,
         @Param("consumedAt") Instant consumedAt
     );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update PasswordResetToken token
+        set token.consumedAt = :consumedAt,
+            token.version = token.version + 1
+        where token.user.id = :userId
+          and token.consumedAt is null
+        """)
+    int invalidateActiveForUser(
+        @Param("userId") UUID userId,
+        @Param("consumedAt") Instant consumedAt
+    );
 }

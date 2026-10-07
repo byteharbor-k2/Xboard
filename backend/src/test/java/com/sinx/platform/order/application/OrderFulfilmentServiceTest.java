@@ -29,6 +29,8 @@ import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.domain.TrafficResetPolicy;
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.repository.BalanceLogRepository;
 import com.sinx.platform.identity.domain.Role;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
@@ -81,7 +83,12 @@ class OrderFulfilmentServiceTest {
             users,
             org.mockito.Mockito.mock(ApplicationEventPublisher.class),
             new ObjectMapper(),
-            Clock.fixed(NOW, ZoneOffset.UTC)
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            new BalanceLedgerService(
+                users,
+                mock(BalanceLogRepository.class),
+                Clock.fixed(NOW, ZoneOffset.UTC)
+            )
         );
         user = UserAccount.register(
             UUID.randomUUID(),

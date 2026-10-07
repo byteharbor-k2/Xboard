@@ -29,6 +29,14 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @Query("select user from UserAccount user where user.id = :id")
     Optional<UserAccount> findWithRolesById(@Param("id") UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = "roles")
+    @Query("select user from UserAccount user where user.id = :id")
+    Optional<UserAccount> findWithRolesByIdForUpdate(@Param("id") UUID id);
+
+    @Query("select count(user) > 0 from UserAccount user where lower(user.email) = :email")
+    boolean existsByCanonicalEmail(@Param("email") String email);
+
     long countByServerGroupId(Long serverGroupId);
 
     long countByInviterUserId(UUID inviterUserId);

@@ -25,6 +25,9 @@ type Query {
     """This account's referral commission settings and balance-ledger history."""
     viewerCommissionSummary: ViewerCommissionSummary!
     viewerCommissionLogs(page: Int = 0, limit: Int = 20): CommissionLogPage!
+    """The current account's cash balance and movements since ledger cutover."""
+    viewerBalanceSummary: ViewerBalanceSummary!
+    viewerBalanceLogs(page: Int = 0, limit: Int = 20): BalanceLogPage!
     """
     The address this account's client subscribes to. It carries the account's
     credential, so it is only ever returned to the account itself.
@@ -287,6 +290,43 @@ type CommissionLog {
     amountMinor: String!
     level: Int!
     createdAt: String!
+}
+
+"""
+The live account balance and its cash reconciliation. Credits include refunds;
+the opening balance is a cutover anchor, not a new credit or order payment.
+"""
+type ViewerBalanceSummary {
+    balanceMinor: String!
+    openingBalanceMinor: String!
+    totalCreditsMinor: String!
+    totalDebitsMinor: String!
+    recordedSince: String
+}
+
+type BalanceLogPage {
+    items: [BalanceLog!]!
+    totalCount: Int!
+    page: Int!
+    limit: Int!
+}
+
+"""
+The rows are returned in persisted cash-mutation order. `canViewOrder` is true
+only when the current account still owns the referenced order; commission
+source orders remain read-only references.
+"""
+type BalanceLog {
+    id: ID!
+    type: String!
+    """Signed minor units: inflows are positive and order payments negative."""
+    amountMinor: String!
+    balanceAfterMinor: String!
+    currency: String!
+    tradeNo: String
+    createdAt: String!
+    """True only while this account owns the referenced order."""
+    canViewOrder: Boolean!
 }
 
 """

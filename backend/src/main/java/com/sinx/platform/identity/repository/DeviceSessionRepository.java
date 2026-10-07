@@ -65,6 +65,24 @@ public interface DeviceSessionRepository extends JpaRepository<DeviceSession, UU
             session.lastUsedAt = :revokedAt,
             session.version = session.version + 1
         where session.user.id = :userId
+          and session.id <> :currentSessionId
+          and session.sessionScope = :scope
+          and session.revokedAt is null
+        """)
+    int revokeOtherActiveForUserAndScope(
+        @Param("userId") UUID userId,
+        @Param("currentSessionId") UUID currentSessionId,
+        @Param("scope") SessionScope scope,
+        @Param("revokedAt") Instant revokedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+        update DeviceSession session
+        set session.revokedAt = :revokedAt,
+            session.lastUsedAt = :revokedAt,
+            session.version = session.version + 1
+        where session.user.id = :userId
           and session.revokedAt is null
         """)
     int revokeAllActiveForUser(

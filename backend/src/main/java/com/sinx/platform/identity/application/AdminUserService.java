@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.sinx.platform.catalog.domain.ServicePlan;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
+import com.sinx.platform.balance.application.BalanceLedgerService;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.DeviceSessionRepository;
@@ -70,6 +71,7 @@ public class AdminUserService {
     private final ConfiguredNotificationMailSender mail;
     private final ApplicationEventPublisher events;
     private final java.time.Clock clock;
+    private final BalanceLedgerService balanceLedger;
 
     public AdminUserService(
         UserAccountRepository users,
@@ -83,7 +85,8 @@ public class AdminUserService {
         DeviceSessionRepository deviceSessions,
         ConfiguredNotificationMailSender mail,
         ApplicationEventPublisher events,
-        java.time.Clock clock
+        java.time.Clock clock,
+        BalanceLedgerService balanceLedger
     ) {
         this.users = users;
         this.entitlements = entitlements;
@@ -97,6 +100,7 @@ public class AdminUserService {
         this.mail = mail;
         this.events = events;
         this.clock = clock;
+        this.balanceLedger = balanceLedger;
     }
 
     /**
@@ -327,7 +331,8 @@ public class AdminUserService {
      */
     @Transactional
     public void delete(UUID userId) {
-        UserAccount account = require(userId);
+        UserAccount account = requireForUpdate(userId);
+        balanceLedger.discardOpeningAnchorForAccountDeletion(account.getId());
         try {
             users.delete(account);
             users.flush();

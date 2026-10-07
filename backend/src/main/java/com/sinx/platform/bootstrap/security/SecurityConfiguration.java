@@ -105,6 +105,8 @@ public class SecurityConfiguration {
                 ).permitAll()
                 .requestMatchers(
                     "/session/password",
+                    "/session/email-change/code",
+                    "/session/email",
                     "/session/invitations"
                 ).access((authentication, context) ->
                     new org.springframework.security.authorization.AuthorizationDecision(

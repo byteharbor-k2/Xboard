@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.sinx.platform.identity.application.EmailChangeService;
 import com.sinx.platform.identity.application.IdentityService;
 import com.sinx.platform.identity.application.RegistrationVerificationService;
 import com.sinx.platform.identity.application.ScopedSessionService.SessionGrant;
@@ -36,17 +37,20 @@ public class SessionController {
     private final IdentityService identityService;
     private final SessionCookieService cookieService;
     private final RegistrationVerificationService registrationVerification;
+    private final EmailChangeService emailChangeService;
     private final Clock clock;
 
     public SessionController(
         IdentityService identityService,
         SessionCookieService cookieService,
         RegistrationVerificationService registrationVerification,
+        EmailChangeService emailChangeService,
         Clock clock
     ) {
         this.identityService = identityService;
         this.cookieService = cookieService;
         this.registrationVerification = registrationVerification;
+        this.emailChangeService = emailChangeService;
         this.clock = clock;
     }
 
@@ -158,6 +162,33 @@ public class SessionController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/email-change/code")
+    ResponseEntity<Void> requestEmailChangeCode(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody EmailChangeCodeRequest request
+    ) {
+        emailChangeService.requestCode(
+            UUID.fromString(jwt.getSubject()),
+            request.email(),
+            request.currentPassword()
+        );
+        return ResponseEntity.accepted().build();
+    }
+
+    @PutMapping("/email")
+    ViewerView changeEmail(
+        @AuthenticationPrincipal Jwt jwt,
+        @Valid @RequestBody EmailChangeRequest request
+    ) {
+        return emailChangeService.confirm(
+            UUID.fromString(jwt.getSubject()),
+            UUID.fromString(jwt.getClaimAsString("sid")),
+            request.email(),
+            request.currentPassword(),
+            request.code()
+        );
+    }
+
     private void writeRefreshCookie(
         HttpServletResponse response,
         SessionGrant grant
@@ -217,6 +248,25 @@ public class SessionController {
         @NotBlank @Size(max = 128) String currentPassword,
         @NotBlank @Size(min = 12, max = 128) String newPassword
     ) {
+    }
+
+    public record EmailChangeCodeRequest(
+        @NotBlank @Email @Size(max = 320) String email,
+        @NotBlank @Size(max = 128) String currentPassword
+    ) {
+        public EmailChangeCodeRequest {
+            if (email != null) email = email.trim();
+        }
+    }
+
+    public record EmailChangeRequest(
+        @NotBlank @Email @Size(max = 320) String email,
+        @NotBlank @Size(max = 128) String currentPassword,
+        @NotBlank @jakarta.validation.constraints.Pattern(regexp = "[0-9]{6}") String code
+    ) {
+        public EmailChangeRequest {
+            if (email != null) email = email.trim();
+        }
     }
 
     public record SessionResponse(
