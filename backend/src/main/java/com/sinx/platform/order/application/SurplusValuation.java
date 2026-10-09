@@ -1,7 +1,6 @@
 package com.sinx.platform.order.application;
 
 import java.math.BigInteger;
-import java.math.BigInteger;
 import java.time.Instant;
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -25,11 +24,11 @@ import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
  * Values what a customer has already paid for but not yet consumed, so an
  * upgrade only charges the difference.
  *
- * Follows the original panel's two cases. A traffic package is valued by the
- * traffic left in it; a periodic subscription is valued by the share of its
- * paid-through window that has not elapsed. Both derive the paid-through point
- * from the settled order history rather than the current expiry, so a manually
- * adjusted expiry cannot inflate a refund.
+ * A traffic package is valued by traffic not consumed, including consumption
+ * before a manual counter reset. A periodic subscription values the current
+ * reset cycle by the lesser of remaining time and foldable traffic, then adds
+ * future funded coverage in full. Each segment retains its original funded
+ * duration even when an administrator clips the entitlement expiry.
  *
  * All prorating uses integer nanosecond intervals and BigInteger minor-unit
  * products: large byte counts or high-value segments cannot overflow a long,
@@ -93,7 +92,7 @@ public class SurplusValuation {
         if (quota <= 0 || funded.signum() <= 0) {
             return Surplus.NONE;
         }
-        long used = entitlement.usedBytes();
+        long used = entitlement.cycleUsedBytes();
         long remaining = Math.max(0, quota - used);
         if (remaining == 0) {
             return Surplus.NONE;
@@ -115,12 +114,13 @@ public class SurplusValuation {
     }
 
     /**
-     * A periodic subscription is valued as the sum of the unconsumed shares of
-     * its currently funded coverage segments. Each renewal keeps its own funded
+     * A periodic subscription is valued from its funded coverage segments.
+     * Current-cycle value is limited by both elapsed time and traffic consumed;
+     * later cycles retain their funded share. Each renewal keeps its own funded
      * amount and actual start/end, so a gap, delayed callback or different
      * renewal price cannot be averaged into an imaginary continuous window.
      * Legacy rows without those snapshots are rebuilt from paid_at and order
-     * type, constrained to the current plan and entitlement anchor/expiry.
+      * type, constrained to the current plan and entitlement anchor/expiry.
      */
     private Surplus valuePeriodicSubscription(
         SubscriptionEntitlement entitlement,
@@ -154,36 +154,70 @@ public class SurplusValuation {
                 continue;
             }
             Instant start = order.getCoverageStart();
-            Instant end = order.getCoverageEnd();
-            if (start == null || end == null) {
+            Instant fundedEnd = order.getCoverageEnd();
+            if (start == null || fundedEnd == null) {
                 Instant paidAt = paidAtOrCreatedAt(order);
                 start = order.getOrderType() == com.sinx.platform.order.domain.OrderType.RENEWAL
                         && previousEnd != null && previousEnd.isAfter(paidAt)
                     ? previousEnd : paidAt;
-                end = start.atZone(ZoneOffset.UTC).plusMonths(months).toInstant();
+                fundedEnd = start.atZone(ZoneOffset.UTC).plusMonths(months).toInstant();
                 if (entitlementStart != null && start.isBefore(entitlementStart)) {
-                    previousEnd = end;
+                    previousEnd = fundedEnd;
                     continue;
                 }
             }
-            previousEnd = end;
-            if (entitlementEnd != null && entitlementEnd.isBefore(end)) {
-                end = entitlementEnd;
+            previousEnd = fundedEnd;
+            Instant availableEnd = fundedEnd;
+            if (entitlementEnd != null && entitlementEnd.isBefore(availableEnd)) {
+                availableEnd = entitlementEnd;
             }
-            if (!end.isAfter(now) || !end.isAfter(start)) {
+            if (!availableEnd.isAfter(now) || !fundedEnd.isAfter(start)) {
                 continue;
             }
             BigInteger funded = order.settledValueBigInteger().max(BigInteger.ZERO);
             if (funded.signum() == 0) {
                 continue;
             }
-            Instant remainingStart = now.isAfter(start) ? now : start;
-            BigInteger segmentNanos = durationNanos(start, end);
-            BigInteger remainingNanos = durationNanos(remainingStart, end);
-            if (segmentNanos.signum() <= 0 || remainingNanos.signum() <= 0) {
-                continue;
+            BigInteger segmentNanos = durationNanos(start, fundedEnd);
+            if (segmentNanos.signum() <= 0) continue;
+
+            Instant cycleStart = entitlement.getTrafficCycleStart();
+            Instant cycleEnd = entitlement.getTrafficCycleEnd();
+            if (cycleStart == null) cycleStart = start;
+            if (cycleEnd == null) cycleEnd = availableEnd;
+            Instant fundedCycleStart = later(start, cycleStart);
+            Instant fundedCycleEnd = earlier(availableEnd, cycleEnd);
+            long quota = entitlement.getTransferLimitBytes();
+            BigInteger quotaDivisor = BigInteger.valueOf(Math.max(quota, 1));
+            BigInteger weightedRemainingNanos = BigInteger.ZERO;
+            if (fundedCycleEnd.isAfter(fundedCycleStart)
+                    && availableEnd.isAfter(now)) {
+                Instant remainingStart = later(now, fundedCycleStart);
+                BigInteger cycleSliceNanos = durationNanos(fundedCycleStart, fundedCycleEnd);
+                BigInteger remainingNanos = durationNanos(remainingStart, fundedCycleEnd);
+                long remainingTraffic = quota <= 0 ? 0
+                    : Math.max(0, quota - Math.min(quota, entitlement.cycleUsedBytes()));
+                if (cycleSliceNanos.signum() > 0 && remainingNanos.signum() > 0
+                        && remainingTraffic > 0) {
+                    BigInteger timeWeighted = remainingNanos
+                        .multiply(BigInteger.valueOf(quota));
+                    BigInteger trafficWeighted = cycleSliceNanos
+                        .multiply(BigInteger.valueOf(remainingTraffic));
+                    weightedRemainingNanos = weightedRemainingNanos
+                        .add(timeWeighted.min(trafficWeighted));
+                }
             }
-            BigInteger value = funded.multiply(remainingNanos).divide(segmentNanos);
+
+            // Annual or multi-year orders fund later reset cycles too. Preserve
+            // their future share in full; current-cycle traffic use must not
+            // consume value assigned to a future cycle.
+            Instant futureStart = later(now, later(start, cycleEnd));
+            if (availableEnd.isAfter(futureStart)) {
+                weightedRemainingNanos = weightedRemainingNanos.add(
+                    durationNanos(futureStart, availableEnd).multiply(quotaDivisor));
+            }
+            BigInteger value = funded.multiply(weightedRemainingNanos)
+                .divide(segmentNanos.multiply(quotaDivisor));
             if (value.signum() > 0) {
                 totalValue = totalValue.add(value);
                 consumed.add(order.getId());
@@ -204,6 +238,14 @@ public class SurplusValuation {
         return BigInteger.valueOf(duration.getSeconds())
             .multiply(BigInteger.valueOf(1_000_000_000L))
             .add(BigInteger.valueOf(duration.getNano()));
+    }
+
+    private static Instant later(Instant left, Instant right) {
+        return left.isAfter(right) ? left : right;
+    }
+
+    private static Instant earlier(Instant left, Instant right) {
+        return left.isBefore(right) ? left : right;
     }
 
     private static int monthsOf(BillingPeriod period) {

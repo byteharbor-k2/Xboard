@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -49,6 +51,13 @@ public class TrafficResetRecord {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reset_kind", nullable = false, length = 16, updatable = false)
+    private TrafficResetKind resetKind;
+
+    @Column(name = "traffic_cycle_id", updatable = false)
+    private UUID trafficCycleId;
+
     protected TrafficResetRecord() {
     }
 
@@ -58,7 +67,9 @@ public class TrafficResetRecord {
         Instant resetAt,
         long uploadedBytesBefore,
         long downloadedBytesBefore,
-        Instant now
+        Instant now,
+        TrafficResetKind resetKind,
+        UUID trafficCycleId
     ) {
         TrafficResetRecord record = new TrafficResetRecord();
         record.id = UUID.randomUUID();
@@ -68,7 +79,17 @@ public class TrafficResetRecord {
         record.uploadedBytesBefore = uploadedBytesBefore;
         record.downloadedBytesBefore = downloadedBytesBefore;
         record.createdAt = now;
+        record.resetKind = resetKind;
+        record.trafficCycleId = trafficCycleId;
         return record;
+    }
+
+    /** Source-compatible manual-reset factory for existing focused callers. */
+    public static TrafficResetRecord create(UUID userId, UUID entitlementId,
+        Instant resetAt, long uploadedBytesBefore, long downloadedBytesBefore,
+        Instant now) {
+        return create(userId, entitlementId, resetAt, uploadedBytesBefore,
+            downloadedBytesBefore, now, TrafficResetKind.MANUAL, null);
     }
 
     public UUID getId() {
@@ -97,5 +118,13 @@ public class TrafficResetRecord {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public TrafficResetKind getResetKind() {
+        return resetKind;
+    }
+
+    public UUID getTrafficCycleId() {
+        return trafficCycleId;
     }
 }

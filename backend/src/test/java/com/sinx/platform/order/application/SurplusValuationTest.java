@@ -145,6 +145,7 @@ class SurplusValuationTest {
         when(entitlement.getUploadedBytes()).thenReturn(uploaded);
         when(entitlement.getDownloadedBytes()).thenReturn(downloaded);
         when(entitlement.usedBytes()).thenReturn(uploaded + downloaded);
+        when(entitlement.cycleUsedBytes()).thenReturn(uploaded + downloaded);
         return entitlement;
     }
 
@@ -157,6 +158,8 @@ class SurplusValuationTest {
         when(entitlement.getExpiresAt()).thenReturn(expiresAt);
         when(entitlement.getPlanId()).thenReturn(PLAN_ID);
         when(entitlement.getStartsAt()).thenReturn(Instant.parse("2026-01-01T00:00:00Z"));
+        when(entitlement.getTransferLimitBytes()).thenReturn(GIB);
+        when(entitlement.cycleUsedBytes()).thenReturn(0L);
         return entitlement;
     }
 

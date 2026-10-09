@@ -114,6 +114,8 @@ class SubscriptionCommercialSettingsTest {
             any(), any(), any(), any(), anyLong(), any()
         )).thenReturn(Optional.empty());
         when(orders.save(any(ServiceOrder.class))).thenAnswer(call -> call.getArgument(0));
+        when(entitlements.findByUserIdForUpdate(any(UUID.class)))
+            .thenAnswer(call -> entitlements.findByUserId(call.getArgument(0)));
     }
 
     @Test

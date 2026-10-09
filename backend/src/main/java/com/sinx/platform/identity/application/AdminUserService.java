@@ -576,7 +576,7 @@ public class AdminUserService {
         Instant now
     ) {
         SubscriptionEntitlement entitlement =
-            entitlements.findByUserId(account.getId()).orElse(null);
+            entitlements.findByUserIdForUpdate(account.getId()).orElse(null);
         ServicePlan plan = update.planId() == null
             ? null
             : plans.findById(update.planId()).orElseThrow(() -> problem(

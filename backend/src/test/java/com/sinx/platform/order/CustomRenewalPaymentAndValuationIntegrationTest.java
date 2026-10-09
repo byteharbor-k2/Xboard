@@ -207,8 +207,9 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
             + "where user_id = ?::uuid", Timestamp.from(clock.instant().minusSeconds(1)),
             buyer.id().toString());
 
-        assertThat(notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
-            order.getTradeNo(), "16"))).isEqualTo("success");
+        Map<String, String> callback = signedCallback(epay.uuid(),
+            order.getTradeNo(), "16");
+        assertThat(notifyGateway(epay.uuid(), callback)).isEqualTo("success");
 
         Map<String, Object> row = orderRow(order.getTradeNo());
         assertThat(row.get("status")).isEqualTo("COMPLETED");
@@ -228,8 +229,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         assertThatThrownBy(() -> fulfilment.settleManually(order.getTradeNo()))
             .isInstanceOf(ApiProblemException.class);
 
-        assertThat(notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
-            order.getTradeNo(), "16"))).isEqualTo("success");
+        assertThat(notifyGateway(epay.uuid(), callback)).isEqualTo("success");
         assertThat(balance(buyer.id())).isEqualTo(1_600L);
     }
 
@@ -244,6 +244,8 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
             BillingPeriod.RESET_TRAFFIC, null);
         Epay epay = epay(100);
         checkout.checkout(buyer.id(), order.getTradeNo(), epay.id());
+        Map<String, String> callback = signedCallback(epay.uuid(),
+            order.getTradeNo(), "11");
 
         Instant overdue = clock.instant().minusSeconds(1);
         jdbc.update("update subscription_entitlements set next_reset_at = ?, "
@@ -260,13 +262,13 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
                 await(start);
                 trafficResets.resetDueEntitlement(entitlementId(buyer.id()));
             }, workers);
-            CompletableFuture<?> callback = CompletableFuture.runAsync(() -> {
+            CompletableFuture<?> paymentNotification = CompletableFuture.runAsync(() -> {
                 await(start);
-                notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
-                    order.getTradeNo(), "11"));
+                notifyGateway(epay.uuid(), callback);
             }, workers);
             start.countDown();
-            CompletableFuture.allOf(autoReset, callback).get(30, TimeUnit.SECONDS);
+            CompletableFuture.allOf(autoReset, paymentNotification)
+                .get(30, TimeUnit.SECONDS);
         } finally {
             workers.shutdownNow();
         }
@@ -286,8 +288,7 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
             "select count(*) from traffic_reset_records where user_id = ?::uuid",
             Long.class, buyer.id().toString())).isEqualTo(1L);
 
-        String retry = notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
-            order.getTradeNo(), "11"));
+        String retry = notifyGateway(epay.uuid(), callback);
         assertThat(retry).isEqualTo("success");
         assertThat(balance(buyer.id())).isEqualTo(1_600L);
         assertThat(cycleEnd).isNotEqualTo(nextCycle);
@@ -299,11 +300,31 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         UUID plan = plan("Legacy small order", 900, false);
         Epay epay = epay(100);
         ServiceOrder order = orders.place(buyer.id(), plan, BillingPeriod.MONTHLY, null);
-        // Represents a cashier session initiated before the online minimum was
-        // introduced; its server-side pricing and fee are already snapshotted.
+        // Represents the best-effort immutable snapshot V38 backfills for a
+        // cashier session initiated before the online minimum was introduced.
         jdbc.update("update orders set payment_method_id = ?::uuid, gateway = 'EPay', "
                 + "handling_amount = 100 where trade_no = ?",
             epay.id().toString(), order.getTradeNo());
+        assertThat(jdbc.update("""
+            insert into payment_attempts (
+                id, trade_no, buyer_user_id, method_id, method_uuid, method_name,
+                method_icon, gateway, gateway_url, merchant_identity,
+                merchant_config, fee_fixed_minor, fee_percent,
+                order_amount_minor, handling_fee_minor, payable_amount_minor,
+                currency, created_at
+            )
+            select gen_random_uuid(), o.trade_no,
+                   coalesce(o.commission_buyer_user_id, o.user_id),
+                   pm.id, pm.uuid, pm.name, pm.icon, o.gateway,
+                   btrim(pm.config::jsonb ->> 'url'),
+                   btrim(pm.config::jsonb ->> 'pid'), pm.config,
+                   pm.handling_fee_fixed, pm.handling_fee_percent,
+                   o.total_amount, o.handling_amount,
+                   o.total_amount + o.handling_amount, o.currency, o.updated_at
+            from orders o
+            join payment_methods pm on pm.id = o.payment_method_id
+            where o.trade_no = ?
+            """, order.getTradeNo())).isEqualTo(1);
 
         assertThat(notifyGateway(epay.uuid(), signedCallback(epay.uuid(),
             order.getTradeNo(), "10"))).isEqualTo("success");
@@ -521,7 +542,12 @@ class CustomRenewalPaymentAndValuationIntegrationTest {
         String amount) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("pid", "1000");
-        params.put("trade_no", "T" + UUID.randomUUID().toString().replace("-", ""));
+        // Each invocation represents a distinct gateway transaction; a retry
+        // reuses this callback map and therefore retains its transaction id.
+        params.put(
+            "trade_no",
+            "T-" + UUID.randomUUID().toString().replace("-", "")
+        );
         params.put("out_trade_no", tradeNo);
         params.put("type", "alipay");
         params.put("name", tradeNo);

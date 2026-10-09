@@ -169,15 +169,21 @@ class OrderFulfilmentServiceTest {
 
     @Test
     void anUpgradeCreditsTheSurplusAndWritesOffTheOrdersItSpent() {
-        ServiceOrder consumedOne = order(BillingPeriod.MONTHLY, OrderType.NEW_PURCHASE);
-        ServiceOrder consumedTwo = order(BillingPeriod.MONTHLY, OrderType.NEW_PURCHASE);
+        ServicePlan sourcePlan = plan("Old plan", 1_000);
+        ServiceOrder consumedOne = order(sourcePlan,
+            BillingPeriod.MONTHLY, OrderType.NEW_PURCHASE, breakdown(0, 0), "[]");
+        ServiceOrder consumedTwo = order(sourcePlan,
+            BillingPeriod.MONTHLY, OrderType.NEW_PURCHASE, breakdown(0, 0), "[]");
         ServiceOrder order = order(
             BillingPeriod.MONTHLY,
             OrderType.UPGRADE,
             breakdown(0, 300),
             idsOf(consumedOne, consumedTwo)
         );
-        givenSubscription(entitlement(NOW.plusSeconds(10 * 86_400L)));
+        SubscriptionEntitlement oldEntitlement = SubscriptionEntitlement.grant(
+            UUID.randomUUID(), user, sourcePlan, NOW,
+            NOW.plusSeconds(10 * 86_400L), null, NOW);
+        givenSubscription(oldEntitlement);
         givenOrder(order);
         when(orders.findAllForUpdateById(anyCollection()))
             .thenReturn(List.of(consumedOne, consumedTwo));
@@ -375,10 +381,20 @@ class OrderFulfilmentServiceTest {
         OrderPricing.Breakdown breakdown,
         String surplusOrderIds
     ) {
+        return order(plan, period, type, breakdown, surplusOrderIds);
+    }
+
+    private ServiceOrder order(
+        ServicePlan orderPlan,
+        BillingPeriod period,
+        OrderType type,
+        OrderPricing.Breakdown breakdown,
+        String surplusOrderIds
+    ) {
         return ServiceOrder.create(
             TRADE_NO,
             user,
-            plan,
+            orderPlan,
             period,
             type,
             "CNY",

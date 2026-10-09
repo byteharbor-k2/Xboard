@@ -46,6 +46,31 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
     @Query("select o from ServiceOrder o where o.id in :ids")
     List<ServiceOrder> findAllForUpdateById(@Param("ids") Collection<UUID> ids);
 
+    /** Funding rows for the activation being replaced, including zero-value sources. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        select o from ServiceOrder o
+        where o.user.id = :userId
+          and o.plan.id = :planId
+          and o.status = com.sinx.platform.order.domain.OrderStatus.COMPLETED
+          and o.period <> :excludedPeriod
+        order by o.createdAt asc
+        """)
+    List<ServiceOrder> findCompletedFundingSourcesForUpdate(
+        @Param("userId") UUID userId,
+        @Param("planId") UUID planId,
+        @Param("excludedPeriod") BillingPeriod excludedPeriod
+    );
+
+    /** Settled funding history follows its subscription when an admin reassigns the owner. */
+    @org.springframework.data.jpa.repository.Modifying
+    @Query(value = """
+        update orders set user_id = :toUserId
+        where user_id = :fromUserId and status in ('COMPLETED', 'DISCOUNTED')
+        """, nativeQuery = true)
+    int moveSettledOwnership(@Param("fromUserId") UUID fromUserId,
+        @Param("toUserId") UUID toUserId);
+
     /**
      * Identifies orders still awaiting settlement that are older than
      * {@code before}. Only the trade numbers come back, so the sweep can cancel
@@ -76,6 +101,12 @@ public interface ServiceOrderRepository extends JpaRepository<ServiceOrder, UUID
     boolean existsByUserIdAndStatusIn(
         UUID userId,
         Collection<OrderStatus> statuses
+    );
+
+    boolean existsByUserIdAndStatusInAndTradeNoNot(
+        UUID userId,
+        Collection<OrderStatus> statuses,
+        String tradeNo
     );
 
     boolean existsByUserIdAndPeriodAndStatus(UUID userId, BillingPeriod period,

@@ -7,25 +7,29 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.sinx.platform.identity.domain.UserAccount;
+import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.identity.domain.UserStatus;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.ServiceOrder;
+import com.sinx.platform.order.domain.OrderStatus;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
+import com.sinx.platform.subscription.repository.PaidTrafficResetClaimRepository;
+import com.sinx.platform.subscription.repository.TrafficResetRecordRepository;
 
 /**
  * Hands an order to another account on an administrator's authority - the
  * correction for a customer who bought under the wrong address.
  *
- * The owner's subscription rides with the order, because the two belong
- * together: entitlements are one per account, so an order that stays behind
- * its subscription split the customer's history across two accounts. Both
- * accounts are row-locked first, the order already is, so two assignments
- * cannot interleave the same pair of rows.
+ * The owner's subscription and settled funding/reset history ride with the
+ * assigned order, because the account has one entitlement and its valuation
+ * depends on every paid period that built it. Both accounts and the entitlement
+ * are row-locked so a reset or another assignment cannot split their ownership.
  */
 @Service
 public class OrderAssignmentService {
@@ -34,6 +38,9 @@ public class OrderAssignmentService {
     private final UserAccountRepository users;
     private final SubscriptionEntitlementRepository entitlements;
     private final Clock clock;
+    private ApplicationEventPublisher events;
+    private PaidTrafficResetClaimRepository resetClaims;
+    private TrafficResetRecordRepository resetRecords;
 
     public OrderAssignmentService(
         ServiceOrderRepository orders,
@@ -45,6 +52,14 @@ public class OrderAssignmentService {
         this.users = users;
         this.entitlements = entitlements;
         this.clock = clock;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setSupportingRepositories(PaidTrafficResetClaimRepository resetClaims,
+        TrafficResetRecordRepository resetRecords, ApplicationEventPublisher events) {
+        this.resetClaims = resetClaims;
+        this.resetRecords = resetRecords;
+        this.events = events;
     }
 
     /**
@@ -92,7 +107,23 @@ public class OrderAssignmentService {
         );
 
         SubscriptionEntitlement entitlement =
-            entitlements.findByUserId(owner.getId()).orElse(null);
+            entitlements.findByUserIdForUpdate(owner.getId()).orElse(null);
+        boolean ownerHasOtherOpenOrder = orders.existsByUserIdAndStatusInAndTradeNoNot(
+            ownerId, java.util.Set.of(OrderStatus.PENDING, OrderStatus.PROCESSING), tradeNo);
+        boolean ownerHasAnyOpenOrder = orders.existsByUserIdAndStatusIn(ownerId,
+            java.util.Set.of(OrderStatus.PENDING, OrderStatus.PROCESSING));
+        boolean targetHasOpenOrder = orders.existsByUserIdAndStatusIn(targetUserId,
+            java.util.Set.of(OrderStatus.PENDING, OrderStatus.PROCESSING));
+        // A standalone pending order can still be reassigned as a correction;
+        // moving an entitlement with any pending dependency, or moving a second
+        // open order into the target, would split its frozen funding snapshot.
+        if (order.getStatus() == OrderStatus.PROCESSING
+                || targetHasOpenOrder
+                || order.isPending() && ownerHasOtherOpenOrder
+                || entitlement != null && ownerHasAnyOpenOrder) {
+            throw problem(HttpStatus.CONFLICT, "ACCOUNT_HAS_OPEN_ORDERS",
+                "Cancel or settle dependent open orders before assigning the subscription.");
+        }
         // An entitlement cannot share an account: a target who is already
         // subscribed cannot receive another one.
         if (entitlement != null) {
@@ -103,7 +134,21 @@ public class OrderAssignmentService {
                     "The target account already holds a subscription"
                 );
             }
+            Long previousGroupId = entitlement.getEffectiveServerGroupId();
+            Long targetGroupId = target.getServerGroupId() != null
+                ? target.getServerGroupId() : entitlement.getPlanServerGroupId();
             entitlements.moveOwnership(ownerId, targetUserId, now);
+            orders.moveSettledOwnership(ownerId, targetUserId);
+            if (resetClaims != null) resetClaims.moveOwnership(ownerId, targetUserId);
+            if (resetRecords != null) resetRecords.moveOwnership(ownerId, targetUserId);
+            if (events != null) {
+                events.publishEvent(new UserEntitlementChangedEvent(ownerId,
+                    previousGroupId == null ? java.util.List.of()
+                        : java.util.List.of(previousGroupId), now));
+                events.publishEvent(new UserEntitlementChangedEvent(targetUserId,
+                    targetGroupId == null ? java.util.List.of()
+                        : java.util.List.of(targetGroupId), now));
+            }
         }
 
         order.assignTo(target, now);

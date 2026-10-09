@@ -126,19 +126,31 @@ public class EpayGateway implements PaymentGateway {
             );
         }
         String pid = params.get("pid");
-        if (pid != null && !pid.equals(config.get("pid"))) {
+        if (pid == null || pid.isBlank()) {
+            throw new PaymentVerificationException(
+                "The callback does not identify the configured merchant"
+            );
+        }
+        if (!pid.equals(config.get("pid"))) {
             throw new PaymentVerificationException(
                 "The callback was signed for another merchant"
             );
         }
-        // A closed or refunded trade is signed just as validly as a successful
-        // one, so the status has to be read rather than inferred. Only rejected
-        // when the gateway actually states a failure - older Epay builds do not
-        // send the field at all.
+        // A checkout request is itself signed. It is not evidence of a receipt:
+        // only Epay's explicit successful status and its transaction number
+        // distinguish a notification from a replay of that request.
         String status = params.get("trade_status");
-        if (status != null && !status.isBlank() && !"TRADE_SUCCESS".equals(status)) {
+        if (!"TRADE_SUCCESS".equals(status)) {
             throw new PaymentVerificationException(
-                "The callback reports a trade that did not succeed: " + status
+                status == null || status.isBlank()
+                    ? "The callback does not report a successful trade"
+                    : "The callback reports a trade that did not succeed: " + status
+            );
+        }
+        String transactionNo = params.get("trade_no");
+        if (transactionNo == null || transactionNo.isBlank()) {
+            throw new PaymentVerificationException(
+                "The callback carries no gateway transaction number"
             );
         }
 
@@ -162,7 +174,7 @@ public class EpayGateway implements PaymentGateway {
         }
         return new PaymentNotification(
             outTradeNo,
-            params.get("trade_no"),
+            transactionNo,
             amount(params.get("money"))
         );
     }
@@ -175,7 +187,13 @@ public class EpayGateway implements PaymentGateway {
             );
         }
         try {
-            return new BigDecimal(money.trim());
+            BigDecimal amount = new BigDecimal(money.trim());
+            if (amount.signum() <= 0 || amount.stripTrailingZeros().scale() > 2) {
+                throw new PaymentVerificationException(
+                    "The callback amount is not a positive CNY amount"
+                );
+            }
+            return amount;
         } catch (NumberFormatException unreadable) {
             throw new PaymentVerificationException(
                 "The callback states an unreadable amount: " + money

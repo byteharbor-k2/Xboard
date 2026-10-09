@@ -329,11 +329,31 @@ class BalanceLedgerIntegrationTest {
         commissions.confirmAndPay(transferEarningTrade, false);
         String transferredTrade = place(transferSource, partialPlan);
         User transferTarget = user("transferred-order-owner");
+        assertThat(balance(transferSource)).isZero();
+        assertThat(balance(transferTarget)).isZero();
         orderAssignments.assign(transferredTrade, transferTarget.id());
+        assertThat(order(transferredTrade).get("user_id")).isEqualTo(transferTarget.id());
+        assertThat(orders.history(transferTarget.id()).stream()
+            .map(com.sinx.platform.order.domain.ServiceOrder::getTradeNo))
+            .contains(transferredTrade);
+        assertThat(orders.history(transferSource.id()).stream()
+            .map(com.sinx.platform.order.domain.ServiceOrder::getTradeNo))
+            .doesNotContain(transferredTrade);
         assertThat(balances.logs(transferSource.id(), 0, 100).items().stream()
             .filter(row -> transferredTrade.equals(row.tradeNo())
                 && row.type().equals("ORDER_PAYMENT"))
             .findFirst().orElseThrow().canViewOrder()).isFalse();
+
+        // The order's service owner changed, but the original wallet payer owns
+        // its refund if the reassigned pending order is called off.
+        orders.cancel(transferTarget.id(), transferredTrade);
+        assertThat(balance(transferSource)).isEqualTo(1_000);
+        assertThat(balance(transferTarget)).isZero();
+        assertThat(ledgerAmount(transferredTrade, "ORDER_REFUND")).isEqualTo(1_000);
+        assertThat(jdbc.queryForObject("""
+            select user_id from balance_logs
+            where trade_no = ? and type = 'ORDER_REFUND'
+            """, UUID.class, transferredTrade)).isEqualTo(transferSource.id());
     }
 
     @Test

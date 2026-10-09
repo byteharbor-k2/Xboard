@@ -20,6 +20,7 @@ import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.identity.domain.UserAccount;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.OrderType;
+import com.sinx.platform.order.domain.OrderDeductionMode;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
@@ -28,7 +29,6 @@ import com.sinx.platform.subscription.application.TrafficResetService;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 import com.sinx.platform.subscription.repository.PaidTrafficResetClaimRepository;
 import com.sinx.platform.subscription.domain.PaidTrafficResetClaim;
-import com.sinx.platform.subscription.domain.MonthlyResetSchedule;
 
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.ObjectMapper;
@@ -72,10 +72,16 @@ public class OrderFulfilmentService {
     private final Clock clock;
     private final BalanceLedgerService balanceLedger;
     private PaidTrafficResetClaimRepository resetClaims;
+    private SurplusValuation surplusValuation;
 
     @org.springframework.beans.factory.annotation.Autowired
     void setResetClaims(PaidTrafficResetClaimRepository resetClaims) {
         this.resetClaims = resetClaims;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setSurplusValuation(SurplusValuation surplusValuation) {
+        this.surplusValuation = surplusValuation;
     }
 
     public OrderFulfilmentService(
@@ -182,6 +188,33 @@ public class OrderFulfilmentService {
             return;
         }
 
+        SubscriptionEntitlement prior = entitlements.findByUserIdForUpdate(user.getId())
+            .orElse(null);
+        List<ServiceOrder> consumedOrders = lockConsumedOrders(order);
+        boolean sourceOwnershipMatches = sourceOrdersBelongTo(user, order,
+            consumedOrders);
+        boolean eligiblePrior = eligibleSurplusSource(order, prior)
+            && sourceOwnershipMatches
+            && sourcesMatchEntitlement(prior, consumedOrders);
+        if (order.getDeductionMode() == OrderDeductionMode.FULL_PAYMENT
+                && order.getDeferredSurplusCreditMinor() > 0) {
+            long currentValue = eligiblePrior && surplusValuation != null
+                ? surplusValuation.valueOf(prior, now).amountMinor() : 0;
+            order.setDeferredSurplusCreditMinor(currentValue);
+        }
+        if (order.getDeductionMode() == OrderDeductionMode.STANDARD
+                && order.getSurplusAmount() > 0 && surplusValuation != null) {
+            // Checkout reserves this quote, so elapsed time alone cannot reduce
+            // it. The locked entitlement still supplies current usage and any
+            // administrator changes that may invalidate the reserved value.
+            long currentValue = eligiblePrior
+                ? surplusValuation.valueOf(prior, order.getCreatedAt()).amountMinor() : 0;
+            if (currentValue < order.getSurplusAmount()) {
+                returnUnsafeStandardOrderToBalance(order, user, prior, now);
+                return;
+            }
+        }
+
         // Value left over when the old plan was worth more than the new one.
         // It is credited here rather than at checkout, as the original does.
         if (order.getSurplusCredit() > 0) {
@@ -199,8 +232,9 @@ public class OrderFulfilmentService {
                 BalanceLogType.SURPLUS_CREDIT, order.getTradeNo(), null, now);
         }
 
-        writeOffConsumedOrders(order, now);
-        SubscriptionEntitlement prior = entitlements.findByUserId(user.getId()).orElse(null);
+        writeOffConsumedOrders(consumedOrders,
+            eligiblePrior && sourceOwnershipMatches, now);
+        retireReplacedActivationSources(order, user, prior, now);
         if (order.getPeriod().getMonthCount() != null) {
             Instant start = coverageStart(order, prior, now);
             order.snapshotCoverage(start, coverageUntil(order, prior, now));
@@ -218,7 +252,19 @@ public class OrderFulfilmentService {
     private void openPaidTrafficReset(ServiceOrder order, UserAccount user, Instant now) {
         SubscriptionEntitlement entitlement = entitlements
             .findByUserIdForUpdate(user.getId()).orElse(null);
+        UUID currentCycleId = entitlement == null
+            ? null : entitlement.ensureTrafficCycleIdentity();
         Instant snapshottedCycleEnd = order.getResetCycleEnd();
+        boolean sameCycle = entitlement != null
+            && snapshottedCycleEnd != null
+            && snapshottedCycleEnd.equals(entitlement.getTrafficCycleEnd())
+            && (order.getResetCycleId() == null
+                ? order.getCreatedAt() != null
+                    && !order.getCreatedAt().isBefore(entitlement.getStartsAt())
+                : order.getResetCycleId().equals(currentCycleId));
+        Instant snapshottedCycleStart = order.getResetCycleStart() == null
+            && entitlement != null ? currentResetCycleStart(entitlement)
+            : order.getResetCycleStart();
         boolean current = entitlement != null
             && order.getOriginalAmount() > 0
             && snapshottedCycleEnd != null
@@ -229,9 +275,12 @@ public class OrderFulfilmentService {
             && entitlement.getCanceledAt() == null
             && entitlement.getExpiresAt() != null
             && entitlement.getExpiresAt().isAfter(now)
-            && snapshottedCycleEnd.equals(currentResetCycleEnd(entitlement, now));
+            && entitlement.getNextResetAt() != null
+            && entitlement.getNextResetAt().isAfter(now)
+            && currentCycleId != null
+            && sameCycle;
         boolean alreadyClaimed = !current || resetClaims == null
-            || resetClaims.existsByUserIdAndCycleEnd(user.getId(), snapshottedCycleEnd);
+            || resetClaims.existsByUserIdAndCycleId(user.getId(), currentCycleId);
         if (!current || alreadyClaimed) {
             long paidHandling = MANUAL_CALLBACK_NO.equals(order.getCallbackNo())
                     || AUTO_SETTLED_CALLBACK_NO.equals(order.getCallbackNo())
@@ -240,7 +289,10 @@ public class OrderFulfilmentService {
                 Math.addExact(order.getTotalAmount(), order.getBalanceAmount()),
                 paidHandling
             );
-            balanceLedger.credit(user.getId(), returnAmount,
+            // Assignment changes who receives the service, not who funded the
+            // order. Return both its balance deduction and captured payment to
+            // the original payer, just as cancellation does for an unpaid order.
+            balanceLedger.credit(order.getBalancePayerUserId(), returnAmount,
                 BalanceLogType.ORDER_REFUND, order.getTradeNo(), null, now);
             order.returnCapturedPaymentToBalance(returnAmount, now);
             return;
@@ -249,23 +301,17 @@ public class OrderFulfilmentService {
         // The gateway-start snapshot remains authoritative if plan reset flags
         // or prices were edited after the customer was sent to the cashier.
         resetClaims.saveAndFlush(PaidTrafficResetClaim.create(
-            user.getId(), snapshottedCycleEnd, order.getTradeNo(), now));
+            user.getId(), currentCycleId, snapshottedCycleStart, snapshottedCycleEnd,
+            order.getTradeNo(), now));
         trafficResets.recordPaidReset(entitlement, now, snapshottedCycleEnd);
         entitlements.save(entitlement);
         order.complete(now);
         announceEntitlementChange(user.getId(), entitlement, now);
     }
 
-    private Instant currentResetCycleEnd(
-        SubscriptionEntitlement entitlement,
-        Instant now
-    ) {
-        Instant boundary = entitlement.getNextResetAt();
-        if (boundary == null || boundary.isAfter(now)) {
-            return boundary;
-        }
-        return MonthlyResetSchedule.followingBoundary(
-            entitlement.getResetPolicy(), boundary, now);
+    private Instant currentResetCycleStart(SubscriptionEntitlement entitlement) {
+        return entitlement.getTrafficCycleStart() == null
+            ? entitlement.getStartsAt() : entitlement.getTrafficCycleStart();
     }
 
     /**
@@ -330,15 +376,127 @@ public class OrderFulfilmentService {
         };
     }
 
-    /** Marks the earlier orders a later upgrade spent as discounted. */
-    private void writeOffConsumedOrders(ServiceOrder order, Instant now) {
+    /** Locks surplus sources and verifies that they still belong to the buyer. */
+    private List<ServiceOrder> lockConsumedOrders(ServiceOrder order) {
         List<UUID> consumed = decodeOrderIds(order.getSurplusOrderIds());
         if (consumed.isEmpty()) {
+            return List.of();
+        }
+        return orders.findAllForUpdateById(consumed);
+    }
+
+    private boolean sourceOrdersBelongTo(UserAccount user, ServiceOrder order,
+        List<ServiceOrder> sources) {
+        List<UUID> consumed = decodeOrderIds(order.getSurplusOrderIds());
+        if (consumed.isEmpty()) {
+            return order.getSurplusAmount() == 0
+                && order.getDeferredSurplusCreditMinor() == 0;
+        }
+        return sources.size() == consumed.size()
+            && sources.stream().allMatch(source ->
+                source.getUser().getId().equals(user.getId()));
+    }
+
+    private boolean eligibleSurplusSource(ServiceOrder order,
+        SubscriptionEntitlement prior) {
+        if (prior == null || prior.isTrial() || prior.getCanceledAt() != null) {
+            return false;
+        }
+        return order.getOrderType() == OrderType.UPGRADE
+            || prior.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+                && order.getPeriod() == BillingPeriod.ONETIME;
+    }
+
+    private boolean sourcesMatchEntitlement(SubscriptionEntitlement prior,
+        List<ServiceOrder> sources) {
+        if (sources.isEmpty()) {
+            return true;
+        }
+        if (prior == null) {
+            return false;
+        }
+        return sources.stream().allMatch(source ->
+            source.getPlan().getId().equals(prior.getPlanId())
+                && (prior.getPlanType()
+                        != com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
+                    || source.getPeriod() == BillingPeriod.ONETIME));
+    }
+
+    /** Keeps a stale STANDARD cashier from exchanging already-consumed value for service. */
+    private void returnUnsafeStandardOrderToBalance(ServiceOrder order,
+        UserAccount user, SubscriptionEntitlement prior, Instant now) {
+        if (MANUAL_CALLBACK_NO.equals(order.getCallbackNo())
+                || AUTO_SETTLED_CALLBACK_NO.equals(order.getCallbackNo())) {
+            throw problem(HttpStatus.CONFLICT, "ORDER_SURPLUS_CHANGED",
+                "The reserved entitlement changed while this order was pending. Cancel and place a new order.");
+        }
+        long returned = Math.addExact(
+            Math.addExact(order.getTotalAmount(), order.getBalanceAmount()),
+            order.getHandlingAmount());
+        balanceLedger.credit(order.getBalancePayerUserId(), returned, BalanceLogType.ORDER_REFUND,
+            order.getTradeNo(), null, now);
+        order.returnCapturedPaymentToBalance(returned, now);
+        if (prior != null) {
+            prior.releaseSurplusReservation(now);
+            entitlements.save(prior);
+            announceEntitlementChange(user.getId(), prior, now);
+        }
+    }
+
+    /** Marks the still-owned source orders a later upgrade actually consumes. */
+    private void writeOffConsumedOrders(List<ServiceOrder> sources,
+        boolean sourceOwnershipMatches, Instant now) {
+        if (!sourceOwnershipMatches) {
             return;
         }
-        for (ServiceOrder source : orders.findAllForUpdateById(consumed)) {
+        for (ServiceOrder source : sources) {
             source.markDiscounted(now);
         }
+    }
+
+    /**
+     * Retires every paid source behind an activation when a new activation
+     * replaces it, even if the old activation was already exhausted and had no
+     * surplus order ids to attach to the checkout. A continuous same-plan
+     * renewal is the exception: its future funded coverage remains available.
+     */
+    private void retireReplacedActivationSources(ServiceOrder order,
+        UserAccount user, SubscriptionEntitlement prior, Instant now) {
+        boolean continuousPeriodicRenewal = prior != null
+            && prior.getPlanType()
+                == com.sinx.platform.catalog.domain.PlanType.SUBSCRIPTION
+            && order.getOrderType() == OrderType.RENEWAL
+            && order.getPlan().getId().equals(prior.getPlanId())
+            && order.getPeriod().getMonthCount() != null;
+        if (prior == null || prior.isTrial()
+                || continuousPeriodicRenewal) {
+            return;
+        }
+        for (ServiceOrder source : orders.findCompletedFundingSourcesForUpdate(
+                user.getId(), prior.getPlanId(), BillingPeriod.RESET_TRAFFIC)) {
+            if (fundedByActivation(source, prior)) {
+                source.markDiscounted(now);
+            }
+        }
+    }
+
+    private boolean fundedByActivation(ServiceOrder source,
+        SubscriptionEntitlement prior) {
+        Instant activationStart = prior.getStartsAt();
+        Instant activationEnd = prior.getExpiresAt();
+        if (source.getCoverageStart() != null && source.getCoverageEnd() != null) {
+            return activationStart != null
+                && source.getCoverageEnd().isAfter(activationStart)
+                && (activationEnd == null
+                    || source.getCoverageStart().isBefore(activationEnd));
+        }
+        Instant paidAt = source.getPaidAt() == null
+            ? source.getCreatedAt() : source.getPaidAt();
+        return activationStart != null
+            && paidAt != null
+            && !paidAt.isBefore(activationStart)
+            && (activationEnd == null || paidAt.isBefore(activationEnd));
     }
 
     private SubscriptionEntitlement applyPlan(

@@ -2,6 +2,9 @@ package com.sinx.platform.payment.application;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -9,27 +12,25 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.sinx.platform.balance.application.BalanceLedgerService;
+import com.sinx.platform.balance.domain.BalanceLogType;
 import com.sinx.platform.order.application.OrderFulfilmentService;
-import com.sinx.platform.order.domain.OrderStatus;
+import com.sinx.platform.order.domain.OrderSettlementOutcome;
 import com.sinx.platform.order.domain.ServiceOrder;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
+import com.sinx.platform.payment.domain.PaymentAttempt;
 import com.sinx.platform.payment.domain.PaymentGateway;
-import com.sinx.platform.payment.domain.PaymentMethod;
 import com.sinx.platform.payment.domain.PaymentNotification;
+import com.sinx.platform.payment.domain.PaymentReceipt;
 import com.sinx.platform.payment.domain.PaymentVerificationException;
+import com.sinx.platform.payment.repository.PaymentAttemptRepository;
+import com.sinx.platform.payment.repository.PaymentReceiptRepository;
 
 /**
- * Turns a gateway's callback into an opened order.
- *
- * This is the only path by which money moves an order on, so it is deliberately
- * suspicious: the signature has to check out, the amount has to be the amount the
- * order was checked out at, and the method has to be one that is switched on.
- * The original verifies the signature and nothing else, which lets a gateway
- * (or anything that has ever held the merchant key) report one yuan against a
- * thousand-yuan order and have it opened.
- *
- * Idempotent, as the original is. A callback that arrives twice opens one order;
- * one that arrives after the order was called off is logged and dropped.
+ * Turns a verified gateway receipt into either the order it paid for or
+ * spendable balance. Every actual gateway transaction is recorded in the same
+ * transaction as its settlement/credit, so a retry cannot lose or duplicate
+ * money even when an order has since been cancelled or settled manually.
  */
 @Service
 public class PaymentNotificationService {
@@ -37,32 +38,42 @@ public class PaymentNotificationService {
     private static final Logger log =
         LoggerFactory.getLogger(PaymentNotificationService.class);
 
-    private final PaymentMethodService methodService;
     private final OrderFulfilmentService fulfilment;
     private final ServiceOrderRepository orders;
     private final PaymentGatewayRegistry gateways;
     private final PaymentConfigCodec codec;
+    private final PaymentAttemptRepository attempts;
+    private final PaymentReceiptRepository receipts;
+    private final BalanceLedgerService balanceLedger;
+    private final Clock clock;
 
-    PaymentNotificationService(
-        PaymentMethodService methodService,
+    public PaymentNotificationService(
         OrderFulfilmentService fulfilment,
         ServiceOrderRepository orders,
         PaymentGatewayRegistry gateways,
-        PaymentConfigCodec codec
+        PaymentConfigCodec codec,
+        PaymentAttemptRepository attempts,
+        PaymentReceiptRepository receipts,
+        BalanceLedgerService balanceLedger,
+        Clock clock
     ) {
-        this.methodService = methodService;
         this.fulfilment = fulfilment;
         this.orders = orders;
         this.gateways = gateways;
         this.codec = codec;
+        this.attempts = attempts;
+        this.receipts = receipts;
+        this.balanceLedger = balanceLedger;
+        this.clock = clock;
     }
 
     /**
-     * Verifies a callback and settles the order it names.
+     * Verifies against the immutable credentials used for a cashier link, then
+     * reconciles its actual gateway transaction exactly once.
      *
-     * @return the order as it now stands, or null if the callback named one that
-     *     does not exist
-     * @throws PaymentVerificationException if the callback cannot be trusted
+     * @return the order as it now stands
+     * @throws PaymentVerificationException if no matching attempt or trusted
+     *     receipt can be established
      */
     @Transactional
     public ServiceOrder accept(
@@ -70,78 +81,174 @@ public class PaymentNotificationService {
         String uuid,
         Map<String, String> params
     ) {
-        PaymentMethod method = methodService.requireEnabledByUuid(
-            uuid,
-            gatewayCode
-        );
-        PaymentGateway gateway = gateways.require(method.getGateway());
-        PaymentNotification notification = gateway.verify(
-            codec.read(method.getConfig()),
-            params
-        );
-
-        ServiceOrder order = orders
-            .findByTradeNoForUpdate(notification.tradeNo())
-            .orElse(null);
-        if (order == null) {
-            // Retrying will not conjure the order up, so this is answered as a
-            // success rather than left for the gateway to keep resending.
-            log.warn(
-                "A verified {} callback named an order that does not exist: {}",
-                gatewayCode,
-                notification.tradeNo()
-            );
-            return null;
+        String tradeNo = params.get("out_trade_no");
+        if (tradeNo == null || tradeNo.isBlank()) {
+            throw new PaymentVerificationException("The callback names no order");
         }
-        if (!order.isPending()) {
-            if (order.getStatus() == OrderStatus.CANCELLED) {
-                // Paid after the expiry sweep called the order off. The customer
-                // has been told to order again, and reviving an order here would
-                // open a subscription against a purchase that was already
-                // refunded as surplus.
-                log.warn(
-                    "A payment arrived for order {} after it was cancelled; "
-                        + "the order is left cancelled and the payment is not "
-                        + "applied",
-                    order.getTradeNo()
+        List<PaymentAttempt> candidates = attempts
+            .findByTradeNoAndMethodUuidAndGatewayIgnoreCaseOrderByCreatedAtDesc(
+                tradeNo,
+                uuid,
+                gatewayCode
+            );
+        VerifiedAttempt verified = verifyAgainstAttempt(candidates, params);
+        PaymentAttempt attempt = verified.attempt();
+        PaymentNotification notification = verified.notification();
+        long capturedMinor = toMinorUnits(notification.amount());
+
+        ServiceOrder order = orders.findByTradeNoForUpdate(notification.tradeNo())
+            .orElseThrow(() -> new PaymentVerificationException(
+                "The callback names no recorded order"
+            ));
+
+        var prior = receipts
+            .findByGatewayIgnoreCaseAndGatewayUrlAndMerchantIdentityAndTransactionId(
+                attempt.getGateway(),
+                attempt.getGatewayUrl(),
+                attempt.getMerchantIdentity(),
+                notification.callbackNo()
+            );
+        if (prior.isPresent()) {
+            PaymentReceipt existing = prior.get();
+            if (!existing.getTradeNo().equals(notification.tradeNo())
+                    || existing.getAmountMinor() != capturedMinor) {
+                throw new PaymentVerificationException(
+                    "The gateway transaction was already recorded with different details"
                 );
             }
-            // Otherwise this is a repeat of a callback already applied. The
-            // original reports success and does nothing.
             return order;
         }
 
-        requireAmountPaid(order, notification);
-        return fulfilment.settle(
-            notification.tradeNo(),
-            notification.callbackNo()
+        Instant now = Instant.now(clock);
+        boolean amountMatchesAttempt = capturedMinor == attempt.getPayableAmountMinor();
+        boolean checkoutOwnerStillOwnsOrder = attempt.getBuyerUserId()
+            .equals(order.getUser().getId());
+        boolean canSettle = order.isPending()
+            && amountMatchesAttempt
+            && checkoutOwnerStillOwnsOrder
+            && order.getTotalAmount() == attempt.getOrderAmountMinor()
+            && order.getCurrency().equals(attempt.getCurrency());
+
+        PaymentReceipt.Outcome outcome;
+        if (canSettle) {
+            // Fulfilment can return the captured reset payment to balance. Bind
+            // the order's current display/settlement fields back to the attempt
+            // that actually received this receipt before that calculation runs.
+            order.attachPayment(
+                attempt.getMethodId(),
+                attempt.getGateway(),
+                attempt.getHandlingFeeMinor(),
+                now
+            );
+            ServiceOrder settled = fulfilment.settle(
+                order.getTradeNo(), notification.callbackNo());
+            outcome = settled.getSettlementOutcome()
+                    == OrderSettlementOutcome.BALANCE_RETURNED
+                ? PaymentReceipt.Outcome.BALANCE_CREDITED
+                : PaymentReceipt.Outcome.ORDER_SETTLED;
+        } else {
+            // A valid signed transaction is money received, even when it is
+            // short/overpaid or the order has been cancelled or manually paid.
+            // Credit the original checkout owner rather than silently dropping
+            // the receipt or reviving a purchase that is no longer payable.
+            balanceLedger.credit(
+                attempt.getBuyerUserId(),
+                capturedMinor,
+                BalanceLogType.ORDER_REFUND,
+                null,
+                null,
+                now
+            );
+            outcome = PaymentReceipt.Outcome.BALANCE_CREDITED;
+            if (!amountMatchesAttempt) {
+                log.warn(
+                    "Verified gateway receipt for order {} was {} minor units; "
+                        + "the immutable cashier attempt expected {} and the "
+                        + "captured amount was credited to balance",
+                    order.getTradeNo(),
+                    capturedMinor,
+                    attempt.getPayableAmountMinor()
+                );
+            } else if (!checkoutOwnerStillOwnsOrder) {
+                log.warn(
+                    "A verified receipt for order {} arrived after ownership "
+                        + "changed; the captured amount was credited to the "
+                        + "original checkout owner",
+                    order.getTradeNo()
+                );
+            } else if (!order.isPending()) {
+                log.warn(
+                    "A verified payment arrived after order {} was {}; the "
+                        + "captured amount was credited to balance",
+                    order.getTradeNo(),
+                    order.getStatus()
+                );
+            }
+        }
+
+        // Unique gateway instance/account/transaction identity is the final
+        // concurrency boundary across orders and concurrent callbacks.
+        // If a simultaneous callback already claimed this receipt, this insert
+        // fails and rolls back the accompanying settlement or ledger credit.
+        receipts.saveAndFlush(PaymentReceipt.create(
+            attempt,
+            notification.callbackNo(),
+            capturedMinor,
+            outcome,
+            now
+        ));
+        return order;
+    }
+
+    private VerifiedAttempt verifyAgainstAttempt(
+        List<PaymentAttempt> candidates,
+        Map<String, String> params
+    ) {
+        PaymentVerificationException lastFailure = null;
+        VerifiedAttempt firstValid = null;
+        for (PaymentAttempt candidate : candidates) {
+            PaymentGateway gateway = gateways.require(candidate.getGateway());
+            try {
+                PaymentNotification notification = gateway.verify(
+                    codec.read(candidate.getMerchantConfig()), params);
+                VerifiedAttempt verified = new VerifiedAttempt(candidate, notification);
+                if (toMinorUnits(notification.amount()) == candidate.getPayableAmountMinor()) {
+                    return verified;
+                }
+                if (firstValid == null) {
+                    firstValid = verified;
+                }
+            } catch (PaymentVerificationException rejected) {
+                lastFailure = rejected;
+            }
+        }
+        if (firstValid != null) {
+            return firstValid;
+        }
+        if (lastFailure != null) {
+            throw lastFailure;
+        }
+        throw new PaymentVerificationException(
+            "No checkout attempt matches this callback method"
         );
     }
 
-    /**
-     * The signature proves the gateway sent the message; only this proves the
-     * gateway was told to collect what the order actually costs.
-     */
-    private void requireAmountPaid(
-        ServiceOrder order,
-        PaymentNotification notification
-    ) {
-        BigDecimal due = BigDecimal.valueOf(order.payableAmount())
-            .movePointLeft(2)
-            .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal paid = notification.amount()
-            .setScale(2, RoundingMode.HALF_UP);
-        if (paid.compareTo(due) != 0) {
-            log.warn(
-                "A callback for order {} reported {} but {} was due; refusing "
-                    + "to open it",
-                order.getTradeNo(),
-                paid.toPlainString(),
-                due.toPlainString()
-            );
+    /** Converts a signed CNY amount to cents without rounding away value. */
+    private long toMinorUnits(BigDecimal amount) {
+        try {
+            return amount.setScale(2, RoundingMode.UNNECESSARY)
+                .movePointRight(2)
+                .longValueExact();
+        } catch (ArithmeticException invalidAmount) {
             throw new PaymentVerificationException(
-                "The amount reported does not match the order"
+                "The callback amount cannot be represented in CNY minor units"
             );
         }
+    }
+
+    private record VerifiedAttempt(
+        PaymentAttempt attempt,
+        PaymentNotification notification
+    ) {
     }
 }

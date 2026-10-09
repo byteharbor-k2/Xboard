@@ -84,6 +84,8 @@ class CustomRenewalPricingRulesTest {
             .thenReturn(Optional.empty());
         when(entitlements.findByUserId(user.getId()))
             .thenReturn(Optional.empty());
+        when(entitlements.findByUserIdForUpdate(user.getId()))
+            .thenReturn(Optional.empty());
     }
 
     @Test
@@ -96,6 +98,8 @@ class CustomRenewalPricingRulesTest {
         when(current.getPlanType()).thenReturn(PlanType.TRAFFIC_PACKAGE);
         when(current.getExpiresAt()).thenReturn(null);
         when(entitlements.findByUserId(user.getId())).thenReturn(Optional.of(current));
+        when(entitlements.findByUserIdForUpdate(user.getId()))
+            .thenReturn(Optional.of(current));
         when(valuation.valueOf(current, NOW)).thenReturn(
             new SurplusValuation.Surplus(700, List.of(sourceId)));
 
@@ -143,7 +147,7 @@ class CustomRenewalPricingRulesTest {
     }
 
     @Test
-    void expiredHolderCanPlaceItsHiddenRenewalAndPackageRenewalUsesRemainingValue() {
+    void expiredHolderCanRepurchaseItsHiddenPlanAndPackageRenewalUsesRemainingValue() {
         ServicePlan hidden = ServicePlan.create(UUID.randomUUID(), "Hidden", "Hidden",
             PlanType.SUBSCRIPTION, 10_000, null,
             TrafficResetPolicy.MONTHLY_FROM_ACTIVATION, 1, false, null,
@@ -155,14 +159,17 @@ class CustomRenewalPricingRulesTest {
         when(expiredHolder.getExpiresAt()).thenReturn(NOW.minusSeconds(1));
         when(entitlements.findByUserId(user.getId()))
             .thenReturn(Optional.of(expiredHolder));
+        when(entitlements.findByUserIdForUpdate(user.getId()))
+            .thenReturn(Optional.of(expiredHolder));
         when(plans.findById(hidden.getId())).thenReturn(Optional.of(hidden));
 
-        ServiceOrder renewal = service.place(user.getId(), hidden.getId(),
+        ServiceOrder repurchase = service.place(user.getId(), hidden.getId(),
             BillingPeriod.MONTHLY, null);
 
-        assertThat(renewal.getOrderType()).isEqualTo(
-            com.sinx.platform.order.domain.OrderType.RENEWAL);
-        assertThat(renewal.getStatus()).isEqualTo(OrderStatus.PENDING);
+        assertThat(repurchase.getOrderType()).isEqualTo(
+            com.sinx.platform.order.domain.OrderType.NEW_PURCHASE);
+        assertThat(repurchase.getSurplusAmount()).isZero();
+        assertThat(repurchase.getStatus()).isEqualTo(OrderStatus.PENDING);
 
         ServicePlan packagePlan = trafficPackage(1_000);
         SubscriptionEntitlement packageHolder = mock(SubscriptionEntitlement.class);

@@ -62,8 +62,9 @@ const copy = {
     minimumBlockedOffline: "此订单可等待管理员线下人工结算；线上支付不可用。若要使用全额支付方式，必须先取消此订单，再重新下单，系统不会在当前订单上静默改价。",
     fullPaymentRetry: "取消订单并重新选择全额支付",
     minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    deferredCredit: "开通成功后才会退回的剩余价值",
+    deferredCredit: "预计可退余额；最终金额按开通时可用的剩余价值计算，仅在开通成功后入账。",
     completedCredit: "已开通，剩余价值已退回余额",
+    surplusReserved: "订单待支付期间，当前服务会暂停，剩余价值已暂时预留；取消订单后会释放预留并恢复当前服务。",
     balanceReturned: "该订单未重置流量，已返还站内余额%s（可用于后续订单，非银行退款）",
     viewBalance: "查看余额明细",
     methodCoveredByBalance: "该订单已由账户余额全额抵扣，无需再支付，正在为你开通。",
@@ -118,8 +119,9 @@ const copy = {
     minimumBlockedOffline: "This order may be settled manually by an administrator; online payment is unavailable. To choose full payment, cancel this order and place a new one. The current order will not be silently repriced.",
     fullPaymentRetry: "Cancel and choose full payment in a new order",
     minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    deferredCredit: "Unused value credited only after successful activation",
+    deferredCredit: "Estimated balance credit; the final amount is based on unused value at fulfilment and is credited only after successful activation.",
     completedCredit: "Activated; the unused value was credited to the balance",
+    surplusReserved: "While this order is pending, your current service is suspended and its unused value is reserved. Cancelling releases the reservation and restores the current service.",
     balanceReturned: "Traffic was not reset; %s was returned to your site balance for future orders (not a bank refund).",
     viewBalance: "View balance history",
     methodCoveredByBalance:
@@ -244,12 +246,17 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
   // matters: the gateway is asked for the total *plus* the fee, so leaving the
   // fee out of the headline figure shows the customer one price and charges
   // them another.
-  const selectedOption = methods.data?.find(
+  // React Query may retain a prior options response in cache after the order
+  // settles. Never treat that cached list as payable for a non-pending order.
+  const availableMethods = order?.status === "PENDING" ? methods.data : undefined;
+  const selectedOption = availableMethods?.find(
     (method) => method.id === selectedMethod
   );
-  const handling = BigInt(order?.handlingAmount ?? "0") > 0n
-    ? BigInt(order!.handlingAmount)
-    : BigInt(selectedOption?.handlingFee ?? "0");
+  // A newly selected method's quote is authoritative. The order's saved fee is
+  // only the previous checkout snapshot and must not leak into another option.
+  const handling = selectedOption
+    ? BigInt(selectedOption.handlingFee)
+    : BigInt(order?.handlingAmount ?? "0");
 
   // How the fee the summary line is quoting is made up, when the method the
   // customer picked charges one. After checkout the order only carries the
@@ -291,7 +298,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
     }
   });
 
-  const chosen = methods.data?.find((method) => method.id === selectedMethod);
+  const chosen = availableMethods?.find((method) => method.id === selectedMethod);
 
   return (
     <AppShell>
@@ -363,6 +370,9 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 </>
               ) : labels.statusHint[order.status]}
             </p>
+            {order.status === "PENDING" && order.deductionMode === "STANDARD" && BigInt(order.surplusAmount) > 0n && (
+              <p className="muted">{labels.surplusReserved}</p>
+            )}
           </section>
 
           <div className="checkout-side">
@@ -475,7 +485,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                       : labels.failed}
                   </p>
                 )}
-                {methods.data?.length === 0 && (
+                {availableMethods?.length === 0 && (
                   <p className="muted">
                     {BigInt(order.totalAmount) <= 0n
                       ? coveredByLabel(order, labels)
@@ -485,7 +495,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                   </p>
                 )}
                 <ul className="checkout-periods">
-                  {methods.data?.map((method) => {
+                  {availableMethods?.map((method) => {
                     const parts = feeParts(method, language);
                     return (
                       <li key={method.id}>

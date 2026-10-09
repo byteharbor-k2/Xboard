@@ -42,6 +42,10 @@ public class ServiceOrder {
     @JoinColumn(name = "user_id", nullable = false)
     private UserAccount user;
 
+    /** Account whose cash funded the order; assignment changes service ownership, not past postings. */
+    @Column(name = "balance_payer_user_id")
+    private UUID balancePayerUserId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "plan_id", nullable = false)
     private ServicePlan plan;
@@ -85,6 +89,12 @@ public class ServiceOrder {
 
     @Column(name = "reset_cycle_end")
     private Instant resetCycleEnd;
+
+    @Column(name = "reset_cycle_start")
+    private Instant resetCycleStart;
+
+    @Column(name = "reset_cycle_id")
+    private UUID resetCycleId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "settlement_outcome", nullable = false, length = 24)
@@ -189,13 +199,16 @@ public class ServiceOrder {
         boolean newUserOffer,
         OrderDeductionMode deductionMode,
         long deferredSurplusCreditMinor,
+        Instant resetCycleStart,
         Instant resetCycleEnd,
+        UUID resetCycleId,
         Instant now
     ) {
         ServiceOrder order = new ServiceOrder();
         order.id = UUID.randomUUID();
         order.tradeNo = tradeNo;
         order.user = user;
+        order.balancePayerUserId = user.getId();
         order.commissionBuyerUserId = user.getId();
         order.plan = plan;
         order.planName = plan.getName();
@@ -214,7 +227,9 @@ public class ServiceOrder {
         order.deductionMode = deductionMode == null
             ? OrderDeductionMode.STANDARD : deductionMode;
         order.deferredSurplusCreditMinor = Math.max(deferredSurplusCreditMinor, 0);
+        order.resetCycleStart = resetCycleStart;
         order.resetCycleEnd = resetCycleEnd;
+        order.resetCycleId = resetCycleId;
         // Every order starts unpaid, however much of it the discounts covered.
         // A total of zero is not a settled order: nothing is provisioned until
         // a payment - or an admin settling it by hand - moves it on.
@@ -222,6 +237,32 @@ public class ServiceOrder {
         order.createdAt = now;
         order.updatedAt = now;
         return order;
+    }
+
+    /** Source-compatible factory for reset orders created before stable cycle identities. */
+    public static ServiceOrder create(
+        String tradeNo, UserAccount user, ServicePlan plan, BillingPeriod period,
+        OrderType orderType, String currency, OrderPricing.Breakdown breakdown,
+        UUID couponId, String surplusOrderIds, boolean newUserOffer,
+        OrderDeductionMode deductionMode, long deferredSurplusCreditMinor,
+        Instant resetCycleEnd, Instant now
+    ) {
+        return create(tradeNo, user, plan, period, orderType, currency, breakdown,
+            couponId, surplusOrderIds, newUserOffer, deductionMode,
+            deferredSurplusCreditMinor, null, resetCycleEnd, null, now);
+    }
+
+    /** Source-compatible factory before cycle identity snapshots were introduced. */
+    public static ServiceOrder create(
+        String tradeNo, UserAccount user, ServicePlan plan, BillingPeriod period,
+        OrderType orderType, String currency, OrderPricing.Breakdown breakdown,
+        UUID couponId, String surplusOrderIds, boolean newUserOffer,
+        OrderDeductionMode deductionMode, long deferredSurplusCreditMinor,
+        Instant resetCycleStart, Instant resetCycleEnd, Instant now
+    ) {
+        return create(tradeNo, user, plan, period, orderType, currency, breakdown,
+            couponId, surplusOrderIds, newUserOffer, deductionMode,
+            deferredSurplusCreditMinor, resetCycleStart, resetCycleEnd, null, now);
     }
 
     /** Source-compatible ordinary purchase factory. */
@@ -358,6 +399,11 @@ public class ServiceOrder {
         coverageEnd = end;
     }
 
+    /** FULL_PAYMENT settles its surplus credit from the resources left at fulfilment. */
+    public void setDeferredSurplusCreditMinor(long amountMinor) {
+        deferredSurplusCreditMinor = Math.max(amountMinor, 0);
+    }
+
     /** Captures the eligible referral pool before any zero-balance fulfilment. */
     public void snapshotCommission(
         UUID inviterUserId,
@@ -433,6 +479,13 @@ public class ServiceOrder {
         return user;
     }
 
+    public UUID getBalancePayerUserId() {
+        if (balancePayerUserId != null) {
+            return balancePayerUserId;
+        }
+        return commissionBuyerUserId == null ? user.getId() : commissionBuyerUserId;
+    }
+
     public ServicePlan getPlan() {
         return plan;
     }
@@ -483,6 +536,14 @@ public class ServiceOrder {
 
     public Instant getResetCycleEnd() {
         return resetCycleEnd;
+    }
+
+    public Instant getResetCycleStart() {
+        return resetCycleStart;
+    }
+
+    public UUID getResetCycleId() {
+        return resetCycleId;
     }
 
     public OrderSettlementOutcome getSettlementOutcome() {

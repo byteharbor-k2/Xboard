@@ -26,6 +26,7 @@ import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.subscription.domain.MonthlyResetSchedule;
 import com.sinx.platform.subscription.domain.SubscriptionEntitlement;
 import com.sinx.platform.subscription.domain.TrafficResetRecord;
+import com.sinx.platform.subscription.domain.TrafficResetKind;
 import com.sinx.platform.subscription.repository.SubscriptionEntitlementRepository;
 import com.sinx.platform.subscription.repository.TrafficResetRecordRepository;
 
@@ -245,6 +246,7 @@ public class TrafficResetService {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();
         long downloadedBytesBefore = entitlement.getDownloadedBytes();
+        UUID cycleId = entitlement.ensureTrafficCycleIdentity();
         boolean active = entitlement.getCanceledAt() == null
             && (entitlement.getExpiresAt() == null
                 || entitlement.getExpiresAt().isAfter(now));
@@ -260,7 +262,9 @@ public class TrafficResetService {
             now,
             uploadedBytesBefore,
             downloadedBytesBefore,
-            now
+            now,
+            TrafficResetKind.MANUAL,
+            cycleId
         ));
         entitlements.save(entitlement);
     }
@@ -272,9 +276,11 @@ public class TrafficResetService {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();
         long downloadedBytesBefore = entitlement.getDownloadedBytes();
+        UUID cycleId = entitlement.ensureTrafficCycleIdentity();
         entitlement.resetTrafficWithoutReanchoring(now, nextBoundary);
         records.save(TrafficResetRecord.create(userId, entitlement.getId(), now,
-            uploadedBytesBefore, downloadedBytesBefore, now));
+            uploadedBytesBefore, downloadedBytesBefore, now,
+            TrafficResetKind.PAID, cycleId));
         entitlements.save(entitlement);
     }
 
@@ -282,17 +288,20 @@ public class TrafficResetService {
         UUID userId = entitlement.getUser().getId();
         long uploadedBytesBefore = entitlement.getUploadedBytes();
         long downloadedBytesBefore = entitlement.getDownloadedBytes();
-        entitlement.resetTrafficInCycle(now,
-            MonthlyResetSchedule.followingBoundary(
-                entitlement.getResetPolicy(), entitlement.getNextResetAt(), now
-            ));
+        UUID cycleId = entitlement.ensureTrafficCycleIdentity();
+        Instant cycleStart = entitlement.getNextResetAt();
+        Instant nextBoundary = MonthlyResetSchedule.followingBoundary(
+            entitlement.getResetPolicy(), cycleStart, now);
+        entitlement.resetTrafficForNewCycle(now, cycleStart, nextBoundary);
         records.save(TrafficResetRecord.create(
             userId,
             entitlement.getId(),
             now,
             uploadedBytesBefore,
             downloadedBytesBefore,
-            now
+            now,
+            TrafficResetKind.AUTOMATIC,
+            cycleId
         ));
         entitlements.save(entitlement);
         Long groupId = entitlement.getEffectiveServerGroupId();

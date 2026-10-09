@@ -23,4 +23,12 @@ public interface TrafficResetRecordRepository
         UUID userId,
         Pageable pageable
     );
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(value = """
+        update traffic_reset_records set user_id = :toUserId
+        where user_id = :fromUserId
+        """, nativeQuery = true)
+    int moveOwnership(@org.springframework.data.repository.query.Param("fromUserId") UUID fromUserId,
+        @org.springframework.data.repository.query.Param("toUserId") UUID toUserId);
 }

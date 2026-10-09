@@ -66,6 +66,8 @@ const copy = {
     resetAlready: "本周期已重置",
     resetPending: "已有流量重置订单待支付，继续支付",
     resetUnavailable: "当前订阅暂不可购买流量重置",
+    resetReasonMissingPrice: "需要有效的周期订阅和已配置的正数重置价格，才可购买流量重置。",
+    resetPriceUnavailable: "当前没有可用的付费重置价格。",
     resetCycleEnds: "当前流量周期至",
     resetPendingPrice: "待支付订单的固定金额请在订单详情中查看。",
     resetPurchaseInfo: "流量仅会在订单支付并成功开通后重置。"
@@ -107,6 +109,8 @@ const copy = {
     resetAlready: "Already reset this cycle",
     resetPending: "A traffic-reset order is pending; continue payment",
     resetUnavailable: "Traffic reset is not available for this subscription",
+    resetReasonMissingPrice: "A valid periodic subscription and a positive configured reset price are required to buy a traffic reset.",
+    resetPriceUnavailable: "There is no paid reset price available for this cycle.",
     resetCycleEnds: "Current traffic cycle ends",
     resetPendingPrice: "The pending order's fixed amount is shown in its order details.",
     resetPurchaseInfo: "Traffic is reset only after the order is paid and successfully fulfilled."
@@ -262,6 +266,10 @@ export function AccountOverviewPage() {
   const canRenewCurrentPlan = Boolean(
     offer && offer.renewable && !offer.newUserOffer && renewalPrice
   );
+  const resetUnavailableReason = trafficReset.data?.reason ===
+      "An active periodic plan with a configured reset price is required"
+    ? labels.resetReasonMissingPrice
+    : trafficReset.data?.reason ?? labels.resetUnavailable;
 
   return (
     <AppShell>
@@ -385,9 +393,13 @@ export function AccountOverviewPage() {
               {offer?.planType === "SUBSCRIPTION" && !entitlement.isTrial && trafficReset.isSuccess && (
                 <div className="subscription-link">
                   <p className="muted">
-                    {labels.resetPriceContext}: {trafficReset.data?.priceMinor
+                    {labels.resetPriceContext}: {trafficReset.data?.priceMinor != null
                       ? formatMinorMoney(trafficReset.data.priceMinor, "CNY", language)
-                      : trafficReset.data?.pendingTradeNo ? labels.resetPendingPrice : "—"}
+                      : trafficReset.data?.pendingTradeNo
+                        ? labels.resetPendingPrice
+                        : trafficReset.data?.canPurchase
+                          ? "—"
+                          : labels.resetPriceUnavailable}
                   </p>
                   {trafficReset.data?.cycleEndsAt && <p className="muted">{labels.resetCycleEnds}: {formatDateTime(trafficReset.data.cycleEndsAt, language)}</p>}
                   <small className="muted">{labels.resetPurchaseInfo}</small>
@@ -401,7 +413,7 @@ export function AccountOverviewPage() {
                     <button className="primary-button" onClick={() => navigate(`/plans/${encodeURIComponent(entitlement.planId)}?period=RESET_TRAFFIC`)} type="button">
                       {labels.resetPurchase}
                     </button>
-                  ) : <p className="muted">{labels.resetUnavailable}</p>}
+                  ) : <p className="muted">{resetUnavailableReason}</p>}
                 </div>
               )}
             </>

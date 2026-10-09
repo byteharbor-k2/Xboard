@@ -73,7 +73,8 @@ const copy = {
     accountBalance: "账户余额",
     deductionStandard: "使用余额及套餐剩余价值折抵",
     deductionFull: "不使用折抵，全额支付",
-    deferredCredit: "若开通成功，剩余价值将退回余额",
+    deferredCredit: "预计可退余额；最终金额按开通时可用的剩余价值计算，仅在开通成功后入账。",
+    surplusReserved: "订单待支付期间，当前服务会暂停，剩余价值已暂时预留；取消订单后会释放预留并恢复当前服务。",
     minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
     blockedOffline: "此订单仍可创建，但线上支付不可用；如需继续，请联系管理员进行线下人工结算。",
     zeroAuto: "应付为 ¥0 的订单将自动开通，不需要支付方式。",
@@ -117,7 +118,8 @@ const copy = {
     accountBalance: "Account balance",
     deductionStandard: "Use balance and unused plan value",
     deductionFull: "Do not use credits; pay the full amount",
-    deferredCredit: "If activation succeeds, unused value will be credited to your balance",
+    deferredCredit: "Estimated balance credit; the final amount is based on unused value at fulfilment and is credited only after successful activation.",
+    surplusReserved: "While this order is pending, your current service is suspended and its unused value is reserved. Cancelling releases the reservation and restores the current service.",
     minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
     blockedOffline: "This order may still be created, but online payment is unavailable. Contact an administrator for manual offline settlement.",
     zeroAuto: "Orders with ¥0 due are fulfilled automatically without a payment method.",
@@ -496,6 +498,9 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
               <input checked={deductionMode === "FULL_PAYMENT"} disabled={Boolean(placedTradeNo) || submitting} onChange={() => selectDeductionMode("FULL_PAYMENT")} type="radio" />
               <span>{text.deductionFull}</span>
             </label>
+            {deductionMode === "STANDARD" && BigInt(quote?.surplusAmount ?? "0") > 0n && (
+              <p className="checkout-status">{text.surplusReserved}</p>
+            )}
           </section>
 
           <section className="checkout-card checkout-summary">

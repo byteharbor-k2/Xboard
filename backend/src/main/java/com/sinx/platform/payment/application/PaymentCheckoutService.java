@@ -12,12 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sinx.platform.order.application.OrderFulfilmentService;
 import com.sinx.platform.order.application.OrderService;
 import com.sinx.platform.order.domain.ServiceOrder;
-import com.sinx.platform.order.application.OrderService;
 import com.sinx.platform.order.repository.ServiceOrderRepository;
 import com.sinx.platform.payment.domain.PaymentContext;
 import com.sinx.platform.payment.domain.PaymentGateway;
 import com.sinx.platform.payment.domain.PaymentMethod;
 import com.sinx.platform.payment.domain.PaymentRedirect;
+import com.sinx.platform.payment.domain.PaymentAttempt;
+import com.sinx.platform.payment.repository.PaymentAttemptRepository;
 import com.sinx.platform.payment.repository.PaymentMethodRepository;
 import com.sinx.platform.shared.web.ApiProblemException;
 
@@ -26,15 +27,16 @@ import com.sinx.platform.shared.web.ApiProblemException;
  *
  * Everything that decides how much is charged is read from the order and the
  * stored method; nothing about the amount comes from the request. The order is
- * locked while it is being checked out, so a customer with two tabs open cannot
- * have a surcharge written twice, and the amount the gateway is asked to collect
- * is the amount the callback will be checked against.
+ * locked while it is being checked out, and each returned cashier URL gets an
+ * immutable attempt snapshot so later checkout/configuration changes cannot
+ * alter the terms a callback is checked against.
  */
 @Service
 public class PaymentCheckoutService {
 
     private final ServiceOrderRepository orders;
     private final PaymentMethodRepository methods;
+    private final PaymentAttemptRepository attempts;
     private final PaymentMethodService methodService;
     private final PaymentGatewayRegistry gateways;
     private final PaymentConfigCodec codec;
@@ -46,6 +48,7 @@ public class PaymentCheckoutService {
     public PaymentCheckoutService(
         ServiceOrderRepository orders,
         PaymentMethodRepository methods,
+        PaymentAttemptRepository attempts,
         PaymentMethodService methodService,
         PaymentGatewayRegistry gateways,
         PaymentConfigCodec codec,
@@ -55,6 +58,7 @@ public class PaymentCheckoutService {
     ) {
         this.orders = orders;
         this.methods = methods;
+        this.attempts = attempts;
         this.methodService = methodService;
         this.gateways = gateways;
         this.codec = codec;
@@ -73,7 +77,7 @@ public class PaymentCheckoutService {
         OrderFulfilmentService fulfilment,
         Clock clock
     ) {
-        this(orders, methods, methodService, gateways, codec, fulfilment, null, clock);
+        this(orders, methods, null, methodService, gateways, codec, fulfilment, null, clock);
     }
 
     /**
@@ -157,16 +161,37 @@ public class PaymentCheckoutService {
         PaymentMethod method = methodService.requireEnabled(paymentMethodId);
 
         long handlingFee = method.handlingFeeFor(order.getTotalAmount());
+        String merchantConfig = method.getConfig();
+        Instant createdAt = Instant.now(clock);
         order.attachPayment(
             method.getId(),
             method.getGateway(),
             handlingFee,
-            Instant.now(clock)
+            createdAt
         );
 
         PaymentGateway gateway = gateways.require(method.getGateway());
+        if (attempts != null) {
+            var merchantConfigValues = codec.read(merchantConfig);
+            // Receipt identity belongs to the configured EPay platform and
+            // merchant, not the panel origin used for notify/return URLs.
+            String gatewayPlatformUrl = merchantConfigValues.get("url");
+            String merchantIdentity = merchantConfigValues.get("pid");
+            attempts.save(PaymentAttempt.create(
+                order.getTradeNo(),
+                order.getUser().getId(),
+                method,
+                gatewayPlatformUrl,
+                merchantIdentity,
+                merchantConfig,
+                order.getTotalAmount(),
+                handlingFee,
+                order.getCurrency(),
+                createdAt
+            ));
+        }
         return gateway.pay(
-            codec.read(method.getConfig()),
+            codec.read(merchantConfig),
             new PaymentContext(
                 order.getTradeNo(),
                 order.payableAmount(),

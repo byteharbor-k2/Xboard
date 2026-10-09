@@ -15,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.sinx.platform.catalog.domain.BillingPeriod;
 import com.sinx.platform.catalog.domain.PlanType;
@@ -25,6 +26,7 @@ import com.sinx.platform.balance.domain.BalanceLogType;
 import com.sinx.platform.catalog.repository.ServicePlanRepository;
 import com.sinx.platform.configuration.application.PlatformConfigurationService;
 import com.sinx.platform.identity.domain.UserAccount;
+import com.sinx.platform.identity.application.UserEntitlementChangedEvent;
 import com.sinx.platform.identity.repository.UserAccountRepository;
 import com.sinx.platform.order.domain.Coupon;
 import com.sinx.platform.order.domain.CouponRedemption;
@@ -92,10 +94,16 @@ public class OrderService {
     private final BalanceLedgerService balanceLedger;
     private final SecureRandom random = new SecureRandom();
     private PaidTrafficResetClaimRepository resetClaims;
+    private ApplicationEventPublisher events;
 
     @org.springframework.beans.factory.annotation.Autowired
     void setResetClaims(PaidTrafficResetClaimRepository resetClaims) {
         this.resetClaims = resetClaims;
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    void setEvents(ApplicationEventPublisher events) {
+        this.events = events;
     }
 
     public OrderService(
@@ -227,7 +235,10 @@ public class OrderService {
             throw rejected("A paid traffic reset requires a positive configured price");
         }
         SubscriptionEntitlement entitlement =
-            entitlements.findByUserId(userId).orElse(null);
+            entitlements.findByUserIdForUpdate(userId).orElse(null);
+        if (entitlement != null) {
+            entitlement.ensureTrafficCycleIdentity();
+        }
 
         if (orders.existsByUserIdAndStatusIn(userId, OPEN_STATUSES)) {
             throw problem(
@@ -283,7 +294,11 @@ public class OrderService {
             mode,
             fullPayment ? surplus.amountMinor() : 0,
             period == BillingPeriod.RESET_TRAFFIC && entitlement != null
-                ? currentResetCycleEnd(entitlement, now) : null,
+                ? currentResetCycleStart(entitlement) : null,
+            period == BillingPeriod.RESET_TRAFFIC && entitlement != null
+                ? currentResetCycleEnd(entitlement) : null,
+            period == BillingPeriod.RESET_TRAFFIC && entitlement != null
+                ? currentResetCycleId(entitlement) : null,
             now
         );
         CommissionSnapshot commission = commissionSnapshot(user, breakdown);
@@ -319,6 +334,11 @@ public class OrderService {
             return fulfilment.settleCovered(placedOrder.getTradeNo());
         }
 
+        if (!fullPayment && breakdown.surplusAmount() > 0 && entitlement != null) {
+            entitlement.reserveSurplus();
+            announceEntitlementChange(userId, entitlement, now);
+        }
+
         return placedOrder;
     }
 
@@ -344,7 +364,7 @@ public class OrderService {
             BillingPeriod.RESET_TRAFFIC, OrderStatus.PENDING).orElse(null);
         if (pending != null) {
             Instant pendingCycleEnd = entitlement == null
-                ? null : currentResetCycleEnd(entitlement, now);
+                ? null : currentResetCycleEnd(entitlement);
             return new ViewerTrafficResetOffer(false, false, null,
                 pendingCycleEnd == null ? null : pendingCycleEnd.toString(), pending,
                 "A traffic reset order is already pending");
@@ -356,6 +376,7 @@ public class OrderService {
             && entitlement.getExpiresAt() != null
             && entitlement.getExpiresAt().isAfter(now)
             && entitlement.getNextResetAt() != null
+            && entitlement.getNextResetAt().isAfter(now)
             && entitlement.getResetPolicy()
                 != com.sinx.platform.catalog.domain.TrafficResetPolicy.NEVER;
         ServicePlan plan = eligible ? plans.findById(entitlement.getPlanId()).orElse(null) : null;
@@ -368,24 +389,41 @@ public class OrderService {
             reason = "An active periodic plan with a configured reset price is required";
         }
         boolean already = eligible && resetClaims != null
-            && resetClaims.existsByUserIdAndCycleEnd(userId,
-                currentResetCycleEnd(entitlement, now));
+            && resetClaims.existsByUserIdAndCycleId(userId,
+                currentResetCycleId(entitlement));
         if (already) {
             eligible = false;
             reason = "Traffic has already been reset in this cycle";
         }
         Instant cycleEnd = entitlement == null
-            ? null : currentResetCycleEnd(entitlement, now);
+            ? null : currentResetCycleEnd(entitlement);
         return new ViewerTrafficResetOffer(eligible, already,
             price == null ? null : Long.toString(price.getAmountMinor()),
             cycleEnd == null ? null : cycleEnd.toString(), null, reason);
     }
 
-    private Instant currentResetCycleEnd(SubscriptionEntitlement entitlement, Instant now) {
-        Instant boundary = entitlement.getNextResetAt();
-        if (boundary == null || boundary.isAfter(now)) return boundary;
-        return com.sinx.platform.subscription.domain.MonthlyResetSchedule.followingBoundary(
-            entitlement.getResetPolicy(), boundary, now);
+    private Instant currentResetCycleStart(SubscriptionEntitlement entitlement) {
+        return entitlement.getTrafficCycleStart() == null
+            ? entitlement.getStartsAt() : entitlement.getTrafficCycleStart();
+    }
+
+    private Instant currentResetCycleEnd(SubscriptionEntitlement entitlement) {
+        return entitlement.getTrafficCycleEnd() == null
+            ? entitlement.getNextResetAt() : entitlement.getTrafficCycleEnd();
+    }
+
+    private UUID currentResetCycleId(SubscriptionEntitlement entitlement) {
+        return entitlement.getTrafficCycleId();
+    }
+
+    private void announceEntitlementChange(UUID userId,
+        SubscriptionEntitlement entitlement, Instant now) {
+        if (events == null) {
+            return;
+        }
+        Long groupId = entitlement.getEffectiveServerGroupId();
+        events.publishEvent(new UserEntitlementChangedEvent(userId,
+            groupId == null ? List.of() : List.of(groupId), now));
     }
 
     /** Rejects a stale pending paid-reset order before a cashier URL is issued. */
@@ -397,6 +435,9 @@ public class OrderService {
         Instant now = Instant.now(clock);
         SubscriptionEntitlement entitlement = entitlements
             .findByUserIdForUpdate(order.getUser().getId()).orElse(null);
+        if (entitlement != null) {
+            entitlement.ensureTrafficCycleIdentity();
+        }
         ServicePlan plan = entitlement == null
             ? null : plans.findById(entitlement.getPlanId()).orElse(null);
         ServicePlanPrice currentResetPrice = plan == null ? null
@@ -412,14 +453,17 @@ public class OrderService {
             && entitlement.getCanceledAt() == null
             && entitlement.getExpiresAt() != null
             && entitlement.getExpiresAt().isAfter(now)
-            && currentResetCycleEnd(entitlement, now) != null
-            && order.getResetCycleEnd().equals(currentResetCycleEnd(entitlement, now))
+            && entitlement.getNextResetAt() != null
+            && entitlement.getNextResetAt().isAfter(now)
+            && currentResetCycleEnd(entitlement) != null
+            && java.util.Objects.equals(order.getResetCycleId(),
+                currentResetCycleId(entitlement))
             && plan != null
             && plan.isResettable()
             && currentResetPrice != null
             && currentResetPrice.getAmountMinor() > 0
-            && (resetClaims == null || !resetClaims.existsByUserIdAndCycleEnd(
-                order.getUser().getId(), order.getResetCycleEnd()));
+            && (resetClaims == null || !resetClaims.existsByUserIdAndCycleId(
+                order.getUser().getId(), order.getResetCycleId()));
         if (!eligible) {
             throw problem(HttpStatus.CONFLICT, "TRAFFIC_RESET_NOT_AVAILABLE",
                 "This paid traffic reset is no longer available in the current cycle. Cancel it and place a new order.");
@@ -544,7 +588,7 @@ public class OrderService {
         // Give back whatever the order had taken from the balance, and release
         // the coupon use so a cancelled order does not consume an allowance.
         balanceLedger.credit(
-            order.getUser().getId(),
+            order.getBalancePayerUserId(),
             order.getBalanceAmount(),
             BalanceLogType.ORDER_REFUND,
             order.getTradeNo(),
@@ -552,6 +596,14 @@ public class OrderService {
             now
         );
         releaseCoupon(order, now);
+        if (order.getDeductionMode() == OrderDeductionMode.STANDARD
+                && order.getSurplusAmount() > 0) {
+            entitlements.findByUserIdForUpdate(order.getUser().getId())
+                .ifPresent(entitlement -> {
+                    entitlement.releaseSurplusReservation(now);
+                    announceEntitlementChange(order.getUser().getId(), entitlement, now);
+                });
+        }
         order.cancel(now);
         return order;
     }
@@ -617,7 +669,8 @@ public class OrderService {
         if (entitlement == null || entitlement.getCanceledAt() != null) {
             return OrderType.NEW_PURCHASE;
         }
-        if (entitlement.getPlanId().equals(plan.getId())) {
+        if (entitlement.getPlanId().equals(plan.getId())
+                && stillCovered(entitlement, now)) {
             return OrderType.RENEWAL;
         }
         return stillCovered(entitlement, now)
@@ -669,14 +722,15 @@ public class OrderService {
                     || entitlement.getExpiresAt() == null
                     || !entitlement.getExpiresAt().isAfter(now)
                     || entitlement.getNextResetAt() == null
+                    || !entitlement.getNextResetAt().isAfter(now)
                     || entitlement.getResetPolicy()
                         == com.sinx.platform.catalog.domain.TrafficResetPolicy.NEVER) {
                 throw rejected(
                     "A paid traffic reset requires an active periodic subscription"
                 );
             }
-            if (resetClaims != null && resetClaims.existsByUserIdAndCycleEnd(
-                    user.getId(), currentResetCycleEnd(entitlement, now))) {
+            if (resetClaims != null && resetClaims.existsByUserIdAndCycleId(
+                    user.getId(), currentResetCycleId(entitlement))) {
                 throw rejected("Traffic has already been reset in this cycle");
             }
             return;

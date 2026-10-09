@@ -74,6 +74,7 @@ public interface SubscriptionEntitlementRepository
           and entitlement.user.status = :activeStatus
           and entitlement.user.nodeUserId is not null
           and entitlement.canceledAt is null
+          and entitlement.surplusReserved = false
           and (
             entitlement.expiresAt is null
             or entitlement.expiresAt > :now
@@ -224,13 +225,20 @@ public interface SubscriptionEntitlementRepository
         @Param("now") Instant now
     );
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @EntityGraph(attributePaths = {"user", "plan"})
-    @Query("""
-        select entitlement
-        from SubscriptionEntitlement entitlement
-        where entitlement.user.nodeUserId = :nodeUserId
-        """)
+    /**
+     * Lock only the entitlement, without joining its mutable plan. PostgreSQL
+     * rechecks a waiting FOR UPDATE query against the newly committed row;
+     * joining the old plan can make that recheck drop the row when settlement
+     * replaces plan_id, silently losing an already-carried traffic report.
+     * User and plan associations are loaded inside the reporting transaction.
+     */
+    @Query(value = """
+        select entitlement.* from subscription_entitlements entitlement
+        where entitlement.user_id = (
+            select id from users where node_user_id = :nodeUserId
+        )
+        for update of entitlement
+        """, nativeQuery = true)
     Optional<SubscriptionEntitlement> findForTrafficReport(
         @Param("nodeUserId") Long nodeUserId
     );
@@ -275,6 +283,7 @@ public interface SubscriptionEntitlementRepository
           and entitlement.user.status = :activeStatus
           and entitlement.user.nodeUserId is not null
           and entitlement.canceledAt is null
+          and entitlement.surplusReserved = false
           and (
             entitlement.expiresAt is null
             or entitlement.expiresAt > :now

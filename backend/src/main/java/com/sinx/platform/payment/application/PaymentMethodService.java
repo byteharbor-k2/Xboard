@@ -194,10 +194,8 @@ public class PaymentMethodService {
 
     /** Where the gateway should report the result of a payment. */
     public String notifyUrl(PaymentMethod method) {
-        return origin(
-            method.getNotifyDomain(),
-            properties.publicBaseUrl()
-        ) + NOTIFY_PATH + method.getGateway().toLowerCase(Locale.ROOT) + "/"
+        return origin(method.getNotifyDomain(), properties.publicBaseUrl()) + NOTIFY_PATH
+            + method.getGateway().toLowerCase(Locale.ROOT) + "/"
             + method.getUuid();
     }
 

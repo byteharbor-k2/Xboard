@@ -201,11 +201,21 @@ export function AdminOrdersPage() {
 
   const settleMutation = useMutation({
     mutationFn: (tradeNo: string) => settleOrder(token, tradeNo),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "orders"] })
+    onSuccess: async (_result, tradeNo) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["admin", "orders"] }),
+        client.invalidateQueries({ queryKey: ["admin", "order-detail", tradeNo] })
+      ]);
+    }
   });
   const cancelMutation = useMutation({
     mutationFn: (tradeNo: string) => cancelOrder(token, tradeNo),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "orders"] })
+    onSuccess: async (_result, tradeNo) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: ["admin", "orders"] }),
+        client.invalidateQueries({ queryKey: ["admin", "order-detail", tradeNo] })
+      ]);
+    }
   });
   const commissionMutation = useMutation({
     mutationFn: ({ tradeNo, commissionStatus: nextStatus }: { tradeNo: string; commissionStatus: 0 | 1 | 3 }) =>

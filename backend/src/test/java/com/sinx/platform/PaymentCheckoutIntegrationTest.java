@@ -179,7 +179,7 @@ class PaymentCheckoutIntegrationTest {
 
         order = orderRow(tradeNo);
         assertThat(order.get("status")).isEqualTo("COMPLETED");
-        assertThat(order.get("callback_no")).isEqualTo("2026091722009876543210");
+        assertThat(order.get("callback_no")).isEqualTo(callback.get("trade_no"));
         assertThat(order.get("paid_at")).isNotNull();
         assertThat(entitlementCount(planId)).isEqualTo(1);
 
@@ -229,17 +229,24 @@ class PaymentCheckoutIntegrationTest {
         notifyTheGateway(epay, failed)
             .andExpect(status().isUnprocessableEntity());
 
-        // Genuinely signed by the gateway, and genuinely for less than the order
-        // costs. The original would open this order; it must not be opened here.
+        // A genuinely signed capture for less than the order costs is real money,
+        // but it cannot settle this cashier attempt. Reconcile it to balance.
         notifyTheGateway(epay, callbackFor(epay, tradeNo, "1.00"))
-            .andExpect(status().isUnprocessableEntity());
+            .andExpect(status().isOk())
+            .andExpect(content().string("success"));
 
         assertThat(orderRow(tradeNo).get("status")).isEqualTo("PENDING");
         assertThat(entitlementCount(planId)).isZero();
+        assertThat(balanceMinor("payment-sceptic@example.com")).isEqualTo(100);
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT count(*) FROM payment_receipts WHERE trade_no = ?",
+            Long.class,
+            tradeNo
+        )).isEqualTo(1L);
     }
 
     @Test
-    void refusesToTakeMoneyThroughAMethodThatWasSwitchedOff() throws Exception {
+    void acceptsAnImmutableCheckoutReceiptAfterItsMethodIsSwitchedOff() throws Exception {
         String accessToken = register("payment-lapsed@example.com");
         UUID planId = seedMonthlyPlan("Starter", 1200);
         Method epay = configureEpay("微信支付", null, null);
@@ -247,8 +254,8 @@ class PaymentCheckoutIntegrationTest {
         String tradeNo = placeOrder(accessToken, planId);
         checkout(accessToken, tradeNo, epay.id());
 
-        // An administrator switching a method off is saying no more money should
-        // be taken through it - including the payment already in flight.
+        // Disabling a method prevents new checkouts, but it cannot invalidate
+        // the immutable credentials behind a cashier link already issued.
         mockMvc.perform(post("/api/v2/admin/payment/show")
                 .with(administrator())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -259,8 +266,10 @@ class PaymentCheckoutIntegrationTest {
             .andExpect(jsonPath("$.data").value(false));
 
         notifyTheGateway(epay, callbackFor(epay, tradeNo, "12.00"))
-            .andExpect(status().isNotFound());
-        assertThat(entitlementCount(planId)).isZero();
+            .andExpect(status().isOk())
+            .andExpect(content().string("success"));
+        assertThat(orderRow(tradeNo).get("status")).isEqualTo("COMPLETED");
+        assertThat(entitlementCount(planId)).isEqualTo(1);
     }
 
     /**
@@ -451,7 +460,12 @@ class PaymentCheckoutIntegrationTest {
     ) {
         Map<String, String> params = new LinkedHashMap<>();
         params.put("pid", "1000");
-        params.put("trade_no", "2026091722009876543210");
+        // Each generated callback represents a distinct gateway transaction;
+        // retries reuse the same callback map instead of rebuilding it.
+        params.put(
+            "trade_no",
+            "GW-" + UUID.randomUUID().toString().replace("-", "")
+        );
         params.put("out_trade_no", tradeNo);
         params.put("type", "alipay");
         params.put("name", tradeNo);

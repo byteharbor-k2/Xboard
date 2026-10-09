@@ -7,12 +7,10 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 
-/** A successfully paid user reset consumes precisely one monthly-cycle allowance. */
+/** A successfully paid user reset consumes one allowance for its actual traffic cycle. */
 @Entity
-@Table(name = "paid_traffic_reset_claims", uniqueConstraints =
-    @UniqueConstraint(name = "uq_paid_reset_user_cycle", columnNames = {"user_id", "cycle_end"}))
+@Table(name = "paid_traffic_reset_claims")
 public class PaidTrafficResetClaim {
     @Id
     @Column(nullable = false, updatable = false)
@@ -24,6 +22,12 @@ public class PaidTrafficResetClaim {
     @Column(name = "cycle_end", nullable = false, updatable = false)
     private Instant cycleEnd;
 
+    @Column(name = "cycle_start", nullable = false, updatable = false)
+    private Instant cycleStart;
+
+    @Column(name = "traffic_cycle_id", nullable = false, updatable = false)
+    private UUID cycleId;
+
     @Column(name = "trade_no", nullable = false, unique = true, length = 32, updatable = false)
     private String tradeNo;
 
@@ -32,14 +36,21 @@ public class PaidTrafficResetClaim {
 
     protected PaidTrafficResetClaim() { }
 
-    public static PaidTrafficResetClaim create(UUID userId, Instant cycleEnd,
-        String tradeNo, Instant now) {
+    public static PaidTrafficResetClaim create(UUID userId, UUID cycleId,
+        Instant cycleStart, Instant cycleEnd, String tradeNo, Instant now) {
         PaidTrafficResetClaim claim = new PaidTrafficResetClaim();
         claim.id = UUID.randomUUID();
         claim.userId = userId;
         claim.cycleEnd = cycleEnd;
+        claim.cycleStart = cycleStart;
+        claim.cycleId = cycleId;
         claim.tradeNo = tradeNo;
         claim.claimedAt = now;
         return claim;
+    }
+
+    public static PaidTrafficResetClaim create(UUID userId, Instant cycleStart,
+        Instant cycleEnd, String tradeNo, Instant now) {
+        return create(userId, UUID.randomUUID(), cycleStart, cycleEnd, tradeNo, now);
     }
 }

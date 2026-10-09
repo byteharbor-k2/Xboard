@@ -63,6 +63,25 @@ public class SubscriptionEntitlement {
     @Column(name = "next_reset_at")
     private Instant nextResetAt;
 
+    /** Stable identity of the currently funded traffic cycle, independent of scheduled-boundary edits. */
+    @Column(name = "traffic_cycle_start")
+    private Instant trafficCycleStart;
+
+    @Column(name = "traffic_cycle_end")
+    private Instant trafficCycleEnd;
+
+    /** Opaque identity changes only when a genuinely new paid traffic cycle starts. */
+    @Column(name = "traffic_cycle_id")
+    private UUID trafficCycleId;
+
+    /** Usage carried across manual and paid resets until the actual cycle rolls over. */
+    @Column(name = "cycle_consumed_bytes", nullable = false)
+    private long cycleConsumedBytes;
+
+    /** STANDARD checkout has spent this entitlement's quoted value; nodes must stop consuming it. */
+    @Column(name = "surplus_reserved", nullable = false)
+    private boolean surplusReserved;
+
     @Column(name = "canceled_at")
     private Instant canceledAt;
 
@@ -134,6 +153,9 @@ public class SubscriptionEntitlement {
             : MonthlyResetSchedule.initialBoundary(
                 entitlement.resetPolicy, startsAt
             );
+        entitlement.trafficCycleStart = startsAt;
+        entitlement.trafficCycleEnd = entitlement.nextResetAt;
+        entitlement.trafficCycleId = UUID.randomUUID();
         entitlement.createdAt = now;
         entitlement.updatedAt = now;
         return entitlement;
@@ -187,7 +209,13 @@ public class SubscriptionEntitlement {
             // happens to match the previous entitlement's policy.
             startsAt = now;
             nextResetAt = MonthlyResetSchedule.initialBoundary(resetPolicy, now);
+            trafficCycleStart = now;
+            trafficCycleEnd = nextResetAt;
+            trafficCycleId = UUID.randomUUID();
+            cycleConsumedBytes = 0;
             clearCounters(now);
+        } else {
+            seedTrafficCycleIdentity();
         }
     }
 
@@ -200,6 +228,8 @@ public class SubscriptionEntitlement {
      */
     public void provisionPackage(ServicePlan plan, Instant now) {
         applyPlan(plan, null, TrafficResetPolicy.NEVER, now);
+        trafficCycleId = UUID.randomUUID();
+        cycleConsumedBytes = 0;
         clearCounters(now);
     }
 
@@ -231,20 +261,44 @@ public class SubscriptionEntitlement {
     /**
      * Zeroes the counters inside a running monthly cycle.
      *
-     * The reset itself is the same clearing a manual one performs; what lifts
-     * it out of the ordinary is the boundary handed in: the cycle carries on
-     * from instantly after the passed one, so the customer keeps a monthly
-     * rhythm and a reset that lands late cannot shorten the one that follows.
+     * An administrator's reset clears the visible counters and moves the next
+     * scheduled boundary. Consumption remains attached to the actual funded
+     * cycle, whose identity is not changed by this manual reanchor.
      */
     public void resetTrafficInCycle(Instant now, Instant nextBoundary) {
+        seedTrafficCycleIdentity();
+        accumulateCycleUsage();
         clearCounters(now);
         nextResetAt = trial ? null : nextBoundary;
     }
 
+    /** An automatic boundary closes the old usage account and opens a new paid cycle. */
+    public void resetTrafficForNewCycle(Instant now, Instant cycleStart, Instant nextBoundary) {
+        clearCounters(now);
+        nextResetAt = trial ? null : nextBoundary;
+        trafficCycleStart = trial ? null : cycleStart;
+        trafficCycleEnd = trial ? null : nextBoundary;
+        trafficCycleId = trial ? null : UUID.randomUUID();
+        cycleConsumedBytes = 0;
+    }
+
     /** Paid self-service reset clears usage without moving the scheduled cycle boundary. */
     public void resetTrafficWithoutReanchoring(Instant now, Instant nextBoundary) {
+        seedTrafficCycleIdentity();
+        accumulateCycleUsage();
         clearCounters(now);
         nextResetAt = nextBoundary;
+    }
+
+    /** Prevents node traffic while a STANDARD order holds the surplus valuation. */
+    public void reserveSurplus() {
+        surplusReserved = true;
+    }
+
+    /** Cancellation releases the old entitlement without changing its usage. */
+    public void releaseSurplusReservation(Instant now) {
+        surplusReserved = false;
+        updatedAt = now;
     }
 
     /** Changes the effective policy without erasing usage or catching up old cycles. */
@@ -253,8 +307,11 @@ public class SubscriptionEntitlement {
         Instant now
     ) {
         if (trial || plan.getPlanType()
-                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE
-            || resetPolicy == effectivePolicy) {
+                == com.sinx.platform.catalog.domain.PlanType.TRAFFIC_PACKAGE) {
+            return false;
+        }
+        seedTrafficCycleIdentity();
+        if (resetPolicy == effectivePolicy) {
             return false;
         }
         resetPolicy = effectivePolicy;
@@ -277,6 +334,11 @@ public class SubscriptionEntitlement {
         nextResetAt = trial
             ? null
             : MonthlyResetSchedule.initialBoundary(resetPolicy, startsAt);
+        if (!trial && trafficCycleStart == null && nextResetAt != null) {
+            trafficCycleStart = startsAt;
+            trafficCycleEnd = nextResetAt;
+        }
+        seedTrafficCycleIdentity();
     }
 
     /**
@@ -313,6 +375,7 @@ public class SubscriptionEntitlement {
                 "A traffic allowance must be greater than zero"
             );
         }
+        seedTrafficCycleIdentity();
         TrafficResetPolicy previousPolicy = resetPolicy;
         if (plan != null) {
             this.plan = plan;
@@ -333,6 +396,7 @@ public class SubscriptionEntitlement {
                 ? MonthlyResetSchedule.nextBoundary(resetPolicy, now, startsAt)
                 : null;
         }
+        seedTrafficCycleIdentity();
         // An operator granting a subscription is reactivating it, the same way
         // a paid order does.
         this.canceledAt = null;
@@ -364,6 +428,7 @@ public class SubscriptionEntitlement {
             );
         }
         this.expiresAt = expiresAt;
+        surplusReserved = false;
         // A paid order activates the subscription again, even one that was
         // cancelled while nothing was backing it.
         this.canceledAt = null;
@@ -384,6 +449,26 @@ public class SubscriptionEntitlement {
         uploadedBytes = 0;
         downloadedBytes = 0;
         updatedAt = now;
+    }
+
+    private void accumulateCycleUsage() {
+        cycleConsumedBytes = saturatedAdd(cycleConsumedBytes, usedBytes());
+    }
+
+    private void seedTrafficCycleIdentity() {
+        if (trafficCycleStart == null && nextResetAt != null) {
+            trafficCycleStart = startsAt;
+            trafficCycleEnd = nextResetAt;
+        }
+        if (trafficCycleId == null && nextResetAt != null) {
+            trafficCycleId = UUID.randomUUID();
+        }
+    }
+
+    /** Assigns a stable key to an upgraded legacy row while its entitlement lock is held. */
+    public UUID ensureTrafficCycleIdentity() {
+        seedTrafficCycleIdentity();
+        return trafficCycleId;
     }
 
     public void recordUsage(long uploadedBytes, long downloadedBytes, Instant now) {
@@ -433,6 +518,10 @@ public class SubscriptionEntitlement {
         return plan.getId();
     }
 
+    public Long getPlanServerGroupId() {
+        return plan.getServerGroupId();
+    }
+
     public com.sinx.platform.catalog.domain.PlanType getPlanType() {
         return plan.getPlanType();
     }
@@ -471,6 +560,30 @@ public class SubscriptionEntitlement {
 
     public Instant getNextResetAt() {
         return nextResetAt;
+    }
+
+    public Instant getTrafficCycleStart() {
+        return trafficCycleStart;
+    }
+
+    public Instant getTrafficCycleEnd() {
+        return trafficCycleEnd;
+    }
+
+    public UUID getTrafficCycleId() {
+        return trafficCycleId;
+    }
+
+    public long getCycleConsumedBytes() {
+        return cycleConsumedBytes;
+    }
+
+    public long cycleUsedBytes() {
+        return saturatedAdd(cycleConsumedBytes, usedBytes());
+    }
+
+    public boolean isSurplusReserved() {
+        return surplusReserved;
     }
 
     public UserAccount getUser() {

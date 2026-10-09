@@ -196,6 +196,42 @@ Build the site's own experience rather than a general theme/plugin/customization
 - [ ] User-owned visual acceptance of the custom-business batch; code `8ebfff3` is deployed after database backup. V36/V37 succeeded, backend/frontend containers are healthy, and all existing cash balances reconcile with ledger totals. Latest backend CI and image publish passed; frontend CI/build/check/production audit and independent review passed. Public QA queries verified STANDARD vs FULL_PAYMENT, zero-pay allowance, exactly-CNY-10 payment eligibility, deferred credit and paid-reset eligibility; no real user balances, orders or credentials were changed for acceptance.
 - CI portability fix: integration-test clocks are normalized to PostgreSQL microsecond precision before fixture writes. Linux nanosecond timestamps previously failed exact date assertions; exact expiry/cycle and proration assertions are retained or strengthened. Main full backend verification remains 678 passing tests, and the test-only change passed independent review.
 
+### Payment/valuation audit findings (2026-10-08; local repairs verified 2026-10-09)
+
+Read-only source audit against deployed `8ebfff3`; the earlier 678-test result does not
+cover these counterexamples. No public payment requests or account mutations were used
+to reproduce them, and no application code was changed during this audit.
+
+Repair status (2026-10-09): the audit findings below and subsequent adversarial-review
+blockers are repaired in the local worktree. Main-agent full `./mvnw verify` passed:
+712 tests, zero failures/errors; the independent read-only reviewer passed after the
+last populated V39 activation-isolation regression. These changes are not yet deployed.
+V38 introduces immutable payment attempts and merchant/platform-scoped receipts,
+including historical receipt identities. V39 preserves original balance payers,
+traffic-cycle identities, consumption across manual/paid resets and surplus reservations.
+STANDARD freezes time valuation at order confirmation while accounting for actual
+in-flight consumption; FULL_PAYMENT values actual remaining rights at fulfilment.
+Replacing rights retires all associated funded sources, including zero-value sources.
+Traffic-report locking uses a single-table PostgreSQL `FOR UPDATE` query: joining the
+mutable plan previously caused a queued report to disappear after concurrent replacement.
+Exact ledger/counter assertions now cover both report/settlement lock orders.
+Legacy reset fulfilment requires matching saved cycle/activation evidence; migration
+cycle/history/consumption attribution is bounded by the current activation's `starts_at`.
+Historical overwritten merchant settings, missing reset kinds and pre-ledger payer facts
+cannot be reconstructed perfectly; populated migration tests cover the recoverable cases.
+Frontend build/check/production dependency audit passed; visual acceptance is user-owned.
+ByteVirt-SG now serves production machine 10 and must not be used for development node QA.
+
+- [x] P0: EPay requires successful trade status and a gateway transaction number; signed checkout requests cannot settle service or balance.
+- [ ] P1: periodic surplus ignores current-cycle traffic consumption while cross-plan fulfilment replenishes quota, allowing an exhausted month to redeem time-based value and obtain fresh quota/cash credit. Preserve future prepaid periods separately when defining the corrected policy.
+- [ ] P1: pending orders freeze old remaining value but leave the old entitlement consumable; later fulfilment can redeem value already consumed during the payment wait. Pricing confirmation and resource/value reservation need a consistent policy.
+- [ ] P1: repeated checkout overwrites method/fee metadata; callbacks use current enabled/configured merchant settings. Existing cashier links may be paid but rejected after another checkout or configuration change.
+- [ ] P1: a first real gateway receipt arriving after cancellation or manual completion is acknowledged without recording or applying the extra receipt. Existing same-order fulfilment idempotence is not full payment-receipt reconciliation.
+- [ ] P2: clipping a funded period to an administratively shortened expiry also shrinks its valuation denominator, overvaluing the remaining portion.
+- [ ] P2: order assignment moves an entitlement but only one funding order and no paid-reset claims, breaking multi-order remaining-value and cycle ownership continuity.
+- [ ] UI: selected payment-method totals can retain an earlier stored fee; settled-order paymentOptions and admin detail invalidation have state inconsistencies.
+- Confirmed policy: purchases after expiry are NEW_PURCHASE with new usage/anchors and no old surplus; manual resets/policy changes preserve the actual traffic-cycle identity.
+
 ### P3
 
 - Telegram configuration/webhook is not being built; unsupported UI removed in the custom-business batch.
