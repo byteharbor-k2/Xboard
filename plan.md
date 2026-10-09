@@ -205,7 +205,13 @@ to reproduce them, and no application code was changed during this audit.
 Repair status (2026-10-09): the audit findings below and subsequent adversarial-review
 blockers are repaired in the local worktree. Main-agent full `./mvnw verify` passed:
 712 tests, zero failures/errors; the independent read-only reviewer passed after the
-last populated V39 activation-isolation regression. These changes are not yet deployed.
+last populated V39 activation-isolation regression. Code `bc297e4` was deployed to dev
+on 2026-10-09 after database backup `pre-v38-v39-bc297e4-20261009-134038.dump`.
+Backend CI, frontend CI and image publication passed for that exact SHA; deployed
+backend/frontend image IDs match its immutable SHA tags. V38/V39 applied successfully,
+all test containers are healthy, cash/ledger mismatches and missing payer snapshots are
+zero, and public frontend/anonymous GraphQL smoke checks passed. Production xboard-node
+remained active with its existing PID throughout the test-panel container deployment.
 V38 introduces immutable payment attempts and merchant/platform-scoped receipts,
 including historical receipt identities. V39 preserves original balance payers,
 traffic-cycle identities, consumption across manual/paid resets and surplus reservations.
