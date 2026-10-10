@@ -278,6 +278,21 @@ export function AccountOverviewPage() {
         <h1>{labels.greeting}, {viewer.displayName}</h1>
         <p className="muted">{labels.description}</p>
       </header>
+      {subscriptionUrl && (
+        <section className="dashboard-quick-start" aria-label={labels.quickStart}>
+          <div>
+            <h2>{labels.quickStart}</h2>
+            <p className="muted">{labels.quickStartHint}</p>
+          </div>
+          <button
+            className="primary-button subscription-chooser-trigger"
+            onClick={() => setClientChooserOpen(true)}
+            type="button"
+          >
+            {labels.chooseClient}
+          </button>
+        </section>
+      )}
       <AnnouncementCarousel
         announcements={announcements}
         label={labels.announcement}
@@ -420,21 +435,6 @@ export function AccountOverviewPage() {
           )}
           {!entitlementLoading && !entitlement && (
             <p className="subscription-empty-copy">{labels.empty}</p>
-          )}
-          {subscriptionUrl && (
-            <div className="subscription-link">
-              <div className="subscription-link-heading">
-                <span>{labels.quickStart}</span>
-              </div>
-              <p className="muted">{labels.quickStartHint}</p>
-              <button
-                className="primary-button subscription-chooser-trigger"
-                onClick={() => setClientChooserOpen(true)}
-                type="button"
-              >
-                {labels.chooseClient}
-              </button>
-            </div>
           )}
           {clientChooserOpen && subscriptionUrl && (
             <SubscriptionClientDialog

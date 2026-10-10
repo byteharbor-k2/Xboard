@@ -71,12 +71,10 @@ const copy = {
     quoteFailed: "价格计算失败",
     retryQuote: "重试报价",
     accountBalance: "账户余额",
-    deductionStandard: "使用余额及套餐剩余价值折抵",
-    deductionFull: "不使用折抵，全额支付",
-    deferredCredit: "预计可退余额；最终金额按开通时可用的剩余价值计算，仅在开通成功后入账。",
-    surplusReserved: "订单待支付期间，当前服务会暂停，剩余价值已暂时预留；取消订单后会释放预留并恢复当前服务。",
-    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    blockedOffline: "此订单仍可创建，但线上支付不可用；如需继续，请联系管理员进行线下人工结算。",
+    deferredCredit: "开通后预计退回余额",
+    surplusReserved: "换购订单待付款期间，当前套餐暂停使用；取消订单即可恢复。",
+    minimumPayment: "在线支付金额需至少 ¥10。请选择其他套餐，或联系客服。",
+    blockedOffline: "如需保留此订单，请联系客服协助付款。",
     zeroAuto: "应付为 ¥0 的订单将自动开通，不需要支付方式。",
     autoSettled: "该订单已自动开通，无需支付。",
     balanceReturned: "该订单未重置流量，已返还站内余额%s（可用于后续订单，非银行退款）"
@@ -116,12 +114,10 @@ const copy = {
     quoteFailed: "Could not price this order",
     retryQuote: "Retry quote",
     accountBalance: "Account balance",
-    deductionStandard: "Use balance and unused plan value",
-    deductionFull: "Do not use credits; pay the full amount",
-    deferredCredit: "Estimated balance credit; the final amount is based on unused value at fulfilment and is credited only after successful activation.",
-    surplusReserved: "While this order is pending, your current service is suspended and its unused value is reserved. Cancelling releases the reservation and restores the current service.",
-    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    blockedOffline: "This order may still be created, but online payment is unavailable. Contact an administrator for manual offline settlement.",
+    deferredCredit: "Estimated balance credit after activation",
+    surplusReserved: "Your current plan is paused while the switch order awaits payment. Cancel the order to resume it.",
+    minimumPayment: "Online payments must be at least ¥10. Choose another plan or contact support.",
+    blockedOffline: "Contact support for help paying this order.",
     zeroAuto: "Orders with ¥0 due are fulfilled automatically without a payment method.",
     autoSettled: "This order was fulfilled automatically; no payment is due.",
     balanceReturned: "Traffic was not reset; %s was returned to your site balance for future orders (not a bank refund)."
@@ -142,7 +138,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [period, setPeriod] = useState<BillingPeriod | null>(null);
-  const [deductionMode, setDeductionMode] = useState<OrderDeductionMode>(
+  const [deductionMode] = useState<OrderDeductionMode>(
     new URLSearchParams(window.location.search).get("deductionMode") === "FULL_PAYMENT"
       ? "FULL_PAYMENT"
       : "STANDARD"
@@ -222,20 +218,6 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
     setActionError("");
     setAppliedCoupon(nextCoupon ?? "");
     setCouponDraft(nextCoupon ?? "");
-  }
-
-  function selectDeductionMode(nextMode: OrderDeductionMode) {
-    if (viewerId && period) {
-      quoteState.select({
-        ownerId: viewerId,
-        planId,
-        period,
-        couponCode: normalizedCoupon,
-        deductionMode: nextMode
-      });
-    }
-    setActionError("");
-    setDeductionMode(nextMode);
   }
 
   function retryQuote() {
@@ -489,20 +471,6 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
             )}
           </section>
 
-          <section className="checkout-card" aria-label={text.periodTitle}>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12 }}>
-              <input checked={deductionMode === "STANDARD"} disabled={Boolean(placedTradeNo) || submitting} onChange={() => selectDeductionMode("STANDARD")} type="radio" />
-              <span>{text.deductionStandard}</span>
-            </label>
-            <label style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-              <input checked={deductionMode === "FULL_PAYMENT"} disabled={Boolean(placedTradeNo) || submitting} onChange={() => selectDeductionMode("FULL_PAYMENT")} type="radio" />
-              <span>{text.deductionFull}</span>
-            </label>
-            {deductionMode === "STANDARD" && BigInt(quote?.surplusAmount ?? "0") > 0n && (
-              <p className="checkout-status">{text.surplusReserved}</p>
-            )}
-          </section>
-
           <section className="checkout-card checkout-summary">
             <h2>{text.orderTotal}</h2>
             {quote ? (
@@ -566,11 +534,12 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
                 </p>
                 {quote.minimumOnlinePaymentBlocked && (
                   <div className="checkout-error" role="alert">
-                    <p>{quote.minimumPaymentMessage ?? text.minimumPayment}</p>
+                    <p>{text.minimumPayment}</p>
                     <p>{text.blockedOffline}</p>
                   </div>
                 )}
                 {BigInt(quote.totalAmount) === 0n && <p className="checkout-status">{text.zeroAuto}</p>}
+                {BigInt(quote.surplusAmount) > 0n && <p className="checkout-balance-note">{text.surplusReserved}</p>}
               </>
             ) : (
               <p className="checkout-status">{text.loading}</p>

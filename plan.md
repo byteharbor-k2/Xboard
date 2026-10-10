@@ -67,6 +67,31 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   自助轮换
 - 账户页客户端选择面板：11 种具名客户端，逐个深链导入 / 复制专属链接 / 二维码
 - 订单记录页与详情页 `/account/orders/{tradeNo}`
+- User layout cleanup (2026-10-10): promoted subscription import to a dedicated
+  quick-start card immediately below the dashboard greeting, before notices and
+  usage details, retaining the existing client dialog and credential handling.
+  Fixed long device labels overflowing mobile session cards; styled knowledge
+  categories and article links with separate wrapping title/date rows. Mobile
+  navigation now occupies its own horizontally scrollable row, with the account
+  dropdown anchored inside the viewport rather than overflowing in English.
+  CDP checked authenticated user routes at desktop and 390px, and English routes
+  at 320px; inspected mobile page screenshots and clicked import/document flows.
+  Frontend build, auth/quote checks, diff whitespace check and independent
+  read-only review passed. Public dev publication authorized by the owner;
+  release uses an immutable frontend image on the HK dev host.
+- Checkout UI cleanup (2026-10-10): removed the customer-facing STANDARD /
+  FULL_PAYMENT radio card and the deduction-mode field in order details. Normal
+  purchases retain automatic STANDARD deductions; the existing exceptional
+  cancel-and-requote path remains compatible without exposing internal mode names.
+  Keep actual discount, balance, unused-plan-value, estimated credit and payable
+  amounts visible; replace settlement/reservation jargon with concise localized
+  messages, including the actual service-pause consequence and ¥10 minimum.
+  Added narrow-screen card sizing and wrapping rules that keep amounts intact.
+  Frontend build and auth/quote state-machine checks passed; independent read-only
+  review passed. Real CDP preview against the dev API verified monthly/reset
+  selection, completed-order details, and desktop/mobile Chinese/English layouts.
+  Preview: `http://127.0.0.1:5180`; included in the owner-authorized public dev
+  frontend release. No application backend or financial calculation changes.
 - 页面：主页（原版 Freedom HTML）、注册、登录、密码找回、账户概览、资料、
   登录设备、套餐、结算、订单
 - 订单开通邮件：双语模板（管理员可编辑），未配置即静默跳过，绝不影响开通
@@ -227,6 +252,24 @@ Historical overwritten merchant settings, missing reset kinds and pre-ledger pay
 cannot be reconstructed perfectly; populated migration tests cover the recoverable cases.
 Frontend build/check/production dependency audit passed; visual acceptance is user-owned.
 ByteVirt-SG now serves production machine 10 and must not be used for development node QA.
+
+Dev host migration (2026-10-09): current deployment is SSH `YUNYOO-HK`,
+`/opt/sinx-test/compose.test.yml`, still `https://dev.sinx.it.com`, code `bc297e4`.
+The owner moved HK production proxy 443 listeners to 8445; the explicitly requested
+node restart succeeded (machine 8, all five nodes). Dev uses Nginx 80/443 and
+loopback-only backend/frontend 8080/8081; database/cache ports remain internal.
+SG writes were stopped before the final PostgreSQL dump and Redis-volume transfer.
+HK restored 10 users, 16 orders, 10 balance records and 7 receipts; cash/ledger
+mismatches are zero and V38/V39 remain successful. All four containers, HTTPS,
+anonymous GraphQL and both hosts' production node health checks passed.
+HK certificate is valid until 2027-01-07, renewed by existing acme.sh cron with
+webroot validation and `nginx -t` before reload. SG dev containers/network were
+removed without deleting volumes; final backup is
+`/opt/sinx-test/backups/move-to-hk-20261009-165010.dump` (SG), with a protected copy
+at `/opt/sinx-test/backups/hk-migration-latest.dump` (HK). SG Nginx temporarily
+forwards cached-DNS requests to HK over verified TLS. Production node processes
+were not restarted during application/data migration after the authorized HK
+port-change restart. Future dev deployment targets HK only.
 
 - [x] P0: EPay requires successful trade status and a gateway transaction number; signed checkout requests cannot settle service or balance.
 - [ ] P1: periodic surplus ignores current-cycle traffic consumption while cross-plan fulfilment replenishes quota, allowing an exhausted month to redeem time-based value and obtain fresh quota/cash credit. Preserve future prepaid periods separately when defining the corrected policy.
@@ -441,6 +484,80 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 - `plan.md` 是唯一进度清单，禁止积压后再补。
 
 ## 9. 部署
+
+### Aliyun proxy test deployment (2026-10-10)
+
+- Test VPS: `Aliyun-Eason-main`, `120.27.158.209`; the former subscription VPS
+  `114.215.183.154` expired and was deleted. Removed its obsolete SSH alias locally.
+- Created machine 3 and nodes 10 (`Aliyun-Reality-3306`, TCP 3306) and 11
+  (`Aliyun-Hysteria2-3306`, UDP 3306) through the public dev admin UI using CDP.
+  Node 10 uses machine mode; node 11 uses standalone mode on the same VPS because
+  machine port validation incorrectly treats TCP/UDP sharing a number as a collision.
+  This validation issue remains open; no application code was changed.
+- With explicit user authorization, gracefully stopped the existing MySQL service
+  using `/etc/init.d/mysqld stop`; its data and configuration remain intact.
+  Pre-change configuration/firewall/listener backup:
+  `/root/sinx-proxy-test-20261010-020853`. Added only UDP 3306 to runtime and
+  permanent firewalld rules; the original TCP 3306 rule was already present.
+- Both xboard-node instances target `https://dev.sinx.it.com`. Hysteria2 inherits
+  the existing `linyirentest.xyz` certificate at
+  `/www/server/panel/vhost/cert/120.27.158.209/`, valid through 2026-11-25.
+- Real subscription-generated sing-box 1.14.3 verification: external HK client
+  through VLESS returned Apple HTTP 200; local Hysteria2 client also returned
+  Apple HTTP 200. External Hysteria2 times out and simultaneous AF_PACKET capture
+  on Aliyun eth0 saw zero UDP 3306 packets. Public UDP remains blocked upstream;
+  investigate the cloud security group before marking Hysteria2 fully verified.
+- Both nodes report online in the user UI. Desktop/mobile screenshots inspected.
+  Independent read-only operations review passed host deployment and rollback;
+  public Hysteria2 remains unverified. Existing Nginx TCP 443 and subscription
+  root-path 404 were preserved.
+- At the user's request, removed obsolete dev nodes 1–9 through admin UI delete
+  confirmations: four E2E placeholder nodes (IDs 1–4) and five former SG nodes
+  (IDs 5–9).
+  Only Aliyun nodes 10 and 11 remain; refreshed user UI confirms two nodes.
+- Restore after testing: stop `xboard-node`, verify TCP 3306 is free, run
+  `/etc/init.d/mysqld start`, remove runtime and permanent `3306/udp` firewalld
+  rules, and verify MySQL/site listeners. Keep the original `3306/tcp` rule.
+
+#### Port migration and MySQL restoration (2026-10-10, completed)
+
+- At the user's request, moved node 10 to TCP 8443 (`Aliyun-Reality-8443`) and
+  node 11 to UDP 8444 (`Aliyun-Hysteria2-8444`) through CDP admin form saves.
+  Node IDs, authentication, permission group and deployment bindings are retained.
+- Migration backup: `/root/sinx-proxy-move-20261010-153749`. Added runtime and
+  permanent `8443/tcp` and `8444/udp` firewalld rules; removed both temporary
+  `3306/udp` rules. The original `3306/tcp` rule remains unchanged.
+- Restarted only the Aliyun dev xboard-node and confirmed no proxy listener on
+  3306, then restored MySQL with `/etc/init.d/mysqld start` (SUCCESS).
+  MySQL now listens on TCP 3306 and an external HK connection receives a valid
+  MySQL protocol-10 greeting. Do not stop MySQL again without authorization.
+- Fresh subscription-generated clients: public VLESS TCP 8443 returned Apple
+  HTTP 200; local Hysteria2 UDP 8444 returned Apple HTTP 200. Public Hysteria2
+  UDP 8444 still times out; cloud security-group UDP 8444 admission remains
+  pending. Existing subscription gateway root still returns HTTP 404.
+- User identified security-group TCP/UDP 5201 rules from `14.137.229.93/32`
+  as obsolete Gomami-JP bandwidth testing and plans to remove them personally.
+
+#### Four-protocol public verification (2026-10-10, completed)
+
+- User opened both TCP and UDP 8443/8444 in the Aliyun security group.
+  Through CDP admin forms, created TUIC v5 node 12 (`Aliyun-TUIC-8443`, UDP
+  8443, BBR/native relay) and AnyTLS node 13 (`Aliyun-AnyTLS-8444`, TCP 8444).
+  Both use the existing test permission group, IP `120.27.158.209`, verified
+  `linyirentest.xyz` SNI and inherited valid certificate; insecure TLS is off.
+- Final layout: machine 3 hosts VLESS node 10 / TCP 8443 and AnyTLS node 13 /
+  TCP 8444. Standalone bindings host TUIC node 12 / UDP 8443 and Hysteria2
+  node 11 / UDP 8444, avoiding the known same-machine TCP/UDP port validator.
+- Pre-change backup `/root/sinx-four-protocols-20261010-160434`. Added only
+  runtime/permanent `8443/udp` and `8444/tcp` rules to the previous deployment.
+  Restarted only the Aliyun dev xboard-node; all four listeners are healthy.
+- Fresh user subscription-generated sing-box 1.14.3 client configs were tested
+  from external HK: VLESS, Hysteria2, TUIC and AnyTLS each returned Apple HTTP
+  200 with curl exit 0. Previous public UDP blockers are resolved.
+- User UI shows four nodes online, zero unknown/offline; desktop and mobile
+  screenshots inspected. Independent read-only operational review passed.
+  MySQL remains PID 2086748 on TCP 3306, original Nginx remains on TCP 443,
+  subscription gateway root returns HTTP 404, and no UDP 3306 rule remains.
 
 GitHub Actions 验证并构建不可变镜像，服务器从 GHCR 拉取指定版本部署。
 新平台镜像由 `platform-publish` 工作流在 `dev` 分支发布（`xboard-backend`、

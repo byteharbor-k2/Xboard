@@ -66,7 +66,31 @@ cd frontend && npm run check                # standalone gate for the 401-recove
 
 Push to `dev` → `platform-publish` workflow builds `ghcr.io/byteharbor-k2/xboard-backend:dev` / `xboard-frontend:dev` → test host deploys via `compose.test.yml`. GHCR packages are private; public registry mirrors don't proxy GHCR (don't try).
 
+- Current dev host: SSH `YUNYOO-HK`, `/opt/sinx-test/compose.test.yml`, public
+  `https://dev.sinx.it.com` (migrated from ByteVirt-SG on 2026-10-09).
+- Host-specific Compose exposes backend/frontend only on `127.0.0.1:8080/8081`;
+  Nginx terminates public 80/443. PostgreSQL/Redis have no published host ports.
+- HK production xboard-node machine 8 uses TCP 8443/8444/8445 and UDP 8443/8445;
+  never restart it as part of dev deployment. ByteVirt-SG production machine 10
+  must also remain untouched. SG dev containers are removed; retained volumes
+  and backups are rollback data, not the live database. Never deploy dev to SG.
+- Dev TLS is managed by HK's existing acme.sh cron, using HTTP webroot
+  `/var/www/letsencrypt` and an Nginx-tested reload hook.
+
 ## Gotchas already paid for (details in plan.md §7)
+
+- Dedicated dev proxy tests now use `Aliyun-Eason-main` (`120.27.158.209`):
+  VLESS Reality node 10 on TCP 8443 and AnyTLS node 13 on TCP 8444 (machine 3);
+  TUIC node 12 on UDP 8443 and Hysteria2 node 11 on UDP 8444 use standalone
+  bindings because machine validation rejects same-number TCP/UDP ports.
+  MySQL was restored on TCP 3306 after the user requested moving the proxies;
+  never stop it again without authorization. Initial backup
+  `/root/sinx-proxy-test-20261010-020853`; migration backup
+  `/root/sinx-proxy-move-20261010-153749`.
+  Four-protocol backup `/root/sinx-four-protocols-20261010-160434`.
+  After the user opened TCP/UDP 8443/8444 in the cloud security group, all four
+  public subscription-generated sing-box client tests passed (Apple HTTP 200).
+  The former Aliyun subscription VPS `114.215.183.154` was deleted; use only Main.
 
 - New node created in admin → xboard-node won't start the kernel until `xbctl restart` on the node.
 - Hysteria2/TUIC are QUIC: check with `ss -ulnp`, not `ss -tlnp`.

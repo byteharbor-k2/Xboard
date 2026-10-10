@@ -26,6 +26,7 @@
 }
 
 .checkout-card {
+  min-width: 0;
   padding: 24px 26px;
   border: 1px solid #dde4ef;
   border-radius: 16px;
@@ -76,6 +77,7 @@
 }
 
 .checkout-side {
+  min-width: 0;
   display: grid;
   gap: 18px;
 }
@@ -193,6 +195,16 @@
   margin: 0;
 }
 
+.checkout-summary dt {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.checkout-summary dd {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .checkout-summary dl > div.is-deduction dd {
   color: #6ddca4;
 }
@@ -269,5 +281,25 @@
 @media (max-width: 980px) {
   .checkout-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .checkout-card {
+    padding: 20px 18px;
+  }
+
+  .checkout-coupon {
+    padding: 14px;
+  }
+
+  .checkout-facts li {
+    gap: 12px;
+  }
+
+  .checkout-facts strong {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
   }
 }

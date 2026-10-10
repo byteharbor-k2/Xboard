@@ -43,9 +43,6 @@ const copy = {
     orderNumber: "订单号",
     plan: "套餐",
     period: "周期",
-    deductionMode: "折抵方式",
-    fullPaymentMode: "不使用余额或套餐剩余价值折抵",
-    standardPaymentMode: "使用可用余额及套餐剩余价值折抵",
     createdAt: "创建时间",
     paidAt: "支付时间",
     original: "套餐原价",
@@ -59,12 +56,12 @@ const copy = {
     payable: "应付总额",
     method: "支付方式",
     methodEmpty: "暂无可用支付方式，请联系管理员。",
-    minimumBlockedOffline: "此订单可等待管理员线下人工结算；线上支付不可用。若要使用全额支付方式，必须先取消此订单，再重新下单，系统不会在当前订单上静默改价。",
-    fullPaymentRetry: "取消订单并重新选择全额支付",
-    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    deferredCredit: "预计可退余额；最终金额按开通时可用的剩余价值计算，仅在开通成功后入账。",
+    minimumBlockedOffline: "可取消订单后重新下单，查看调整后的应付金额，或联系客服协助付款。",
+    fullPaymentRetry: "取消并重新下单",
+    minimumPayment: "在线支付金额需至少 ¥10。",
+    deferredCredit: "开通后预计退回余额",
     completedCredit: "已开通，剩余价值已退回余额",
-    surplusReserved: "订单待支付期间，当前服务会暂停，剩余价值已暂时预留；取消订单后会释放预留并恢复当前服务。",
+    surplusReserved: "换购订单待付款期间，当前套餐暂停使用；取消订单即可恢复。",
     balanceReturned: "该订单未重置流量，已返还站内余额%s（可用于后续订单，非银行退款）",
     viewBalance: "查看余额明细",
     methodCoveredByBalance: "该订单已由账户余额全额抵扣，无需再支付，正在为你开通。",
@@ -100,9 +97,6 @@ const copy = {
     orderNumber: "Order",
     plan: "Plan",
     period: "Period",
-    deductionMode: "Deduction mode",
-    fullPaymentMode: "No balance or unused-plan-value deductions",
-    standardPaymentMode: "Use available balance and unused plan value",
     createdAt: "Created",
     paidAt: "Paid",
     original: "Plan price",
@@ -116,12 +110,12 @@ const copy = {
     payable: "Total to pay",
     method: "Payment method",
     methodEmpty: "No payment method is available; please contact an administrator.",
-    minimumBlockedOffline: "This order may be settled manually by an administrator; online payment is unavailable. To choose full payment, cancel this order and place a new one. The current order will not be silently repriced.",
-    fullPaymentRetry: "Cancel and choose full payment in a new order",
-    minimumPayment: "受支付系统限制，最小付款金额不得小于10CNY，此笔支付无法使用剩余价值或余额折抵，请选择折抵后大于10CNY的套餐或不使用折抵全额支付，折抵金额会进入您的余额，下次可以使用",
-    deferredCredit: "Estimated balance credit; the final amount is based on unused value at fulfilment and is credited only after successful activation.",
+    minimumBlockedOffline: "Cancel and place a new order to review the adjusted amount, or contact support for help paying.",
+    fullPaymentRetry: "Cancel and place a new order",
+    minimumPayment: "Online payments must be at least ¥10.",
+    deferredCredit: "Estimated balance credit after activation",
     completedCredit: "Activated; the unused value was credited to the balance",
-    surplusReserved: "While this order is pending, your current service is suspended and its unused value is reserved. Cancelling releases the reservation and restores the current service.",
+    surplusReserved: "Your current plan is paused while the switch order awaits payment. Cancel the order to resume it.",
     balanceReturned: "Traffic was not reset; %s was returned to your site balance for future orders (not a bank refund).",
     viewBalance: "View balance history",
     methodCoveredByBalance:
@@ -340,10 +334,6 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
                 <strong>{billingPeriodLabel(order.period, language)}</strong>
               </li>
               <li>
-                <span>{labels.deductionMode}</span>
-                <strong>{order.deductionMode === "FULL_PAYMENT" ? labels.fullPaymentMode : labels.standardPaymentMode}</strong>
-              </li>
-              <li>
                 <span>{labels.createdAt}</span>
                 <strong>{formatDateTime(order.createdAt, language)}</strong>
               </li>
@@ -466,7 +456,7 @@ export function OrderDetailPage({ tradeNo }: { tradeNo: string }) {
               </p>
               {order.status === "PENDING" && order.minimumOnlinePaymentBlocked && (
                 <div className="checkout-error" role="alert">
-                  <p>{order.minimumPaymentMessage ?? labels.minimumPayment}</p>
+                  <p>{labels.minimumPayment}</p>
                   <p>{labels.minimumBlockedOffline}</p>
                 </div>
               )}
