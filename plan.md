@@ -485,6 +485,21 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 
 ## 9. 部署
 
+### User layout frontend release (2026-10-10)
+
+- Published commit `d445e264b80bc64af4a5896864902c3ff7ec9086`; Frontend CI and
+  platform-publish run `38052601744` passed. HK dev frontend now uses immutable
+  `ghcr.io/byteharbor-k2/xboard-frontend:sha-d445e264b80bc64af4a5896864902c3ff7ec9086`,
+  digest `sha256:2619b7d3600c00b505b382bad3153299682f7bf52a8c8da9d6a74312dc719b5a`.
+- Backed up host Compose to
+  `/opt/sinx-test/backups/compose-before-ui-20261010-123904.yml`; recreated only
+  the frontend. Backend, database, cache and production node processes were untouched.
+- Frontend is healthy; public HTTPS serves the expected new JS/CSS assets.
+  Authenticated public dashboard snapshot confirms the import region precedes
+  notices and subscription details. Public screenshot capture timed out twice;
+  visual verification remains the pre-release local CDP screenshots plus owner
+  acceptance at `https://dev.sinx.it.com/dashboard`.
+
 ### Aliyun proxy test deployment (2026-10-10)
 
 - Test VPS: `Aliyun-Eason-main`, `120.27.158.209`; the former subscription VPS
