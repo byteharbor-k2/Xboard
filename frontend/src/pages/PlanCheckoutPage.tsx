@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { MarkdownContent } from "../components/MarkdownContent";
 import { ApiError } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import {
@@ -404,15 +405,7 @@ export function PlanCheckoutPage({ planId }: PlanCheckoutPageProps) {
           {offer.description && (
             <>
               <h2>{text.serviceNotes}</h2>
-              <div className="checkout-notes">
-                {offer.description
-                  .split("\n")
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line, index) => (
-                    <p key={`${index}-${line.slice(0, 12)}`}>{line}</p>
-                  ))}
-              </div>
+              <MarkdownContent className="checkout-notes" source={offer.description} />
             </>
           )}
         </section>

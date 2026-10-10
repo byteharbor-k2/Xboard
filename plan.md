@@ -485,6 +485,43 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 
 ## 9. 部署
 
+### Production content and catalog compatibility import (2026-10-10)
+
+- Read only the selected `v2_notice`, `v2_knowledge`, `v2_plan` and
+  `v2_server_group` tables from Evoxt-MY-Panel's SQLite database in a read
+  transaction. Production services and data were not modified.
+- Before dev writes, saved PostgreSQL backup
+  `/opt/sinx-test/backups/pre-legacy-content-plans-20261010.dump` on HK.
+  Source JSON, prepared catalog and legacy/new ID maps are protected files in
+  the same backup directory; no content exports or credentials are committed.
+- Imported all 5 notices and 12 knowledge articles through dev admin APIs,
+  updating same-title existing entries. Verified exact Markdown source,
+  categories/language, sort/show and image URLs; restored original source
+  creation/update timestamps in a scoped transaction. Original `todo` bodies
+  and production-hosted download links remain as authored.
+- Public CDP inspected desktop articles, mobile long-form/GFM tables and a
+  notice with its external image. Source content is retained, not flattened.
+- Imported 9 of 10 plans and all 4 permission groups. Old/new group IDs:
+  1→2 (Admin), 3→3 (User_group1), 4→4 (User_group2), 5→5 (LSD_Node).
+  Existing dev plans remain. Decimal CNY amounts convert exactly to integer
+  cents; GiB converts to byte strings. All submitted catalog fields and prices
+  were checked against API responses. Description placeholders resolve to
+  original per-plan values; source templates remain in the protected export.
+  Corrected the two traffic-package descriptions to explicitly say no reset.
+- The hidden legacy LSD_Node plan is pending owner decision: its
+  1,000,000,000,000,000 GiB exceeds the new 1 PiB ceiling and its recurring /
+  onetime price combination cannot fit a single new plan type. No fake amount,
+  cap or split was silently introduced.
+- Compatibility limits: device-count descriptions do not enable device caps;
+  traffic packages normalize renewable=false and NEVER reset, and saved reset
+  prices do not enable periodic traffic-reset purchase for packages. Production
+  nodes were not imported/bound to the new groups. The legacy Mini plan's null
+  group remains null. Both platforms' effective global reset default is 1.
+- Added shared Markdown rendering to catalog descriptions and full checkout
+  notes; catalog previews are bounded with a fade to keep prices reachable.
+  Main-agent frontend build/check passed; independent read-only review passed.
+  Public frontend compatibility release and final visual acceptance follow.
+
 ### User layout frontend release (2026-10-10)
 
 - Published commit `d445e264b80bc64af4a5896864902c3ff7ec9086`; Frontend CI and

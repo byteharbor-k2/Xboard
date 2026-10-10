@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, type KeyboardEvent } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { MarkdownContent } from "../components/MarkdownContent";
 import { ApiError, graphQl, publicGraphQl } from "../lib/http";
 import { navigate } from "../lib/navigation";
 import { useAuthStore } from "../store/auth";
@@ -246,7 +247,7 @@ export function PlansPage() {
                     )}
                   </div>
                   <h2>{offer.name}</h2>
-                  <p>{offer.description}</p>
+                  <MarkdownContent source={offer.description} />
                 </header>
                 <dl className="plan-entitlements">
                   <div>

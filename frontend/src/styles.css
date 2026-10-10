@@ -619,6 +619,24 @@
   margin: 0;
 }
 
+.plan-card header .markdown-content {
+  max-height: 190px;
+  overflow: hidden;
+  color: #707c92;
+  font-size: 14px;
+  mask-image: linear-gradient(#000 0, #000 150px, transparent 190px);
+}
+
+.plan-card header .markdown-content h1,
+.plan-card header .markdown-content h2,
+.plan-card header .markdown-content h3 {
+  font-size: 16px;
+}
+
+.plan-card header .markdown-content p {
+  min-height: 0;
+}
+
 .plan-card p {
   min-height: 44px;
   color: #707c92;
