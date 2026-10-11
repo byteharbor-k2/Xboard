@@ -520,7 +520,16 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 - Added shared Markdown rendering to catalog descriptions and full checkout
   notes; catalog previews are bounded with a fade to keep prices reachable.
   Main-agent frontend build/check passed; independent read-only review passed.
-  Public frontend compatibility release and final visual acceptance follow.
+  Released frontend `38a80421954fd546a1aa935326e3d017b560b610` on HK, digest
+  `sha256:78c274d58cc03d28abb893cd7c2dd2973dc48fdad4d47debf1a108885f290212`;
+  Frontend CI and platform-publish run `38056028857` passed. Compose rollback
+  snapshot: `/opt/sinx-test/backups/compose-before-content-20261010-133304.yml`.
+  Public desktop/mobile screenshots confirm rendered catalog previews and full
+  checkout notes; actual Pro-card click and quarterly-price selection worked.
+  Pro quarterly price is CNY 99.75; 390px checkout has no page overflow. No order
+  was submitted as part of acceptance. Final read-only database audit verified
+  all 5 notices, 12 articles, 9 imported plans and 4 group mappings. Dev now has
+  14 total plans (9 imported plus the original 5 test plans); all containers healthy.
 
 ### User layout frontend release (2026-10-10)
 
