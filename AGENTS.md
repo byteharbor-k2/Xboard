@@ -79,6 +79,16 @@ Push to `dev` → `platform-publish` workflow builds `ghcr.io/byteharbor-k2/xboa
 
 ## Gotchas already paid for (details in plan.md §7)
 
+- Production-user import completed on 2026-10-11: dev has 205 accounts; 194 new
+  users plus two owner-authorized ordinary-account replacements. The existing
+  dev administrator and MFA were preserved. Replaced ordinary accounts now use
+  production passwords, so old dev test credentials may no longer match.
+  Laravel bcrypt compatibility is deployed; new passwords still use Argon2.
+  LSD_Node is a hidden 1 PiB dedicated traffic package in group 5, with no
+  production node binding. Migration scripts are one-shot, not safe to rerun;
+  private artifacts and paused DB backup are under `/opt/sinx-test/backups/`.
+  See plan.md §9 for exact scope, checks and rollback locations.
+
 - Dedicated dev proxy tests now use `Aliyun-Eason-main` (`120.27.158.209`):
   VLESS Reality node 10 on TCP 8443 and AnyTLS node 13 on TCP 8444 (machine 3);
   TUIC node 12 on UDP 8443 and Hysteria2 node 11 on UDP 8444 use standalone

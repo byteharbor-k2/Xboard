@@ -517,13 +517,14 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 
 ## 9. 部署
 
-### Production user compatibility import (2026-10-11, prepared)
+### Production user compatibility import (2026-10-11, completed)
 
 - Owner authorized production account data to replace duplicate ordinary dev
   accounts; retain the existing dev administrator, including credentials/MFA.
-  Read-only SQLite snapshot contains 196 accounts. Import scope: 193 new users,
-  2 ordinary-account replacements, 80 entitlement snapshots, 9 inviter relations
-  and 217 closed non-admin orders. Historical orders preserve purchase/valuation
+  Final read-only SQLite snapshot contains 197 accounts (one joined during the
+  preparation pause). Imported 194 new users, 2 ordinary-account replacements,
+  81 entitlement snapshots, 10 inviter relations and 218 closed non-admin orders.
+  Historical orders preserve purchase/valuation
   evidence without replaying payments, cash events or commission queues.
 - Laravel bcrypt verification is supported alongside existing Argon2 passwords;
   newly written passwords remain Argon2. Main-agent full backend verification:
@@ -534,15 +535,36 @@ acceptance as pending user confirmation rather than claiming agent browser compl
   Preserve the source onetime price; incompatible recurring prices are retained
   only in the protected source archive, not fabricated as selectable periods.
 - Rehearsed the transaction against a separate PostgreSQL database restored from
-  `/opt/sinx-test/backups/pre-legacy-users-20261011.dump`. Audited 195 users,
-  80 entitlements, 217 orders and CNY 36.33 imported cash; result has 204 accounts.
+  `/opt/sinx-test/backups/pre-legacy-users-20261011.dump`. Repeated the rehearsal
+  with the final source snapshot and a fresh dev backup before executing live.
+  Audited 196 imported users, 81 entitlements, 218 orders and CNY 36.33 imported
+  cash; dev now has 205 accounts, including its unchanged single administrator.
   Source reset methods/boundaries and natural current cycles are checked.
   The only historical paid reset predates its customer's current cycle.
 - New dev-only subscription tokens and proxy UUIDs isolate the imported accounts.
   No production node, machine credential, payment configuration or control binding
   is imported. Preserve dev admin/MFA, existing node configuration and settings.
   Source and prepared exports/SQL are private files, excluded from Git.
-  Dev execution and public compatibility release remain pending.
+  Existing ordinary-account sessions/reset tokens were revoked after replacement;
+  original production subscription links are not redirected to dev.
+- Released backend `981bdf828355c5878fba58a0cce0368cf799be93`; Backend CI
+  `38129921247` and platform publish `38129921269` passed. Paused only the HK
+  dev backend for the database transaction, then recreated it with the immutable
+  compatibility image. Public health and authenticated admin users/catalog API
+  smoke checks passed; backend/frontend are healthy. API confirms 205 accounts
+  and hidden LSD_Node with the exact maximum quota and dedicated group 5.
+- Pre-write paused backup:
+  `/opt/sinx-test/backups/pre-legacy-users-paused-20261011.dump`.
+  Compose rollback: `/opt/sinx-test/backups/compose-before-users-20261011-125832.yml`.
+  Private migration source, mappings, SQL, baseline and scripts are archived under
+  `/opt/sinx-test/backups/user-migration-20261011/` (directory 0700, files 0600).
+  Post-write and post-start audits verified exact account/entitlement/order data,
+  cash-ledger reconciliation, inviter mapping, unchanged admin/MFA and node/config
+  fingerprints. Removed the isolated rehearsal database after verification.
+  Historical commission processing and payment callbacks were not replayed;
+  daily traffic history and old invitation-code URLs remain on production and
+  were not imported. Unsupported legacy account fields remain in the protected
+  source archive rather than invented as new-platform records.
 
 ### Production content and catalog compatibility import (2026-10-10)
 
@@ -567,10 +589,12 @@ acceptance as pending user confirmation rather than claiming agent browser compl
   were checked against API responses. Description placeholders resolve to
   original per-plan values; source templates remain in the protected export.
   Corrected the two traffic-package descriptions to explicitly say no reset.
-- The hidden legacy LSD_Node plan is pending owner decision: its
+- At the original catalog import, the hidden legacy LSD_Node plan awaited owner
+  decision: its
   1,000,000,000,000,000 GiB exceeds the new 1 PiB ceiling and its recurring /
   onetime price combination cannot fit a single new plan type. No fake amount,
-  cap or split was silently introduced.
+  cap or split was silently introduced. Resolved by the owner-authorized user
+  import on 2026-10-11: 1 PiB hidden dedicated traffic package, detailed above.
 - Compatibility limits: device-count descriptions do not enable device caps;
   traffic packages normalize renewable=false and NEVER reset, and saved reset
   prices do not enable periodic traffic-reset purchase for packages. Production
