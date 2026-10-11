@@ -756,6 +756,117 @@
     cursor: pointer;
   }
   .tweak-pill.active { background: var(--cyan); color: #041222; border-color: var(--cyan); }
+
+  /* Responsive layouts use the iframe's CSS viewport, not the parent screen. */
+  @media (max-width: 1100px) {
+    .nav { padding: 16px 32px; flex-wrap: wrap; gap: 14px 24px; }
+    .nav-links { gap: 20px; flex-wrap: wrap; }
+    .nav-cta { flex-wrap: wrap; }
+    .nav a { white-space: nowrap; }
+    .brand-mark, .eyebrow .dot, .globe-badge .ping { flex-shrink: 0; }
+    .hero { padding: 32px 32px 48px; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 32px; }
+    .hero-text, .globe-col, .uc, .power-cell, footer > div { min-width: 0; }
+    .hero h1 { font-size: clamp(44px, 5.4vw, 60px); line-height: 1.1; }
+    .hero .lede { font-size: 17px; }
+    .hero-text, .section-head, .uc, .power, .faq, .cta-band .inner, footer, .footer-bottom {
+      overflow-wrap: anywhere;
+    }
+    .eyebrow { max-width: 100%; letter-spacing: 0.08em; }
+    .gb-1 { right: 0; }
+    .gb-2 { left: 0; }
+    section { padding: 64px 32px; }
+    .section-head h2 { font-size: 42px; }
+    .usecases { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .uc-wide, .uc-med { grid-column: auto; }
+    .uc { padding: 24px; }
+    .power-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .fin2-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 0.7fr); }
+    .news-item .ttl, .fin-ip .ip-text { min-width: 0; }
+    .cta-band { padding: 72px 32px; }
+    .cta-band h2 { font-size: 44px; }
+    footer { padding: 48px 32px 32px; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+    .footer-bottom { padding: 20px 32px; gap: 12px 24px; flex-wrap: wrap; }
+  }
+
+  @media (max-width: 760px) {
+    /* Keep source/tab order: brand, section links, then language/account links. */
+    .nav { position: relative; padding: 16px 24px; gap: 12px; }
+    .nav > .brand { flex-basis: 100%; }
+    .nav-links { flex: 1 1 100%; gap: 12px 24px; }
+    .nav-links a { display: inline-flex; align-items: center; min-height: 44px; }
+    .nav-cta { flex: 1 1 100%; gap: 10px; }
+    .nav-cta .btn { min-height: 44px; justify-content: center; }
+    .hero { grid-template-columns: minmax(0, 1fr); padding: 32px 24px 40px; gap: 12px; }
+    .hero h1 { font-size: clamp(40px, 7.5vw, 56px); }
+    .hero .lede { max-width: none; margin-bottom: 16px; }
+    .globe-col { gap: 20px; }
+    .globe-wrap { max-width: 440px; }
+    .globe-badge { max-width: 100%; }
+    .hero-cta .btn { min-height: 48px; justify-content: center; max-width: 100%; }
+    .hero-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    section { padding: 48px 24px; }
+    .section-head { margin-bottom: 32px; }
+    .section-head h2 { font-size: 36px; }
+    .section-head p { font-size: 16px; }
+    .usecases { grid-template-columns: minmax(0, 1fr); }
+    .uc, .uc-wide { min-height: 0; }
+    .uc-viz { flex: none; min-height: 180px; }
+    /* Inline desktop map padding/min-height need explicit CSS overrides. */
+    #network > .reveal { padding: 20px !important; min-height: 0 !important; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #worldMap { min-width: 720px; }
+    #network > .reveal > div { gap: 12px 20px !important; }
+    .power summary { padding: 20px; gap: 12px; }
+    .power summary .lab { min-width: 0; flex-wrap: wrap; gap: 8px; }
+    .power summary::after, .faq-item summary::after { flex-shrink: 0; }
+    .power-body { padding: 0 20px 20px; }
+    .faq-item summary { padding: 18px 20px; gap: 16px; }
+    .faq-item .body { padding: 0 20px 20px; }
+    .cta-band { padding: 56px 24px; }
+    .cta-band h2 { font-size: 38px; }
+    .cta-band p { font-size: 16px; }
+    footer { padding: 40px 24px 32px; }
+    footer a { padding: 10px 0; }
+    .footer-bottom { padding: 20px 24px; flex-direction: column; }
+    .tweaks { max-width: calc(100% - 32px); right: 16px; }
+  }
+
+  @media (max-width: 480px) {
+    .nav { padding: 12px 16px; }
+    .nav-links { justify-content: space-between; gap: 8px 16px; }
+    .nav-cta .btn { padding: 9px 14px; }
+    .hero { padding: 24px 16px 32px; }
+    .hero h1 { font-size: clamp(34px, 9.5vw, 44px); margin: 20px 0 16px; }
+    .hero .lede { font-size: 16px; }
+    .eyebrow { font-size: 10px; padding: 6px 10px; gap: 8px; letter-spacing: 0.04em; }
+    .globe-badge { padding: 7px 8px; gap: 6px; font-size: 10px; }
+    .globe-badge .country { font-size: 9px; letter-spacing: 0.04em; }
+    .gb-2 { top: 40%; }
+    .gb-3 { right: 0; }
+    .gb-4 { left: 0; bottom: 2%; }
+    .hero-cta { gap: 10px; }
+    .hero-cta .btn, .hero-cta .btn-primary { padding: 12px 16px; font-size: 14px; }
+    section { padding: 40px 16px; }
+    .section-head h2 { font-size: 30px; }
+    .section-head .kicker { letter-spacing: 0.12em; }
+    .uc { padding: 20px; }
+    .uc h3 { font-size: 21px; }
+    .uc-viz { margin-left: 0; margin-right: 0; }
+    /* Chips are absolutely positioned; reserve enough height for extra rows. */
+    .uc-viz:has(.ai-tokens), .uc-viz:has(.ecom-tokens) { min-height: 240px; }
+    .ai-tokens, .ecom-tokens, .fin3-stack { padding: 8px 0; }
+    .ai-row { gap: 8px; }
+    .ai-tok { font-size: 12px; padding: 7px 10px; gap: 6px; }
+    .ecom-row { gap: 8px; }
+    .ecom-tok { padding: 6px 8px; }
+    #network > .reveal { padding: 16px !important; }
+    .power-body { grid-template-columns: minmax(0, 1fr); padding: 0 16px 16px; }
+    .power summary, .faq-item summary { padding: 16px; }
+    .faq-item .body { padding: 0 16px 18px; }
+    .cta-band { padding: 48px 16px; }
+    .cta-band h2 { font-size: 32px; }
+    footer { padding: 32px 16px; grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .footer-bottom { padding: 16px; }
+  }
 </style>
 </head>
 <body>

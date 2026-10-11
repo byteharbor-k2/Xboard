@@ -5862,11 +5862,12 @@ button:disabled {
 
   .user-sidebar nav {
     display: flex;
+    flex-wrap: wrap;
     min-width: 0;
     width: 100%;
     margin-left: 0;
     justify-content: flex-start;
-    overflow-x: auto;
+    overflow: visible;
   }
 
   .user-sidebar nav > p,

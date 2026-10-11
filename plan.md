@@ -42,6 +42,20 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 **用户侧**
 
+- Pixel mobile layout correction (2026-10-11): added iframe-local responsive
+  breakpoints to the Freedom landing page for navigation, hero/globe, cards,
+  protocol panels and footer. The network map scrolls inside its own container.
+  Authenticated mobile navigation now wraps so English links remain reachable.
+  Pixel 10 Pro DOM checks at 411 CSS pixels found no page-width overflow across
+  ten user routes; desktop and simulated-mobile landing screenshots were checked.
+  Main-agent frontend build/check and independent read-only review passed.
+  Physical-device visual acceptance remains pending: CDP screenshot timed out
+  and the scoped ADB screenshot was black. Do not treat DOM checks as visual proof.
+  Device debugging is limited to known authorized dev tabs; never enumerate other
+  tabs, inspect other apps, collect broad system dumps or unlock the device.
+  Clear project-browser emulation after testing. Public dev frontend release is
+  authorized; record its immutable revision after deployment.
+
 - 注册（邮箱验证码 + Turnstile + 单 IP 限流，写库前完成验证）、登录、刷新、退出
 - 密码找回与重置、资料修改、密码修改、设备会话
 - Account-setting backend completion (2026-10-06): trimmed nonblank nicknames; authenticated
