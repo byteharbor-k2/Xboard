@@ -54,7 +54,10 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   Device debugging is limited to known authorized dev tabs; never enumerate other
   tabs, inspect other apps, collect broad system dumps or unlock the device.
   Clear project-browser emulation after testing. Public dev frontend release is
-  authorized; record its immutable revision after deployment.
+  authorized and deployed as `b03ab038baf687710a8b23848137dedf573a2f0e`.
+  Frontend CI and image publication passed; HK frontend is healthy and public
+  HTTP checks confirm the new CSS asset and landing-page breakpoints.
+  Rollback compose: `/opt/sinx-test/backups/compose-before-mobile-20261011-081105.yml`.
 
 - 注册（邮箱验证码 + Turnstile + 单 IP 限流，写库前完成验证）、登录、刷新、退出
 - 密码找回与重置、资料修改、密码修改、设备会话
