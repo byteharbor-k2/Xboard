@@ -517,6 +517,33 @@ acceptance as pending user confirmation rather than claiming agent browser compl
 
 ## 9. 部署
 
+### Production user compatibility import (2026-10-11, prepared)
+
+- Owner authorized production account data to replace duplicate ordinary dev
+  accounts; retain the existing dev administrator, including credentials/MFA.
+  Read-only SQLite snapshot contains 196 accounts. Import scope: 193 new users,
+  2 ordinary-account replacements, 80 entitlement snapshots, 9 inviter relations
+  and 217 closed non-admin orders. Historical orders preserve purchase/valuation
+  evidence without replaying payments, cash events or commission queues.
+- Laravel bcrypt verification is supported alongside existing Argon2 passwords;
+  newly written passwords remain Argon2. Main-agent full backend verification:
+  713 tests passed; independent read-only review passed.
+- Owner-approved LSD_Node quota is capped at the supported 1 PiB
+  (1,125,899,906,842,624 bytes). Its existing indefinite dedicated entitlement
+  becomes a hidden, stopped-sale, nonrenewable traffic package in its own group.
+  Preserve the source onetime price; incompatible recurring prices are retained
+  only in the protected source archive, not fabricated as selectable periods.
+- Rehearsed the transaction against a separate PostgreSQL database restored from
+  `/opt/sinx-test/backups/pre-legacy-users-20261011.dump`. Audited 195 users,
+  80 entitlements, 217 orders and CNY 36.33 imported cash; result has 204 accounts.
+  Source reset methods/boundaries and natural current cycles are checked.
+  The only historical paid reset predates its customer's current cycle.
+- New dev-only subscription tokens and proxy UUIDs isolate the imported accounts.
+  No production node, machine credential, payment configuration or control binding
+  is imported. Preserve dev admin/MFA, existing node configuration and settings.
+  Source and prepared exports/SQL are private files, excluded from Git.
+  Dev execution and public compatibility release remain pending.
+
 ### Production content and catalog compatibility import (2026-10-10)
 
 - Read only the selected `v2_notice`, `v2_knowledge`, `v2_plan` and
