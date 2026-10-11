@@ -48,8 +48,14 @@ xboard-node ─→ 节点 HTTP API + WebSocket
   revalidation could retain older layouts. Added a content-hash iframe revision
   and HTML revalidation, plus explicit three-column mobile language/login/signup
   controls. Built-preview 390px pointer clicks reached `/login` and `/register`;
-  main frontend build/check and separate read-only review passed. Public mobile
-  screenshots and pointer clicks must be repeated after release.
+  main frontend build/check and separate read-only review passed. Deployed frontend
+  `bfba65e7c9fa99f484822e2122989968eb7fead0`; CI/publication passed, Nginx configuration
+  validates and the container is healthy. Inspected public anonymous English
+  screenshots at 320px, 390px and 1440px. At 390px actual pointer clicks on the
+  visible controls reached `/login` and `/register` without horizontal scrolling.
+  Public HTML returns `Cache-Control: no-cache` and the iframe uses its content hash.
+  Project Chrome emulation was cleared after acceptance. Compose rollback:
+  `/opt/sinx-test/backups/compose-before-mobile-auth-20261011-082915.yml`.
 
 - Pixel mobile layout correction (2026-10-11): added iframe-local responsive
   breakpoints to the Freedom landing page for navigation, hero/globe, cards,
