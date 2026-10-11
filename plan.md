@@ -42,6 +42,15 @@ xboard-node ─→ 节点 HTTP API + WebSocket
 
 **用户侧**
 
+- Mobile landing entry follow-up (2026-10-11): the owner reported inaccessible
+  English sign-in/sign-up controls. Fresh desktop-Chrome mobile rendering showed
+  both controls, but the unchanged public iframe URL and missing HTML cache
+  revalidation could retain older layouts. Added a content-hash iframe revision
+  and HTML revalidation, plus explicit three-column mobile language/login/signup
+  controls. Built-preview 390px pointer clicks reached `/login` and `/register`;
+  main frontend build/check and separate read-only review passed. Public mobile
+  screenshots and pointer clicks must be repeated after release.
+
 - Pixel mobile layout correction (2026-10-11): added iframe-local responsive
   breakpoints to the Freedom landing page for navigation, hero/globe, cards,
   protocol panels and footer. The network map scrolls inside its own container.
